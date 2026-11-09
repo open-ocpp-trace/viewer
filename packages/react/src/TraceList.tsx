@@ -7,6 +7,7 @@ import {
   useCallback,
   useEffect,
   useId,
+  useLayoutEffect,
   useRef,
   useState,
 } from "react";
@@ -70,6 +71,9 @@ const UNPARSED_LEADING = 4;
 const DEFAULT_ROW_HEIGHT = 28;
 const OVERSCAN = 8;
 const PREVIEW_LENGTH = 120;
+
+/** `useLayoutEffect` in a browser; `useEffect` on a server, which warns on the former. */
+const useIsomorphicLayoutEffect = typeof window === "undefined" ? useEffect : useLayoutEffect;
 
 /** Reads one property of an untrusted entry; never throws. */
 function own(entry: ViewerEntry, key: string): unknown {
@@ -227,15 +231,37 @@ export function TraceList(props: TraceListProps): ReactElement {
   // a later batch moved the bottom further: only an upward move that does not
   // end at the bottom is the user's (a shrinking list also moves up).
   const lastTop = useRef(0);
+  // The first row under the header, by id: evictions and filter changes move
+  // its index, and the scroll position must follow it when not following.
+  const anchor = useRef<{ id: EntryId; index: number } | null>(null);
   const onScroll = (): void => {
     const element = scrollRef.current;
     if (element === null) return;
     const top = element.scrollTop;
     const movedUp = top < lastTop.current - rowHeight / 2;
     lastTop.current = top;
+    const firstIndex = Math.floor(top / rowHeight);
+    const first = engine.at(firstIndex);
+    anchor.current = first === undefined ? null : { id: first.id, index: firstIndex };
     const atBottom = top + element.clientHeight >= element.scrollHeight - rowHeight / 2;
     if (following && movedUp && !atBottom) setFollow(false);
   };
+
+  // Before paint, so the viewed rows never visibly jump; an evicted anchor
+  // falls back to the top of the list.
+  useIsomorphicLayoutEffect(() => {
+    const element = scrollRef.current;
+    const current = anchor.current;
+    if (following || element === null || current === null) return;
+    const index = engine.indexOf(current.id);
+    const top = index < 0 ? 0 : element.scrollTop + (index - current.index) * rowHeight;
+    if (index < 0) anchor.current = null;
+    else current.index = index;
+    if (top === element.scrollTop) return;
+    element.scrollTop = top;
+    // Not the user's move: `onScroll` must not read it as one.
+    lastTop.current = element.scrollTop;
+  }, [engine, version, following, rowHeight]);
 
   const selectedIndex = selectedId === null ? -1 : engine.indexOf(selectedId);
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>): void => {

@@ -11,7 +11,7 @@ import {
 import { TraceList, useFilterEngine } from "@open-ocpp-trace/viewer-react";
 
 import { add, sdkEntry } from "./fixtures.ts";
-import { stubLayout, VIEWPORT_ROWS } from "./layout.ts";
+import { ROW_HEIGHT, stubLayout, VIEWPORT_ROWS } from "./layout.ts";
 
 stubLayout();
 
@@ -37,8 +37,8 @@ function entries(count: number, from = 0): ViewerEntry[] {
   return Array.from({ length: count }, (_, i) => sdkEntry(`e${from + i}`));
 }
 
-function storeWith(count: number): ViewerStore {
-  const store = createViewerStore();
+function storeWith(count: number, maxEntries?: number): ViewerStore {
+  const store = createViewerStore(maxEntries === undefined ? {} : { maxEntries });
   store.load(entries(count));
   return store;
 }
@@ -184,6 +184,37 @@ describe("<TraceList> follow-scroll", () => {
     act(() => store.apply(entries(1, 150).map(add)));
     scrolled();
     expect(renderedIds()).toContain("e150");
+  });
+
+  it("keeps the viewed row in place while a full store evicts from the front", () => {
+    const store = storeWith(100, 100);
+    render(<Harness store={store} />);
+    scrolled();
+    grid().scrollTop = 20 * ROW_HEIGHT;
+    scrolled();
+    expect(jumpButton()).not.toBeNull();
+
+    act(() => store.apply(entries(10, 100).map(add)));
+    scrolled();
+    expect(store.size).toBe(100);
+    expect(grid().scrollTop).toBe(10 * ROW_HEIGHT);
+    // The row's top in the viewport is its offset minus the scroll position.
+    expect(row("e20").style.transform).toBe(`translateY(${10 * ROW_HEIGHT}px)`);
+    expect(jumpButton()).not.toBeNull();
+  });
+
+  it("goes back to the top when the viewed row is evicted", () => {
+    const store = storeWith(100, 100);
+    render(<Harness store={store} />);
+    scrolled();
+    grid().scrollTop = 5 * ROW_HEIGHT;
+    scrolled();
+
+    act(() => store.apply(entries(10, 100).map(add)));
+    scrolled();
+    expect(grid().scrollTop).toBe(0);
+    expect(renderedIds()).toContain("e10");
+    expect(jumpButton()).not.toBeNull();
   });
 
   it("stops following when the keyboard selects an older row", () => {
