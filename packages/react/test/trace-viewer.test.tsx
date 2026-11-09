@@ -1,5 +1,5 @@
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
-import { Profiler, useState, type ReactElement } from "react";
+import { Profiler, StrictMode, useState, type ReactElement } from "react";
 import { describe, expect, it, vi } from "vite-plus/test";
 
 import {
@@ -313,6 +313,30 @@ describe("<TraceViewer>", () => {
       fireEvent.click(row("a"));
       expect(selectedIds()).toEqual(["a"]);
     });
+  });
+
+  it("renders, filters and reports each selection change once under StrictMode", () => {
+    const onSelectionChange = vi.fn();
+    const store = storeWith(ENTRIES, 3);
+    render(
+      <StrictMode>
+        <TraceViewer store={store} onSelectionChange={onSelectionChange} />
+      </StrictMode>,
+    );
+    expect(listedIds()).toEqual(["a", "b", "c"]);
+
+    fireEvent.click(chargePoint("CP-2 (1)"));
+    expect(listedIds()).toEqual(["b"]);
+    fireEvent.click(chargePoint("CP-2 (1)"));
+    expect(listedIds()).toEqual(["a", "b", "c"]);
+
+    fireEvent.click(row("a"));
+    expect(onSelectionChange).toHaveBeenCalledExactlyOnceWith({ entryId: "a" });
+    act(() => store.apply([add(sdkEntry("d"))]));
+    expect(onSelectionChange).toHaveBeenCalledTimes(2);
+    expect(onSelectionChange).toHaveBeenLastCalledWith({ entryId: null });
+    expect(listedIds()).toEqual(["b", "c", "d"]);
+    expect(selectedIds()).toEqual([]);
   });
 
   it("stays bounded under a sustained stream", () => {
