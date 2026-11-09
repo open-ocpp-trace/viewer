@@ -48,6 +48,15 @@ describe("theme", () => {
     expect(element.style.getPropertyValue("--oot-color")).toBe("");
   });
 
+  it("ignores unknown token keys and non-string values", () => {
+    const element = viewer({
+      tokens: { bogus: "red", color: 3, background: "black" },
+    } as unknown as ViewerTheme);
+    expect(element.style.getPropertyValue("--oot-bogus")).toBe("");
+    expect(element.style.getPropertyValue("--oot-color")).toBe("");
+    expect(element.style.getPropertyValue("--oot-background")).toBe("black");
+  });
+
   it("keeps the layout styles of the root next to the tokens", () => {
     const element = viewer({ tokens: { color: "red" } });
     expect(element.style.display).toBe("flex");
