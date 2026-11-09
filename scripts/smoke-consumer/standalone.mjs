@@ -3,11 +3,12 @@
 // it: a bare import specifier left in the asset fails to resolve.
 //
 // A browser has no `process`, `require` or `node:` modules. The asset text
-// must not read `process.env`, call `require` or name a `node:` module, and
-// `process` is removed from the global scope before the import, so a missing
-// `process.env.NODE_ENV` define fails here instead of passing under Node.js.
-// React DOM's error reporting keeps a `typeof process` guarded fallback,
-// which a browser never reaches, so a bare `process.` is allowed.
+// must not reference any `process.` member, call `require` or name a `node:`
+// module, and `process` is removed from the global scope before the import,
+// so a missing `process.env.NODE_ENV` define fails here instead of passing
+// under Node.js. The one exception is `process.emit`: React DOM's error
+// reporting keeps a `typeof process` guarded fallback that calls it, which a
+// browser never reaches.
 //
 // A page with `script-src 'self'` and no `'unsafe-eval'` blocks `eval` and
 // the `Function` constructor: the asset text must call neither (`new
@@ -25,9 +26,12 @@ const asset = process.argv[2];
 assert.ok(asset, "usage: node standalone.mjs <asset>");
 
 const text = readFileSync(asset, "utf8");
-for (const nodeOnly of ["process.env", "require(", "node:"]) {
+for (const nodeOnly of ["require(", "node:"]) {
   assert.ok(!text.includes(nodeOnly), `the asset references \`${nodeOnly}\``);
 }
+
+const processMember = text.match(/(?<![\w$.])process\.(?!emit\b)[\w$]*/);
+assert.equal(processMember, null, `the asset references \`${processMember?.[0]}\``);
 
 const dynamicCode = text.match(/(?<![\w$])(?:eval|Function)\s*\(/);
 assert.equal(dynamicCode, null, `the asset calls \`${dynamicCode?.[0]}\``);
