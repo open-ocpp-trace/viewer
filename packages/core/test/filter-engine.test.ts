@@ -443,3 +443,60 @@ describe("FilterEngine connection", () => {
     expect(engine.at(0)).toBe(store.get("t1"));
   });
 });
+
+describe("FilterEngine reentrancy", () => {
+  it("follows a store change a listener makes during a store-driven notification", () => {
+    const { store, engine } = setup([simulator.boot]);
+    let reacted = false;
+    engine.subscribe(() => {
+      if (reacted) return;
+      reacted = true;
+      store.apply([add(gateway.primary)]);
+    });
+
+    store.apply([add(simulator.status)]);
+
+    expect(listed(engine)).toEqual(["s1", "s2", "g1"]);
+    expectRecomputed(engine, store);
+  });
+
+  it("applies a filter a listener sets during a store-driven notification", () => {
+    const { store, engine } = setup([simulator.boot, gateway.primary]);
+    let reacted = false;
+    engine.subscribe(() => {
+      if (reacted) return;
+      reacted = true;
+      engine.setFilter({ chargePointIds: ["CP-1"] });
+    });
+
+    store.apply([add(simulator.status), add(simulator.gap)]);
+
+    expect(engine.filter).toEqual({ chargePointIds: ["CP-1"] });
+    expectRecomputed(engine, store);
+    store.apply([add(simulator.result)]);
+    expectRecomputed(engine, store);
+  });
+
+  it("releases its state when a listener unsubscribes during a store-driven notification", () => {
+    const store = createViewerStore();
+    store.load([simulator.boot]);
+    const engine = createFilterEngine();
+    let unsubscribe: (() => void) | undefined;
+    engine.subscribe((change) => {
+      if (change.version === 2) unsubscribe?.();
+    });
+    unsubscribe = engine.connect(store);
+
+    store.apply([add(simulator.status)]);
+
+    expect(engine.size).toBe(0);
+    expect(cachedSize(engine)).toBe(0);
+    expect(engine.version).toBe(3);
+    store.apply([add(simulator.result)]);
+    expect(engine.size).toBe(0);
+    expect(engine.version).toBe(3);
+    engine.connect(store);
+    expect(listed(engine)).toEqual(["s1", "s2", "s3"]);
+    expectRecomputed(engine, store);
+  });
+});
