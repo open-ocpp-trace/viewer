@@ -3,18 +3,31 @@ import { describe, expect, it } from "vite-plus/test";
 import type { TraceRecord } from "@open-ocpp-trace/core";
 import {
   createViewerStore,
+  DEFAULT_MAX_BYTES,
+  DEFAULT_MAX_ENTRIES,
   STORE_ID_PREFIX,
   type EntryUpdate,
   type ViewerStore,
 } from "@open-ocpp-trace/viewer-core";
 
+import { coreWeight } from "../src/store-estimate.ts";
 import { storeInternals } from "../src/store.ts";
 import { add, ids, mirror, trace, traceRecord, unparsed } from "./store-fixtures.ts";
 
 /** The compaction rule of the slot queues bounds their backing arrays by this. */
 const backingBound = (limit: number): number => Math.max(1024, limit) + limit + 1;
 
-/** The invariants every run must leave, whatever the load. */
+/** The weight of the gap `resume` lists, kept out of the pending budget. */
+const resumeGapWeight = (maxBytes: number, gapNumber = 1): number =>
+  coreWeight(
+    { kind: "gap", id: `${STORE_ID_PREFIX}gap:${gapNumber}`, reason: "dropped", missedCount: 0 },
+    maxBytes,
+  );
+
+/**
+ * The invariants every run must leave, whatever the load, against the
+ * configured limits.
+ */
 function expectBounded(store: ViewerStore, maxEntries: number, maxBytes: number): void {
   const stats = store.getStats();
   const internals = storeInternals(store);
@@ -22,7 +35,9 @@ function expectBounded(store: ViewerStore, maxEntries: number, maxBytes: number)
   expect(store.size).toBeLessThanOrEqual(maxEntries);
   if (store.size > 1) expect(stats.listedBytes).toBeLessThanOrEqual(maxBytes);
   expect(stats.pending).toBeLessThanOrEqual(Math.max(1, maxEntries - 1));
-  if (stats.pending > 1) expect(stats.pendingBytes).toBeLessThanOrEqual(maxBytes);
+  if (stats.pending > 1) {
+    expect(stats.pendingBytes).toBeLessThanOrEqual(maxBytes - resumeGapWeight(maxBytes));
+  }
   expect(internals.indexSize()).toBe(stats.listed + stats.pending);
   expect(internals.backingLength()).toBeLessThanOrEqual(backingBound(maxEntries));
   expect(internals.pendingBackingLength()).toBeLessThanOrEqual(backingBound(maxEntries));
@@ -54,7 +69,7 @@ describe("ViewerStore under load", () => {
     expect(store.get("e99949")).toBeUndefined();
     expect(state.ids).toEqual(ids(store));
     expect(store.version).toBe(1_000);
-    expectBounded(store, 50, store.getStats().listedBytes);
+    expectBounded(store, 50, DEFAULT_MAX_BYTES);
   });
 
   it("bounds multi-MB frames by bytes and keeps an oversized one alone", () => {
@@ -66,7 +81,7 @@ describe("ViewerStore under load", () => {
     for (let n = 0; n < 20; n++) store.apply([frame(`m${n}`, 300_000)]);
     expect(ids(store)).toEqual(["m19"]);
     expect(store.getStats().evicted).toBe(19);
-    expectBounded(store, Number.MAX_SAFE_INTEGER, maxBytes);
+    expectBounded(store, DEFAULT_MAX_ENTRIES, maxBytes);
 
     // About 200 kB each: five fit.
     for (let n = 0; n < 10; n++) store.apply([frame(`s${n}`, 100_000)]);
@@ -85,7 +100,7 @@ describe("ViewerStore under load", () => {
     store.apply([frame("p1", 100_000), frame("p2", 4_000_000)]);
     expect(store.getStats()).toMatchObject({ pending: 1, droppedPending: 1 });
     expect(store.isPending("p2")).toBe(true);
-    expectBounded(store, Number.MAX_SAFE_INTEGER, maxBytes);
+    expectBounded(store, DEFAULT_MAX_ENTRIES, maxBytes);
   });
 
   it("re-weighs only the metadata on update bursts over large payloads", () => {
@@ -124,18 +139,19 @@ describe("ViewerStore under load", () => {
     expect(store.get("t3")?.metadata?.custom).toEqual({ round: 999 });
     expect(store.getStats()).toMatchObject({ listed: 10, staleUpdates: 0, evicted: 0 });
     expect(store.getStats().listedBytes).toBeGreaterThan(coreBytes);
-    expectBounded(store, 10, store.getStats().listedBytes);
+    expectBounded(store, 10, DEFAULT_MAX_BYTES);
   });
 
   it("bounds a paused overflow at high rate and lists the gap on resume", () => {
-    const store = createViewerStore({ maxEntries: 100 });
+    const maxBytes = 1024 * 1024;
+    const store = createViewerStore({ maxEntries: 100, maxBytes });
     for (const batch of batches("a", 100, 100)) store.apply(batch);
     store.pause();
     for (const batch of batches("p", 50_000, 500)) store.apply(batch);
 
     expect(ids(store)).toEqual(range("a", 0, 100));
     expect(store.getStats()).toMatchObject({ pending: 99, droppedPending: 49_901, evicted: 0 });
-    expectBounded(store, 100, store.getStats().listedBytes + store.getStats().pendingBytes);
+    expectBounded(store, 100, maxBytes);
 
     const state = mirror(store);
     store.resume();
@@ -145,6 +161,58 @@ describe("ViewerStore under load", () => {
     expect(store.get(gapId)).toMatchObject({ reason: "dropped", missedCount: 49_901 });
     expect(store.getStats()).toMatchObject({ pending: 0, evicted: 100 });
     expect(state.ids).toEqual(ids(store));
-    expectBounded(store, 100, store.getStats().listedBytes);
+    expectBounded(store, 100, maxBytes);
+  });
+
+  it("applies single-item batches at default capacity in constant time each", () => {
+    const store = createViewerStore();
+    for (const batch of batches("f", DEFAULT_MAX_ENTRIES, 1_000)) store.apply(batch);
+    expect(store.size).toBe(DEFAULT_MAX_ENTRIES);
+
+    // A consumer in O(1) per change, so the timing measures the store alone.
+    const mirrored = ids(store);
+    let head = 0;
+    store.subscribe((change) => {
+      for (const id of change.evicted) {
+        if (mirrored[head++] !== id) throw new Error(`evicted ${id} is not the front`);
+      }
+      for (const id of change.added) mirrored.push(id);
+    });
+    const started = performance.now();
+    for (let n = 0; n < 10_000; n++) store.apply([add(unparsed(`s${n}`))]);
+    const elapsed = performance.now() - started;
+
+    expect(mirrored.slice(head)).toEqual(range("s", 0, 10_000));
+    expect(ids(store)).toEqual(range("s", 0, 10_000));
+    expect(store.version).toBe(10 + 10_000);
+    expectBounded(store, DEFAULT_MAX_ENTRIES, DEFAULT_MAX_BYTES);
+    // About 10 ms here; a copy of the list per batch took about 1.7 s.
+    expect(elapsed).toBeLessThan(500);
+  });
+
+  it("keeps room for the resume gap when bytes bound a paused overflow", () => {
+    // Bytes bind, not the count: exactly 99 tail entries and the gap fit.
+    const entryWeight = coreWeight(unparsed("p49999"), DEFAULT_MAX_BYTES);
+    const maxBytes = 99 * entryWeight + resumeGapWeight(DEFAULT_MAX_BYTES);
+    const store = createViewerStore({ maxBytes });
+    store.apply([add(unparsed("a0"))]);
+    store.pause();
+    for (const batch of batches("p", 50_000, 500)) store.apply(batch);
+
+    expect(store.getStats()).toMatchObject({
+      pending: 99,
+      pendingBytes: 99 * entryWeight,
+      droppedPending: 49_901,
+    });
+    expectBounded(store, DEFAULT_MAX_ENTRIES, maxBytes);
+
+    const state = mirror(store);
+    store.resume();
+
+    const gapId = `${STORE_ID_PREFIX}gap:1`;
+    expect(ids(store)).toEqual([gapId, ...range("p", 49_901, 50_000)]);
+    expect(store.getStats()).toMatchObject({ listedBytes: maxBytes, evicted: 1 });
+    expect(state.ids).toEqual(ids(store));
+    expectBounded(store, DEFAULT_MAX_ENTRIES, maxBytes);
   });
 });
