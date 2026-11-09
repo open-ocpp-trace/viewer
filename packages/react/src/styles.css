@@ -66,3 +66,49 @@
 .oot-list-error {
   padding: 0.5em;
 }
+
+.oot-filter {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5em;
+  font-family: var(--oot-font-family, ui-monospace, monospace);
+  font-size: var(--oot-font-size, 0.8125rem);
+  color: var(--oot-color, CanvasText);
+  background: var(--oot-background, Canvas);
+}
+
+.oot-filter-group {
+  margin: 0;
+  padding: 0.25em 0.5em 0.5em;
+  border: 1px solid var(--oot-border-color, rgb(128 128 128 / 30%));
+}
+
+.oot-filter-legend {
+  font-weight: 600;
+}
+
+.oot-filter-options {
+  max-height: 10em;
+  overflow-y: auto;
+}
+
+.oot-filter-option,
+.oot-filter-field {
+  display: flex;
+  gap: 0.5em;
+  align-items: center;
+  overflow-wrap: anywhere;
+}
+
+.oot-filter-clear,
+.oot-filter-reset {
+  justify-self: start;
+  margin-top: 0.25em;
+  font: inherit;
+}
+
+.oot-filter-error {
+  margin: 0;
+  font-weight: 600;
+  color: var(--oot-alert-color, rgb(180 30 30));
+}

@@ -30,6 +30,33 @@ export const defaultStrings = {
     reset: "Reset",
     /** Followed by the engine's own (English) reason. */
     invalid: "The filter is invalid",
+    clear: "Clear",
+    /** The accessible name of a group's clear button. */
+    clearGroup: (legend: string): string => `Clear ${legend}`,
+    /** The label of a checkbox: an observed value and its number of entries. */
+    option: (value: string, count: number): string => `${value} (${count})`,
+    none: "(none)",
+    kinds: "Kinds",
+    kindNames: { trace: "Traces", unparsed: "Unparsed", gap: "Gaps" } as Readonly<
+      Record<string, string>
+    >,
+    timeRange: "Time range",
+    from: "From",
+    to: "To",
+    chargePointIds: "Charge points",
+    connectorIds: "Connectors",
+    ocppVersions: "OCPP versions",
+    directions: "Directions",
+    messageTypes: "Message types",
+    actions: "Actions",
+    sessionIds: "Sessions",
+    tenants: "Tenants",
+    sourceIds: "Sources",
+    deliveryStatuses: "Delivery statuses",
+    messageIds: "Message IDs",
+    search: "Search",
+    text: "Text",
+    searchPayloads: "Search payloads",
   },
 };
 
