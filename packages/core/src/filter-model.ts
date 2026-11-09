@@ -1,5 +1,6 @@
 import type { ViewerEntry } from "./entry.ts";
 import type { FilterFieldDefinition } from "./extension.ts";
+import { isRecord } from "./guards.ts";
 
 /**
  * Which entries a `FilterEngine` lists: plain, serializable data.
@@ -88,18 +89,7 @@ export interface TraceFilter {
 }
 
 /** Properties holding single string values, read by `filter-match.ts`. */
-export type StringProperty =
-  | "chargePointIds"
-  | "ocppVersions"
-  | "directions"
-  | "messageTypes"
-  | "actions"
-  | "messageIds"
-  | "sessionIds"
-  | "tenants"
-  | "sourceIds";
-
-const STRING_PROPERTIES: readonly StringProperty[] = [
+export const STRING_PROPERTIES = [
   "chargePointIds",
   "ocppVersions",
   "directions",
@@ -109,7 +99,9 @@ const STRING_PROPERTIES: readonly StringProperty[] = [
   "sessionIds",
   "tenants",
   "sourceIds",
-];
+] as const;
+
+export type StringProperty = (typeof STRING_PROPERTIES)[number];
 
 const KNOWN_PROPERTIES: ReadonlySet<string> = new Set([
   ...STRING_PROPERTIES,
@@ -153,10 +145,6 @@ export interface CompiledFilter {
 
 function fail(message: string): never {
   throw new RangeError(`invalid trace filter: ${message}`);
-}
-
-function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 function list(value: unknown, name: string): readonly unknown[] {

@@ -1,4 +1,5 @@
 import type { EntryDelivery, EntryId, EntryMetadata, ViewerEntry } from "./entry.ts";
+import { isObject, isRecord } from "./guards.ts";
 import type { EntryMetadataPatch } from "./update.ts";
 
 /**
@@ -30,15 +31,6 @@ export type CheckedItem =
     };
 
 const ENTRY_KINDS: ReadonlySet<unknown> = new Set(["trace", "unparsed", "gap"]);
-
-function isObject(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
-}
-
-/** An object that is not an array, merged per key. */
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return isObject(value) && !Array.isArray(value);
-}
 
 /** Whether a `deliveries` value is allowed: an array, `null` or `undefined`. */
 function validDeliveries(deliveries: unknown): boolean {
@@ -91,21 +83,29 @@ export function mergeDeliveries(
   patch: readonly EntryDelivery[],
 ): readonly EntryDelivery[] {
   const merged = [...base];
+  // The position of the first delivery of each target.
   const positions = new Map<string, number>();
-  const index = (delivery: unknown, position: number): number | undefined => {
-    const target = isObject(delivery) ? delivery["target"] : undefined;
-    if (typeof target !== "string") return undefined;
-    const found = positions.get(target);
-    if (found === undefined) positions.set(target, position);
-    return found;
-  };
-  merged.forEach((delivery, position) => index(delivery, position));
+  for (let position = 0; position < merged.length; position++) {
+    const target = targetOf(merged[position]);
+    if (target !== undefined && !positions.has(target)) positions.set(target, position);
+  }
   for (const delivery of patch) {
-    const found = index(delivery, merged.length);
-    if (found === undefined) merged.push(delivery);
-    else merged[found] = delivery;
+    const target = targetOf(delivery);
+    const found = target === undefined ? undefined : positions.get(target);
+    if (found !== undefined) {
+      merged[found] = delivery;
+      continue;
+    }
+    if (target !== undefined) positions.set(target, merged.length);
+    merged.push(delivery);
   }
   return merged;
+}
+
+/** The string `target` of a delivery, read once; `undefined` otherwise. */
+function targetOf(delivery: unknown): string | undefined {
+  const target = isObject(delivery) ? delivery["target"] : undefined;
+  return typeof target === "string" ? target : undefined;
 }
 
 /**

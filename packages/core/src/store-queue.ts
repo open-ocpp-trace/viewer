@@ -34,6 +34,8 @@ export interface SlotQueue {
   /** Length of the backing array (tests: it stays bounded). */
   readonly backingLength: number;
   at(position: number): Slot | undefined;
+  /** The slots from `position` (0 being the oldest) to the newest. */
+  from(position: number): Slot[];
   push(slot: Slot): void;
   /** Removes and returns the oldest slot. */
   shift(): Slot | undefined;
@@ -65,6 +67,9 @@ export function createSlotQueue(): SlotQueue {
     },
     at(position) {
       return slots[head + position];
+    },
+    from(position) {
+      return slots.slice(head + position) as Slot[];
     },
     push(slot) {
       slots.push(slot);

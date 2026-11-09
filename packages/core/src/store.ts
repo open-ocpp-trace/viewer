@@ -469,14 +469,7 @@ export function createViewerStore(options: ViewerStoreOptions = {}): ViewerStore
   const notify = (): void => {
     if (!changed) return;
     // Entries listed by this change and still listed: a suffix of the list.
-    const added: EntryId[] = [];
-    for (
-      let position = Math.max(headSeq, batchSeq) - headSeq;
-      position < listed.length;
-      position++
-    ) {
-      added.push((listed.at(position) as Slot).id);
-    }
+    const added = listed.from(Math.max(headSeq, batchSeq) - headSeq).map((slot) => slot.id);
     // Updated ids still listed from before this change.
     const updated = [...batchUpdated].filter((id) => {
       const seq = index.get(id)?.seq ?? -1;
@@ -491,8 +484,6 @@ export function createViewerStore(options: ViewerStoreOptions = {}): ViewerStore
       evicted: Object.freeze(batchEvicted),
       cleared,
     });
-    batchEvicted = [];
-    batchUpdated.clear();
     listeners.emit(change);
   };
 
@@ -526,11 +517,7 @@ export function createViewerStore(options: ViewerStoreOptions = {}): ViewerStore
       return index.get(id)?.entry;
     },
     toArray() {
-      const entries: ViewerEntry[] = [];
-      for (let position = 0; position < listed.length; position++) {
-        entries.push((listed.at(position) as Slot).entry);
-      }
-      return entries;
+      return listed.from(0).map((slot) => slot.entry);
     },
     get version() {
       return version;

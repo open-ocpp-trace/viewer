@@ -8,7 +8,7 @@ import {
   type MatchContext,
   stringValue,
 } from "./filter-extract.ts";
-import { fieldMap, type StringProperty } from "./filter-model.ts";
+import { fieldMap, STRING_PROPERTIES, type StringProperty } from "./filter-model.ts";
 
 /**
  * Observed values and their counts over a set of entries, read with the
@@ -39,17 +39,14 @@ export interface TraceStats {
   readonly fields: ReadonlyMap<string, ReadonlyMap<string | null, number>>;
 }
 
-/** Single-valued string properties counted, in {@link TraceStats} order. */
-const STRINGS = [
-  "chargePointIds",
-  "ocppVersions",
-  "directions",
-  "messageTypes",
-  "actions",
-  "sessionIds",
-  "tenants",
-  "sourceIds",
-] as const satisfies readonly StringProperty[];
+/**
+ * Single-valued string properties counted, in {@link TraceStats} order:
+ * every {@link STRING_PROPERTIES} but `messageIds`, in its order, which the
+ * positional destructuring in `snapshot()` relies on.
+ */
+const STRINGS = STRING_PROPERTIES.filter(
+  (property): property is Exclude<StringProperty, "messageIds"> => property !== "messageIds",
+);
 
 const CONNECTORS = STRINGS.length;
 const DELIVERIES = CONNECTORS + 1;
