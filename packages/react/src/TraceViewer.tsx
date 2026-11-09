@@ -201,11 +201,7 @@ export function TraceViewer(props: TraceViewerProps): ReactElement {
   const { store, correlator, fields, payloadSearch, selection, onSelectionChange } = props;
   const allStrings = useViewerStrings(props.strings, props.translate);
   const strings = allStrings.toolbar;
-  const engine = useFilterEngine(store, {
-    ...(correlator !== undefined && { correlator }),
-    ...(fields !== undefined && { fields }),
-    ...(payloadSearch !== undefined && { payloadSearch }),
-  });
+  const engine = useFilterEngine(store, props);
   useVersion(store);
   // Host actions read `listed()`: a filter change re-renders them too.
   useVersion(engine);
@@ -274,10 +270,10 @@ export function TraceViewer(props: TraceViewerProps): ReactElement {
   const { onExport } = props;
   const selectedEntry = selectedId === null ? undefined : store.get(selectedId);
   const runExport = (entries: Iterable<ViewerEntry>, scope: ExportScope): void => {
-    const exported = exportJsonl(entries);
-    const { unparsed, gap, invalid } = exported.skipped;
-    setExported({ count: exported.recordCount, skipped: unparsed + gap + invalid });
-    onExport?.(exported, scope);
+    const result = exportJsonl(entries);
+    const { unparsed, gap, invalid } = result.skipped;
+    setExported({ count: result.recordCount, skipped: unparsed + gap + invalid });
+    onExport?.(result, scope);
   };
 
   // Host slots select like a paired link of the inspector, through the

@@ -117,14 +117,14 @@ export function useUniqueSlots<T extends { readonly id: string }>(
     }
   }
   const warned = useRef(new Set<string>());
-  const key = JSON.stringify(duplicates);
+  // Runs after every render: `warned` keeps each id to a single warning.
   useEffect(() => {
-    for (const id of JSON.parse(key) as string[]) {
+    for (const id of duplicates) {
       if (warned.current.has(id)) continue;
       warned.current.add(id);
       console.warn(`Duplicate ${kind} id "${id}": only the first one is rendered.`);
     }
-  }, [key, kind]);
+  });
   return unique;
 }
 
