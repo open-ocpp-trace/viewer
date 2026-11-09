@@ -1,5 +1,5 @@
 import type { Unsubscribe } from "./adapter.ts";
-import type { EntryId, ViewerEntry } from "./entry.ts";
+import type { EntryId, GapEntry, ViewerEntry } from "./entry.ts";
 import { coreWeight, metadataWeight } from "./store-estimate.ts";
 import { checkItem, mergeMetadata, normalizeAddedEntry, STORE_ID_PREFIX } from "./store-ingest.ts";
 import { createListeners } from "./store-listeners.ts";
@@ -115,9 +115,11 @@ export interface ViewerStore {
   /**
    * Stops listing new entries: adds go to a pending queue (oldest first),
    * while updates keep applying to listed and pending entries, and a pending
-   * id counts as held for rules 2 and 6. The queue has its own budget equal
-   * to the configured limits, an oversized entry being kept alone as in the
-   * list: past it, the oldest pending entries are dropped and counted in
+   * id counts as held for rules 2 and 6. The queue has its own budget: the
+   * configured limits minus room for the gap {@link resume} may list (one
+   * entry and its weight), so the store retains at most twice the limits.
+   * An oversized entry is kept alone as in the list. Past the budget, the
+   * oldest pending entries are dropped and counted in
    * {@link ViewerStoreStats.droppedPending}. A dropped entry is gone: a later
    * update for it is unknown, a later add for it is a new entry. No effect
    * when already paused.
@@ -127,7 +129,10 @@ export interface ViewerStore {
    * Lists the pending entries in arrival order, after a store gap
    * (`reason: "dropped"`, id {@link STORE_ID_PREFIX}`gap:<n>`, `missedCount`
    * the entries dropped during this pause) when some were dropped; the list
-   * bounds then apply as for any add, so the gap is evicted like any entry.
+   * bounds then apply as for any add. As the pending budget kept room for
+   * it, the gap and the survivors fit and only older entries are evicted,
+   * except when no room can be kept: with `maxEntries` 1, or when the
+   * survivor is oversized, the survivor evicts the gap in the same change.
    * One notification. No effect when not paused.
    */
   resume(): void;
@@ -217,6 +222,15 @@ export function createViewerStore(options: ViewerStoreOptions = {}): ViewerStore
   let paused = false;
   let droppedThisPause = 0;
   let gaps = 0;
+  // The pending budget keeps room for the next store gap (one entry and its
+  // weight) so that, on resume, the gap and the survivors fit the list.
+  const nextGap = (reason: string): GapEntry => ({
+    kind: "gap",
+    id: `${STORE_ID_PREFIX}gap:${gaps + 1}`,
+    reason,
+  });
+  const maxPending = Math.max(1, maxEntries - 1);
+  let maxPendingBytes = maxBytes - coreWeight(nextGap("dropped"), maxBytes);
   let counters = zeroCounters();
   const listeners = createListeners<ViewerStoreChange>();
   let version = 0;
@@ -238,7 +252,7 @@ export function createViewerStore(options: ViewerStoreOptions = {}): ViewerStore
       counters.evicted++;
       if (slot.seq < batchSeq) batchEvicted.push(slot.entry.id);
     }
-    while (pending.overLimits(maxEntries, maxBytes)) {
+    while (pending.overLimits(maxPending, maxPendingBytes)) {
       index.delete((pending.shift() as Slot).entry.id);
       counters.droppedPending++;
       droppedThisPause++;
@@ -265,6 +279,13 @@ export function createViewerStore(options: ViewerStoreOptions = {}): ViewerStore
     if (!paused) return list(slot);
     pending.push(slot);
     enforceBounds();
+  };
+
+  /** Holds a store gap under the next gap number. */
+  const admitGap = (gap: GapEntry): void => {
+    gaps++;
+    maxPendingBytes = maxBytes - coreWeight(nextGap("dropped"), maxBytes);
+    admit(gap);
   };
 
   /**
@@ -407,8 +428,7 @@ export function createViewerStore(options: ViewerStoreOptions = {}): ViewerStore
         paused = false;
         changed = true;
         if (droppedThisPause > 0) {
-          const id = `${STORE_ID_PREFIX}gap:${++gaps}`;
-          admit({ kind: "gap", id, reason: "dropped", missedCount: droppedThisPause });
+          admitGap({ ...nextGap("dropped"), missedCount: droppedThisPause });
         }
         droppedThisPause = 0;
         for (const slot of pending.drain()) list(slot);

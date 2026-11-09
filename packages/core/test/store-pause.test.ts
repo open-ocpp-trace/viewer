@@ -71,19 +71,52 @@ describe("ViewerStore pause", () => {
     store.pause();
     store.apply(adds("d", "e", "f", "g", "h"));
 
+    // One entry of the budget is reserved for the resume gap.
     expect(ids(store)).toEqual(["a", "b", "c"]);
-    expect(store.getStats()).toMatchObject({ pending: 3, droppedPending: 2, evicted: 0 });
+    expect(store.getStats()).toMatchObject({ pending: 2, droppedPending: 3, evicted: 0 });
     expect(store.get("d")).toBeUndefined();
     expectIndexed(store);
     store.apply([{ type: "update", id: "d", metadata: { tenant: "t" } }, ...adds("e")]);
-    expect(store.getStats()).toMatchObject({ unknownUpdates: 1, pending: 3, droppedPending: 3 });
+    expect(store.getStats()).toMatchObject({ unknownUpdates: 1, pending: 2, droppedPending: 4 });
+    const state = mirror(store);
 
     store.resume();
 
-    // The gap and the oldest entries are evicted by the count bound.
-    expect(ids(store)).toEqual(["g", "h", "e"]);
-    expect(store.getStats().evicted).toBe(4);
+    // The gap and the survivors fit: only the older listed entries are evicted.
+    const gapId = `${STORE_ID_PREFIX}gap:1`;
+    expect(ids(store)).toEqual([gapId, "h", "e"]);
+    expect(store.get(gapId)).toMatchObject({ reason: "dropped", missedCount: 4 });
+    expect(state.changes.at(-1)).toMatchObject({
+      added: [gapId, "h", "e"],
+      evicted: ["a", "b", "c"],
+    });
+    expect(store.getStats().evicted).toBe(3);
     expectIndexed(store);
+  });
+
+  it("reserves room for the gap by bytes too", () => {
+    const store = createViewerStore({ maxBytes: 4_200 });
+    store.pause();
+    // Two entries of about 2 kB fit the limits, but not with the gap.
+    store.apply(bigAdds("p1", "p2"));
+    expect(store.getStats()).toMatchObject({ pending: 1, droppedPending: 1 });
+    store.resume();
+
+    expect(ids(store)).toEqual([`${STORE_ID_PREFIX}gap:1`, "p2"]);
+    expect(store.getStats().listedBytes).toBeLessThanOrEqual(4_200);
+  });
+
+  it("cannot reserve room for the gap with maxEntries 1: the survivor evicts it", () => {
+    const store = createViewerStore({ maxEntries: 1 });
+    store.pause();
+    store.apply(adds("a", "b"));
+    expect(store.getStats()).toMatchObject({ pending: 1, droppedPending: 1 });
+    const state = mirror(store);
+    store.resume();
+
+    expect(ids(store)).toEqual(["b"]);
+    expect(state.changes.at(-1)).toMatchObject({ added: ["b"], evicted: [] });
+    expect(store.getStats().evicted).toBe(1);
   });
 
   it("lists a store gap counting the entries dropped during this pause, then the survivors", () => {
