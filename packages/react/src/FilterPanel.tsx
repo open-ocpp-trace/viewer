@@ -17,6 +17,7 @@ import {
   ValueGroup,
 } from "./filter-controls.tsx";
 import { useEngineVersion, useStableCallback } from "./hooks.ts";
+import { ResetBoundary } from "./reset-boundary.tsx";
 import { sameFilter } from "./same-filter.ts";
 import { type FilterControl, SlotContent, useUniqueSlots } from "./slots.tsx";
 import type { PartialViewerStrings, TranslateFunction } from "./strings.ts";
@@ -150,6 +151,7 @@ export function FilterPanel(props: FilterPanelProps): ReactElement {
   const controls = useUniqueSlots(props.filterControls, "filter control");
   const messageIds = (readList(view["messageIds"]) ?? []).filter((id) => typeof id === "string");
   const text = readString(view["text"]);
+  const controlError = <p className="oot-filter-group__error">{allStrings.filterControlError}</p>;
 
   return (
     <StringsContext.Provider value={allStrings}>
@@ -257,7 +259,9 @@ export function FilterPanel(props: FilterPanelProps): ReactElement {
         {controls.map((control) => (
           <fieldset key={control.id} className="oot-filter-group oot-filter-group--host">
             <legend className="oot-filter-legend">{control.label}</legend>
-            <SlotContent slot={control} context={{ filter: current, setFilter: change }} />
+            <ResetBoundary fallback={controlError} resetKeys={[control]}>
+              <SlotContent slot={control} context={{ filter: current, setFilter: change }} />
+            </ResetBoundary>
           </fieldset>
         ))}
       </div>

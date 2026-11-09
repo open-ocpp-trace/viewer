@@ -247,6 +247,9 @@ array per render neither remounts the slots nor re-runs anything; memoize the ar
   ];
   ```
 
+A filter control that throws while rendering shows the `filterControlError` string in its fieldset until another
+control object is passed.
+
 A throw in `run`, `disabled` or `appliesTo` is reported (`reportError`, else `console.error`): the action or the
 panel is disabled or hidden, and the viewer stays mounted.
 

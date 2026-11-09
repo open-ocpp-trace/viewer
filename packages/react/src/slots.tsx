@@ -51,7 +51,9 @@ export interface FilterControlContext {
 /**
  * A host control of the filter panel, rendered after the built-in groups
  * in a fieldset with `label` as its legend; it typically edits
- * `filter.fields` for a `FilterFieldDefinition` id.
+ * `filter.fields` for a `FilterFieldDefinition` id. A throw while
+ * rendering shows the `filterControlError` string in its place until
+ * another control object is passed.
  */
 export interface FilterControl {
   /** Keys the control; a later control with the same id is ignored. */

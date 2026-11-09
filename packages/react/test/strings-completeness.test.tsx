@@ -10,6 +10,7 @@ import {
 import {
   defaultStrings,
   type DetailPanel,
+  type FilterControl,
   type TranslateFunction,
   TraceViewer,
 } from "@open-ocpp-trace/viewer-react";
@@ -102,6 +103,15 @@ const CRASHING: DetailPanel = {
   },
 };
 
+/** A host filter control that always fails, to show the localized fallback. */
+const CRASHING_CONTROL: FilterControl = {
+  id: "crashing",
+  label: "⟦host control⟧",
+  render: () => {
+    throw new Error("host control failure");
+  },
+};
+
 describe("a fully translated viewer", () => {
   it("shows no default English string in any state", () => {
     const quiet = vi.spyOn(console, "error").mockImplementation(() => {});
@@ -119,6 +129,7 @@ describe("a fully translated viewer", () => {
         filter={{ timeRange: { from: "soon" } }}
         selection={{ entryId: selected }}
         detailPanels={[CRASHING]}
+        filterControls={[CRASHING_CONTROL]}
         payloadSearch
       />
     );
@@ -159,6 +170,7 @@ describe("a fully translated viewer", () => {
       "inspector.rawHidden",
       "inspector.gone",
       "detailPanelError",
+      "filterControlError",
     ]) {
       expect(
         all.some((text) => text.includes(`⟦${key}⟧`)),

@@ -335,6 +335,61 @@ describe("filter controls", () => {
     expect(listedIds()).toEqual(["n1", "s1", "n2"]);
   });
 
+  it("isolates a crashing control and recovers when the control changes", () => {
+    const quiet = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const crashing: FilterControl = {
+        id: "zone-control",
+        label: "Host zone",
+        render: () => {
+          throw new Error("control failure");
+        },
+      };
+      const view = (control: FilterControl) => (
+        <TraceViewer store={storeWith(ZONED)} fields={ZONE_FIELDS} filterControls={[control]} />
+      );
+      const { rerender } = render(view(crashing));
+      expect(hostGroup().querySelector("legend")?.textContent).toBe("Host zone");
+      expect(hostGroup().querySelector(".oot-filter-group__error")?.textContent).toBe(
+        "This filter control failed to render.",
+      );
+      fireEvent.click(row("s1"));
+      expect(row("s1").getAttribute("aria-selected")).toBe("true");
+      rerender(view(ZONE_CONTROL));
+      expect(hostGroup().querySelector(".oot-filter-group__error")).toBeNull();
+      fireEvent.click(within(hostGroup()).getByRole("checkbox", { name: "North only" }));
+      expect(listedIds()).toEqual(["n1", "n2"]);
+    } finally {
+      quiet.mockRestore();
+    }
+  });
+
+  it("localizes the fallback of a crashing control", () => {
+    const quiet = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const crashing: FilterControl = {
+        id: "crash",
+        label: "Crashing",
+        render: () => {
+          throw new Error("control failure");
+        },
+      };
+      render(
+        <TraceViewer
+          store={storeWith(ZONED)}
+          filterControls={[crashing]}
+          strings={{ filterControlError: "Contrôle en échec" }}
+        />,
+      );
+      expect(
+        screen.getByRole("group", { name: "Crashing" }).querySelector(".oot-filter-group__error")
+          ?.textContent,
+      ).toBe("Contrôle en échec");
+    } finally {
+      quiet.mockRestore();
+    }
+  });
+
   it("renders host controls in a standalone <FilterPanel>", () => {
     const onFilterChange = vi.fn();
     const store = storeWith(ZONED);

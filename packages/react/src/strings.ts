@@ -22,6 +22,8 @@ export const defaultStrings = {
   jumpToLatest: "Jump to latest",
   /** Shown in place of a host detail panel that failed to render. */
   detailPanelError: "This panel failed to render.",
+  /** Shown in place of a host filter control that failed to render. */
+  filterControlError: "This filter control failed to render.",
   toolbar: {
     /** A toggle button: its pressed state tells whether the store is paused. */
     pause: "Pause",
