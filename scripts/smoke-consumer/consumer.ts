@@ -11,6 +11,8 @@ import {
   type FilterEngine,
 } from "@open-ocpp-trace/viewer-core";
 import {
+  EntryInspector,
+  type EntryInspectorProps,
   FilterPanel,
   type FilterPanelProps,
   TraceList,
@@ -18,6 +20,7 @@ import {
   TraceViewer,
   type TraceViewerProps,
   VIEWER_REACT_VERSION,
+  defaultSensitiveKeys,
   hostReactVersion,
   useFilterEngine,
 } from "@open-ocpp-trace/viewer-react";
@@ -44,6 +47,17 @@ const viewerProps: TraceViewerProps = {
   onSelectionChange: (selection) => selection.entryId,
 };
 export const viewer: ReactElement = createElement(TraceViewer, viewerProps);
+
+export type InspectorProps = EntryInspectorProps;
+
+const inspectorProps: EntryInspectorProps = {
+  store: createViewerStore(),
+  entryId: null,
+  onNavigate: (id) => id,
+  onCopy: (text, part) => `${part}:${text}`,
+  sensitiveKeys: [...defaultSensitiveKeys, "apiKey"],
+};
+export const inspector: ReactElement = createElement(EntryInspector, inspectorProps);
 
 export function parts(engine: FilterEngine): ReactElement[] {
   const list: TraceListProps = { engine, selectedId: null, follow: true };

@@ -12,7 +12,12 @@ import { fileURLToPath } from "node:url";
 import { createElement, version as hostVersion } from "react";
 import { renderToString } from "react-dom/server";
 import { createViewerStore } from "@open-ocpp-trace/viewer-core";
-import { TraceViewer, VIEWER_REACT_VERSION, hostReactVersion } from "@open-ocpp-trace/viewer-react";
+import {
+  EntryInspector,
+  TraceViewer,
+  VIEWER_REACT_VERSION,
+  hostReactVersion,
+} from "@open-ocpp-trace/viewer-react";
 
 const expectedMajor = process.argv[2];
 assert.ok(expectedMajor, "usage: node react.mjs <expected React major>");
@@ -35,6 +40,27 @@ store.load([{ kind: "gap", id: "g", reason: "disconnected" }]);
 const html = renderToString(createElement(TraceViewer, { store }));
 for (const text of ["Pause", "Follow latest", "Filters", "Timestamp", "Message ID"]) {
   assert.ok(html.includes(text), `the server-rendered viewer lacks "${text}"`);
+}
+
+// The inspector reads the store during the render itself, so the server
+// markup already details the entry.
+const record = {
+  schemaVersion: "1.1",
+  timestamp: "2026-11-09T10:00:00.000Z",
+  ocppVersion: "1.6",
+  transport: "json",
+  chargePointId: "CP-1",
+  direction: "cp-to-csms",
+  messageType: "CALL",
+  messageId: "m-1",
+  action: "DataTransfer",
+  payload: { vendorId: "smoke-inspected-payload" },
+};
+const inspected = createViewerStore();
+inspected.load([{ kind: "trace", id: "t", record }]);
+const details = renderToString(createElement(EntryInspector, { store: inspected, entryId: "t" }));
+for (const text of ["Entry details", "DataTransfer", "smoke-inspected-payload"]) {
+  assert.ok(details.includes(text), `the server-rendered inspector lacks "${text}"`);
 }
 
 console.log(`viewer-react ${VIEWER_REACT_VERSION}: uses the host's React ${hostVersion}`);

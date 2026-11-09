@@ -11,7 +11,8 @@
 #   1. imports viewer-core under Node.js and under Bun (no React, no DOM);
 #   2. imports viewer-react, checks that it uses the consumer's React and
 #      that the project holds a single React copy, and renders a
-#      <TraceViewer> to a string with react-dom/server;
+#      <TraceViewer> and an <EntryInspector> to strings with
+#      react-dom/server;
 #   3. type-checks smoke-consumer/consumer.ts with `tsc --noEmit`, once
 #      with `moduleResolution: "bundler"` and once with "nodenext", so the
 #      `types` entry of every tarball must resolve;
