@@ -103,12 +103,12 @@ function walk(roots: readonly unknown[], needle: string, budget: Budget): boolea
  * allows. A plain object still lists every own key first: `for...in`
  * would also walk inherited keys.
  */
-function childKeys(value: object, limit: number): string[] {
+function childKeys(value: object, limit: number): readonly (string | number)[] {
   try {
     if (Array.isArray(value)) {
       const length = read(value, "length");
       const count = typeof length === "number" ? Math.min(length, limit) : 0;
-      return Array.from({ length: Math.max(count, 0) }, (_, i) => String(i));
+      return Array.from({ length: Math.max(count, 0) }, (_, i) => i);
     }
     return Object.keys(value).slice(0, limit);
   } catch {

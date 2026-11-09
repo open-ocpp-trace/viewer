@@ -1,7 +1,7 @@
 import type { Correlator } from "./correlation.ts";
 import type { ViewerEntry } from "./entry.ts";
 import type { FilterFieldDefinition } from "./extension.ts";
-import { connectorValue, type MatchContext, read, stringValue } from "./filter-extract.ts";
+import { connectorValue, type MatchContext, ownTimestamp, stringValue } from "./filter-extract.ts";
 
 /**
  * The display values of an entry, read with the same extractors as
@@ -27,8 +27,7 @@ const NO_FIELDS: ReadonlyMap<string, FilterFieldDefinition> = new Map();
 /** Reads the display values of `entry`; never throws on untrusted data. */
 export function readEntryFields(entry: ViewerEntry, correlator?: Correlator): EntryFields {
   const ctx: MatchContext = { fields: NO_FIELDS, ...(correlator !== undefined && { correlator }) };
-  const timestamp =
-    entry.kind === "trace" ? read(read(entry, "record"), "timestamp") : read(entry, "timestamp");
+  const timestamp = ownTimestamp(entry);
   return {
     timestamp: typeof timestamp === "string" ? timestamp : null,
     chargePointId: stringValue(entry, "chargePointIds", ctx),

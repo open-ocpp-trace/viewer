@@ -17,7 +17,7 @@ export interface MatchContext {
 }
 
 /** Reads one property of untrusted data; never throws. */
-export function read(object: unknown, key: string): unknown {
+export function read(object: unknown, key: string | number): unknown {
   try {
     return typeof object === "object" && object !== null
       ? (object as Readonly<Record<string, unknown>>)[key]
@@ -36,6 +36,16 @@ function recordOf(entry: ViewerEntry): unknown {
   return entry.kind === "trace" ? read(entry, "record") : undefined;
 }
 
+/** One property of a trace entry's record, else undefined. */
+function recordField(entry: ViewerEntry, key: string): unknown {
+  return read(recordOf(entry), key);
+}
+
+/** One property of an entry's metadata, else undefined. */
+function metadataField(entry: ViewerEntry, key: string): unknown {
+  return read(read(entry, "metadata"), key);
+}
+
 function derivedAction(entry: ViewerEntry, ctx: MatchContext): unknown {
   try {
     return ctx.correlator?.get(entry.id)?.action;
@@ -50,39 +60,36 @@ export function stringValue(
   property: StringProperty,
   ctx: MatchContext,
 ): string | null {
-  const record = recordOf(entry);
-  const metadata = read(entry, "metadata");
   switch (property) {
     case "chargePointIds":
-      return text(
-        entry.kind === "trace"
-          ? (read(record, "chargePointId") ?? read(metadata, "chargePointId"))
-          : read(metadata, "chargePointId"),
-      );
+      // A non-trace entry has no record, so it falls through to the metadata.
+      return text(recordField(entry, "chargePointId") ?? metadataField(entry, "chargePointId"));
     case "actions":
       return entry.kind === "trace"
-        ? text(read(record, "action") ?? derivedAction(entry, ctx))
+        ? text(recordField(entry, "action") ?? derivedAction(entry, ctx))
         : null;
     case "directions":
-      return text(entry.kind === "unparsed" ? read(entry, "direction") : read(record, "direction"));
+      return text(
+        entry.kind === "unparsed" ? read(entry, "direction") : recordField(entry, "direction"),
+      );
     case "ocppVersions":
-      return text(read(record, "ocppVersion"));
+      return text(recordField(entry, "ocppVersion"));
     case "messageTypes":
-      return text(read(record, "messageType"));
+      return text(recordField(entry, "messageType"));
     case "messageIds":
-      return text(read(record, "messageId"));
+      return text(recordField(entry, "messageId"));
     case "sessionIds":
-      return text(read(metadata, "sessionId"));
+      return text(metadataField(entry, "sessionId"));
     case "tenants":
-      return text(read(metadata, "tenant"));
+      return text(metadataField(entry, "tenant"));
     case "sourceIds":
-      return text(read(read(metadata, "source"), "id"));
+      return text(read(metadataField(entry, "source"), "id"));
   }
 }
 
 /** The connector of a trace entry: an integer >= 0, else null. */
 export function connectorValue(entry: ViewerEntry): number | null {
-  const value = read(recordOf(entry), "connectorId");
+  const value = recordField(entry, "connectorId");
   return typeof value === "number" && Number.isInteger(value) && value >= 0 ? value : null;
 }
 
@@ -126,11 +133,14 @@ export function fieldValues(
   return stringItems(values, (item) => item);
 }
 
+/** The record's timestamp of a trace entry, else the entry's own; unvalidated. */
+export function ownTimestamp(entry: ViewerEntry): unknown {
+  return entry.kind === "trace" ? recordField(entry, "timestamp") : read(entry, "timestamp");
+}
+
 /** The entry's time in epoch milliseconds, or undefined. */
 export function timeValue(entry: ViewerEntry): number | undefined {
-  const own =
-    entry.kind === "trace" ? read(recordOf(entry), "timestamp") : read(entry, "timestamp");
-  const value = own ?? read(entry, "receivedAt");
+  const value = ownTimestamp(entry) ?? read(entry, "receivedAt");
   if (typeof value !== "string") return undefined;
   const time = Date.parse(value);
   return Number.isNaN(time) ? undefined : time;
