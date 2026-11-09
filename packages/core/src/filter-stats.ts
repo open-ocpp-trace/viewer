@@ -61,7 +61,8 @@ type Key = string | number | null;
  * The counted values of one entry: its kind, and per counted property the
  * distinct keys it carries (`[null]` when absent), laid out as the
  * {@link STRINGS}, the connector, the delivery statuses, then the producer
- * fields in context order.
+ * fields in context order. Multi-valued keys are sorted, so a reordering
+ * compares equal in {@link sameValues}.
  */
 export interface EntryValues {
   readonly kind: ViewerEntry["kind"];
@@ -69,7 +70,8 @@ export interface EntryValues {
 }
 
 function orNull(values: readonly string[]): readonly (string | null)[] {
-  return values.length === 0 ? [null] : values;
+  // Code-unit order: total and locale-independent.
+  return values.length === 0 ? [null] : [...values].sort();
 }
 
 /** Reads the counted values of `entry`; never throws on untrusted data. */

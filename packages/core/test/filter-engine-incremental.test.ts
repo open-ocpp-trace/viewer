@@ -182,6 +182,8 @@ function run(
     current.ids.forEach((id, at) => expect(engine.indexOf(id), label).toBe(at));
     if (engine.version === version) {
       expect(current, `${label}: changed without a notification`).toEqual(previous);
+    } else {
+      expect(current, `${label}: notified without a change`).not.toEqual(previous);
     }
     if (current.ids.length > 0 && current.ids.length < entries.length) coverage.partial += 1;
     if (updated && engine.version !== version) {

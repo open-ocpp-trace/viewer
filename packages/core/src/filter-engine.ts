@@ -63,8 +63,9 @@ export interface FilterEngineStats {
  *
  * The engine keeps the counted values and the membership of each listed
  * entry, so a store change costs O(added + evicted + updated) extractions,
- * plus an O(n) array move when membership changes in the middle of the
- * list; `setFilter` re-evaluates every listed entry.
+ * plus O(n) array moves on the matching ids: dropping evicted matches from
+ * the front, and a membership change in the middle of the list.
+ * `setFilter` re-evaluates every listed entry.
  */
 export interface FilterEngine {
   /**

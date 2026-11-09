@@ -68,8 +68,10 @@ and it holds exactly the listed entries. A store change is applied as a delta: `
 `evicted` prefix is dropped and decremented, `updated` entries are re-read and their counts diffed,
 `added` entries are appended. A correlator change re-reads the entries it names, and every entry when
 it is `cleared` (the correlator was disconnected or its store cleared), since derived actions then
-vanish. A store change costs O(added + evicted + updated) extractions, plus an O(n) array move when an
-update changes membership in the middle of the list. `setFilter` is the only full pass. If reading the
+vanish. A store change costs O(added + evicted + updated) extractions, plus O(n) array moves on the
+matching ids: dropping evicted matches from the front (every add at capacity), and inserting or
+removing an id when an update changes membership. They are plain memory moves, accepted over a more
+complex structure. `setFilter` is the only full pass over the entries. If reading the
 store fails while following it, the state stays as it was and the next change lists the store anew.
 
 Producer field `values` are read when an entry is listed or updated, and the result is kept: they must
@@ -100,6 +102,6 @@ engine) are not computed: they would cost a pass per property.
 - A host can persist and restore a filter as JSON, and a malformed one fails loudly at `setFilter`.
 - Absent values are selectable without colliding with any real value.
 - Secrets in payloads stay out of search results unless the host and the user both opt in.
-- A store change costs the size of its delta, not of the buffer; the engine holds one small record per
-  listed entry for it.
+- A store change extracts and counts only its delta, not the buffer; the id array still moves in O(n).
+  The engine holds one small record per listed entry for it.
 - Option lists and counters stay correct across pause, resume, eviction and clear without a rescan.

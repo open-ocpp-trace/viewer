@@ -179,6 +179,27 @@ describe("FilterEngine", () => {
     expect(stats.filtered.kinds).toEqual({ trace: 1, unparsed: 0, gap: 1 });
   });
 
+  it("does not notify when an update only reorders multi-valued values", () => {
+    const { store, engine, changes } = setup([gateway.primary]);
+    const stats = engine.getStats();
+
+    store.apply([
+      {
+        type: "update",
+        id: "g1",
+        metadata: {
+          deliveries: [
+            { target: "csms-a", status: "failed" },
+            { target: "csms-b", status: "written" },
+          ],
+        },
+      },
+    ]);
+
+    expect(changes).toHaveLength(1);
+    expect(engine.getStats()).toBe(stats);
+  });
+
   it("does not list pending entries until resume", () => {
     const { store, engine } = setup([simulator.boot]);
 
