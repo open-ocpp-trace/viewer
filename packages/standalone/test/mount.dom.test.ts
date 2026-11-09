@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vite-plus/test";
 
 import type { EntryUpdate, ViewerAdapter } from "@open-ocpp-trace/viewer-core";
-import { mount } from "@open-ocpp-trace/viewer-standalone";
+import { mount, type MountOptions } from "@open-ocpp-trace/viewer-standalone";
 
 import { attachStyles } from "../src/styles.ts";
 import { host, sdkEntry, shadowOf, stylesOf, track } from "./helpers.ts";
@@ -30,6 +30,24 @@ describe("mount", () => {
   it("rejects what is not an element", () => {
     expect(() => mount(null as unknown as Element)).toThrow(TypeError);
     expect(() => mount(document.createTextNode("x") as unknown as Element)).toThrow(TypeError);
+  });
+
+  it.each([
+    "store",
+    "correlator",
+    "renderPayload",
+    "filterControls",
+    "detailPanels",
+    "className",
+    "bogus",
+  ])("rejects the unknown option %s and leaves the element empty", (key) => {
+    const element = host();
+    const options = { [key]: undefined } as unknown as MountOptions;
+
+    expect(() => mount(element, options)).toThrow(TypeError);
+    expect(() => mount(element, options)).toThrow(`"${key}"`);
+    expect(element.childNodes).toHaveLength(0);
+    track(mount(element));
   });
 
   it("refuses a second instance on an element that already holds one", () => {

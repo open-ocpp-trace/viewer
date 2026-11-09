@@ -129,6 +129,39 @@ const MOUNT_ONLY: readonly (keyof MountOnlyOptions)[] = [
   "nonce",
 ];
 
+// Every live option, checked against `LiveOptions` in both directions; only
+// these keys reach `<TraceViewer>` as props.
+const LIVE_KEYS = Object.keys({
+  fields: true,
+  payloadSearch: true,
+  columns: true,
+  filter: true,
+  defaultFilter: true,
+  onFilterChange: true,
+  selection: true,
+  defaultSelection: true,
+  onSelectionChange: true,
+  loading: true,
+  error: true,
+  onCopy: true,
+  revealSensitive: true,
+  sensitiveKeys: true,
+  onExport: true,
+  theme: true,
+  strings: true,
+  translate: true,
+  toolbarActions: true,
+} satisfies Record<keyof LiveOptions, true>) as readonly (keyof LiveOptions)[];
+
+const KNOWN_KEYS: ReadonlySet<string> = new Set<string>([...MOUNT_ONLY, ...LIVE_KEYS]);
+
+/** Throws a `TypeError` naming the first key of `options` that no option has. */
+function rejectUnknown(options: object, caller: string): void {
+  for (const key of Object.keys(options)) {
+    if (!KNOWN_KEYS.has(key)) throw new TypeError(`${caller}: unknown option "${key}"`);
+  }
+}
+
 // Lets the viewer fill the host element; the host can still size the
 // container from outside, as its rules beat `:host`.
 const LAYOUT_CSS = ":host{display:block;height:100%}.oot-standalone-root{height:100%}";
@@ -145,6 +178,7 @@ export function mount(element: Element, options: MountOptions = {}): ViewerInsta
   const { maxEntries, maxBytes, correlation, adapter, entries, nonce, ...initial } = options;
   let live: LiveOptions = initial;
   if (!isElement(element)) throw new TypeError("mount() needs an Element to mount into");
+  rejectUnknown(options, "mount()");
   for (const child of Array.from(element.children)) {
     if (child.hasAttribute(CONTAINER_ATTRIBUTE)) {
       throw new Error("A viewer is already mounted in this element: unmount it first");
@@ -208,6 +242,7 @@ export function mount(element: Element, options: MountOptions = {}): ViewerInsta
           throw new TypeError(`"${key}" can only be set by mount(), not by setOptions()`);
         }
       }
+      rejectUnknown(changes, "setOptions()");
       live = { ...live, ...changes };
       flushSync(() => root?.render(viewer(store, correlator, live)));
     },
@@ -224,11 +259,15 @@ function viewer(
   correlator: Correlator | undefined,
   options: LiveOptions,
 ): ReactElement {
-  // An `undefined` option is left out, so the prop takes its default.
-  const props: Record<string, unknown> = { store };
-  if (correlator !== undefined) props["correlator"] = correlator;
-  for (const [key, value] of Object.entries(options)) {
+  // Only live options are read; an `undefined` one is left out, so the prop
+  // takes its default. The store and correlator are set last, so no option
+  // can replace them.
+  const props: Record<string, unknown> = {};
+  for (const key of LIVE_KEYS) {
+    const value = options[key];
     if (value !== undefined) props[key] = value;
   }
+  props["store"] = store;
+  if (correlator !== undefined) props["correlator"] = correlator;
   return createElement(TraceViewer, props as unknown as TraceViewerProps);
 }

@@ -145,6 +145,25 @@ describe("a mounted viewer", () => {
     },
   );
 
+  it.each([
+    "store",
+    "correlator",
+    "renderPayload",
+    "filterControls",
+    "detailPanels",
+    "className",
+    "bogus",
+  ])("rejects the unknown option %s in setOptions and keeps the live ones", (key) => {
+    const element = host();
+    const instance = track(mount(element, { loading: true }));
+    const changes = { loading: false, [key]: undefined } as unknown as MountOptions;
+
+    expect(() => instance.setOptions(changes)).toThrow(TypeError);
+    expect(() => instance.setOptions(changes)).toThrow(`"${key}"`);
+    instance.ingest([]);
+    expect(shadowOf(element).textContent).toContain("Loading entries");
+  });
+
   it("throws from setOptions once unmounted", () => {
     const instance = mount(host());
     instance.unmount();

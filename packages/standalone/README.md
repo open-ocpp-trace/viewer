@@ -66,6 +66,10 @@ React-only: `filterControls`, `detailPanels` and `renderPayload` take React
 elements, which a non-React host cannot build, so they are not options here.
 Payloads show as pretty-printed plain text.
 
+`mount` and `setOptions` throw a `TypeError` naming any key that is neither a
+live nor a mount-only option, such as `store`, `correlator`, `className` or a
+React-only prop: the viewer's store and correlator are its own.
+
 ## Lifecycle
 
 - `mount` renders synchronously: the viewer is in the DOM when it returns.
