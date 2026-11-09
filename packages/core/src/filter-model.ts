@@ -11,8 +11,9 @@ import type { FilterFieldDefinition } from "./extension.ts";
  *   wrong runtime type in a record (a string `connectorId`, a non-string
  *   `action`, a negative or fractional connector) is absent too. `""` is a
  *   value like any other, never the absent marker.
- * - Gaps are preserved: a gap entry passes every property but `kinds` (and
- *   `text`), so a filtered view still shows where entries may be missing.
+ * - Gaps are preserved: a gap entry passes every property, `text` included,
+ *   except `kinds`, so a filtered view still shows where entries may be
+ *   missing.
  * - Unparsed entries stay identifiable: they keep `kind: "unparsed"` and
  *   lack every record field, so `messageTypes: ["CALL"]` hides them and
  *   `messageTypes: ["CALL", null]` keeps them.

@@ -89,16 +89,17 @@ export function connectorValue(entry: ViewerEntry): number | null {
 /** Strings of an untrusted list, dropping other items; empty if not a list. */
 function stringItems(value: unknown, pick: (item: unknown) => unknown): string[] {
   if (!Array.isArray(value)) return [];
-  const found: string[] = [];
+  // A Set keeps insertion order, so the first occurrence keeps its place.
+  const found = new Set<string>();
   try {
     for (const item of value as readonly unknown[]) {
       const picked = pick(item);
-      if (typeof picked === "string" && !found.includes(picked)) found.push(picked);
+      if (typeof picked === "string") found.add(picked);
     }
   } catch {
     // A hostile list stops the read; keep what was read.
   }
-  return found;
+  return [...found];
 }
 
 /** Distinct delivery statuses of an entry; empty when it has none. */
