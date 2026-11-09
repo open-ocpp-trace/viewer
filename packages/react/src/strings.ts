@@ -1,6 +1,7 @@
 /**
- * Every text and accessible label the components show, in English. A host
- * overrides leaves with the `strings` prop or a `translate` function; a
+ * The texts and accessible labels the components show, in English (the
+ * filter engine's `reason` and the `…[truncated]` end of a copied block
+ * stay English). A host overrides leaves with the `strings` prop or a `translate` function; a
  * leaf's key is its dotted path (`"toolbar.exported"`), and the parameters
  * of a function leaf are named in {@link stringParams}.
  */
@@ -79,6 +80,24 @@ export const defaultStrings = {
       error: "Error details",
       meta: "Meta",
       custom: "Custom metadata",
+    },
+    /**
+     * Printed inside the payload, error, meta and custom blocks and in their
+     * copied text, in place of a value the inspector does not show.
+     */
+    markers: {
+      /** A sensitive field's value; printed as a quoted string. */
+      redacted: "[redacted]",
+      /** A reference back to an enclosing object or array. */
+      circular: "[Circular]",
+      /** A value whose getter or proxy threw. */
+      unreadable: "[Unreadable]",
+      symbol: "[Symbol]",
+      function: "[Function]",
+      /** An object past the depth limit. */
+      elidedObject: "{…}",
+      /** An array past the depth limit. */
+      elidedArray: "[…]",
     },
     showMore: "Show more",
     totalSize: (chars: number): string => `${chars} characters in total`,

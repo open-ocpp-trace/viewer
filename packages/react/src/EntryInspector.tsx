@@ -22,6 +22,7 @@ import {
 import {
   DEFAULT_MAX_DEPTH,
   defaultSensitiveKeys,
+  type FormatMarkers,
   type Formatted,
   formatValue,
   sensitiveKeySet,
@@ -44,8 +45,8 @@ export interface EntryInspectorProps {
   onNavigate?: (id: EntryId) => void;
   /**
    * Copy buttons are rendered only with it. The text is the whole block,
-   * printed on click without the `maxChars` limit, sensitive fields redacted.
-   * A printed block is capped at 50 000 000 characters (an adapter object
+   * printed on click without the `maxChars` limit, sensitive fields redacted,
+   * with the same `inspector.markers` as the blocks. A printed block is capped at 50 000 000 characters (an adapter object
    * that shares references can print exponentially); past it, the text is
    * cut and ends with `"\n…[truncated]"`. The raw frame is copied as is.
    */
@@ -59,7 +60,8 @@ export interface EntryInspectorProps {
    */
   renderPayload?: (text: string, entry: TraceEntry) => ReactNode;
   /**
-   * Shows the values of sensitive fields, otherwise printed `"[redacted]"`.
+   * Shows the values of sensitive fields, otherwise printed `"[redacted]"`
+   * (`inspector.markers.redacted`).
    * While they are hidden and `sensitiveKeys` is not empty, raw frames fail
    * closed: the raw frame of an unparsed entry is never shown, and the raw
    * frame of a record only when its payload (and the error details of a
@@ -260,13 +262,23 @@ function rawHiddenNote(strings: ViewerStrings) {
   return <p className="oot-inspector__note">{strings.inspector.rawHidden}</p>;
 }
 
-function usePrinted(value: unknown, limit: number, keys: ReadonlySet<string> | null) {
+function usePrinted(
+  value: unknown,
+  limit: number,
+  keys: ReadonlySet<string> | null,
+  markers: FormatMarkers,
+) {
   return useMemo(
     () =>
       value === undefined
         ? null
-        : formatValue(value, { maxChars: limit, maxDepth: DEFAULT_MAX_DEPTH, sensitiveKeys: keys }),
-    [value, limit, keys],
+        : formatValue(value, {
+            maxChars: limit,
+            maxDepth: DEFAULT_MAX_DEPTH,
+            sensitiveKeys: keys,
+            markers,
+          }),
+    [value, limit, keys, markers],
   );
 }
 
@@ -298,11 +310,16 @@ function rawText(value: unknown): string | null {
 }
 
 /** The whole block for a copy, up to {@link COPY_MAX} characters. */
-function copyText(value: unknown, keys: ReadonlySet<string> | null): string {
+function copyText(
+  value: unknown,
+  keys: ReadonlySet<string> | null,
+  markers: FormatMarkers,
+): string {
   const printed = formatValue(value, {
     maxChars: COPY_MAX - COPY_TRUNCATED.length,
     maxDepth: DEFAULT_MAX_DEPTH,
     sensitiveKeys: keys,
+    markers,
   });
   return printed.truncated ? printed.text + COPY_TRUNCATED : printed.text;
 }
@@ -323,10 +340,10 @@ function TraceDetails({ entry, props, keys, copy }: DetailsProps & { entry: Trac
     custom: read(metadata, "custom"),
   };
   const printed: Record<keyof typeof values, Formatted | null> = {
-    payload: usePrinted(values.payload, limits.limit("payload"), keys),
-    error: usePrinted(values.error, limits.limit("error"), keys),
-    meta: usePrinted(values.meta, limits.limit("meta"), keys),
-    custom: usePrinted(values.custom, limits.limit("custom"), keys),
+    payload: usePrinted(values.payload, limits.limit("payload"), keys, strings.markers),
+    error: usePrinted(values.error, limits.limit("error"), keys, strings.markers),
+    meta: usePrinted(values.meta, limits.limit("meta"), keys, strings.markers),
+    custom: usePrinted(values.custom, limits.limit("custom"), keys, strings.markers),
   };
   const raw = rawText(read(record, "raw"));
   const rawHoldsKey = useMemo(
@@ -357,7 +374,11 @@ function TraceDetails({ entry, props, keys, copy }: DetailsProps & { entry: Trac
         title={title}
         printed={shown}
         onMore={limits.more(name)}
-        onCopy={part === null ? undefined : copy(() => copyText(values[name], keys), part)}
+        onCopy={
+          part === null
+            ? undefined
+            : copy(() => copyText(values[name], keys, strings.markers), part)
+        }
       >
         {name === "payload" && render !== undefined && !shown.truncated ? (
           <ResetBoundary key={limits.step(name)} fallback={plain} resetKeys={[render, shown.text]}>

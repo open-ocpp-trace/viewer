@@ -1,3 +1,5 @@
+import { defaultStrings, type ViewerStrings } from "./strings.ts";
+
 /**
  * Property names whose values the inspector hides by default, matched
  * case-insensitively at any depth: OCPP 1.6 and 2.x authorization tokens and
@@ -22,6 +24,9 @@ export function sensitiveKeySet(keys: readonly string[]): ReadonlySet<string> {
 /** Default depth past which containers print as `{…}` / `[…]`. */
 export const DEFAULT_MAX_DEPTH = 64;
 
+/** The texts printed in place of values that are not shown. */
+export type FormatMarkers = ViewerStrings["inspector"]["markers"];
+
 export interface FormatOptions {
   /** Length of text at which printing stops; may be infinite. */
   readonly maxChars: number;
@@ -29,6 +34,8 @@ export interface FormatOptions {
   readonly maxDepth: number;
   /** Lower-cased property names to redact (see {@link sensitiveKeySet}); null redacts nothing. */
   readonly sensitiveKeys: ReadonlySet<string> | null;
+  /** The marker texts; the English defaults when absent. */
+  readonly markers?: FormatMarkers;
 }
 
 export interface Formatted {
@@ -60,8 +67,6 @@ type Task =
       readonly depth: number;
     };
 
-const UNREADABLE = "[Unreadable]";
-
 /**
  * Prints `value` as two-space indented JSON-like text, iteratively (no
  * recursion, so any depth is safe) and stopping at `options.maxChars`. The
@@ -72,6 +77,7 @@ const UNREADABLE = "[Unreadable]";
  */
 export function formatValue(value: unknown, options: FormatOptions): Formatted {
   const { maxChars, maxDepth, sensitiveKeys } = options;
+  const markers = options.markers ?? defaultStrings.inspector.markers;
   let longestKey = 0;
   for (const key of sensitiveKeys ?? []) longestKey = Math.max(longestKey, key.length);
   const out: string[] = [];
@@ -104,13 +110,13 @@ export function formatValue(value: unknown, options: FormatOptions): Formatted {
 
   const open = (item: object, depth: number): Task | null => {
     if (ancestors.has(item)) {
-      emit("[Circular]");
+      emit(markers.circular);
       return null;
     }
     const array = Array.isArray(item);
     if (depth >= maxDepth) {
       elided = true;
-      emit(array ? "[…]" : "{…}");
+      emit(array ? markers.elidedArray : markers.elidedObject);
       return null;
     }
     if (array) {
@@ -127,8 +133,8 @@ export function formatValue(value: unknown, options: FormatOptions): Formatted {
   const printLeaf = (item: unknown): void => {
     if (typeof item === "string") quote(item);
     else if (typeof item === "bigint") emit(`${item}n`);
-    else if (typeof item === "symbol") emit("[Symbol]");
-    else if (typeof item === "function") emit("[Function]");
+    else if (typeof item === "symbol") emit(markers.symbol);
+    else if (typeof item === "function") emit(markers.function);
     else emit(String(item));
   };
 
@@ -146,7 +152,7 @@ export function formatValue(value: unknown, options: FormatOptions): Formatted {
         container = open(item, task.depth);
       } catch {
         unreadable = true;
-        emit(UNREADABLE);
+        emit(markers.unreadable);
         continue;
       }
       if (container !== null) {
@@ -170,7 +176,7 @@ export function formatValue(value: unknown, options: FormatOptions): Formatted {
       quote(key);
       emit(": ");
       if (isSensitive(key)) {
-        emit('"[redacted]"');
+        emit(JSON.stringify(markers.redacted));
         redactedCount++;
         continue;
       }
@@ -180,7 +186,7 @@ export function formatValue(value: unknown, options: FormatOptions): Formatted {
       item = (task.value as Readonly<Record<string | number, unknown>>)[key];
     } catch {
       unreadable = true;
-      emit(UNREADABLE);
+      emit(markers.unreadable);
       continue;
     }
     stack.push({ kind: "value", value: item, depth: task.depth + 1 });

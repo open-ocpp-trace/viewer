@@ -75,6 +75,16 @@ function leftovers(texts: readonly string[]): string[] {
   });
 }
 
+/** Nests `depth` objects with a loop, past the inspector's depth limit. */
+function deep(depth: number): unknown {
+  let value: unknown = "bottom";
+  for (let i = 0; i < depth; i++) value = { next: value };
+  return value;
+}
+
+/** The default inspector markers, printed inside code blocks. */
+const MARKERS = Object.values(defaultStrings.inspector.markers);
+
 const ENTRIES: ViewerEntry[] = [
   sdkEntry("call", { action: "Authorize", messageId: "m-1" }),
   sdkEntry("result", {
@@ -179,6 +189,27 @@ describe("a fully translated viewer", () => {
     }
     expect(leftovers(all)).toEqual([]);
     quiet.mockRestore();
+  });
+
+  it("prints translated markers in the inspector's code blocks", () => {
+    const store = createViewerStore();
+    store.load([sdkEntry("marked", { payload: { idTag: "SECRET", nested: deep(70) } })]);
+    const { container } = render(
+      <TraceViewer store={store} translate={translate} selection={{ entryId: "marked" }} />,
+    );
+    const code = [...container.querySelectorAll(".oot-inspector__code")].map(
+      (block) => block.textContent ?? "",
+    );
+    for (const key of ["inspector.markers.redacted", "inspector.markers.elidedObject"]) {
+      expect(
+        code.some((text) => text.includes(`⟦${key}⟧`)),
+        key,
+      ).toBe(true);
+    }
+    const left = code.flatMap((text) =>
+      MARKERS.filter((marker) => text.replace(/⟦[^⟧]*⟧/g, "").includes(marker)),
+    );
+    expect(left).toEqual([]);
   });
 
   it("finds the default strings of an untranslated viewer", () => {

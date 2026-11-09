@@ -552,3 +552,33 @@ describe("<EntryInspector> renderPayload", () => {
     expect(reads).toBe(before);
   });
 });
+
+describe("<EntryInspector> localized markers", () => {
+  /** Nests `depth` objects with a loop. */
+  function deep(depth: number): unknown {
+    let value: unknown = "bottom";
+    for (let i = 0; i < depth; i++) value = { next: value };
+    return value;
+  }
+
+  it("shows and copies a translated redaction marker", () => {
+    const onCopy = vi.fn();
+    const entry = sdkEntry("s", { payload: { idTag: "SECRET" }, raw: "R" });
+    inspect([entry], "s", {
+      onCopy,
+      strings: { inspector: { markers: { redacted: "[masqué]" } } },
+    });
+    expect(block("Payload")!.textContent).toBe('{\n  "idTag": "[masqué]"\n}');
+    fireEvent.click(screen.getByRole("button", { name: "Copy Payload" }));
+    expect(onCopy.mock.calls[0]).toEqual(['{\n  "idTag": "[masqué]"\n}', "payload"]);
+  });
+
+  it("shows a translated marker for a container cut at the depth limit", () => {
+    const translate = (key: string) =>
+      key === "inspector.markers.elidedObject" ? "{…objet}" : undefined;
+    inspect([sdkEntry("d", { payload: deep(70), raw: "R" })], "d", { translate });
+    const text = block("Payload")!.textContent!;
+    expect(text).toContain("{…objet}");
+    expect(text).not.toContain("{…}");
+  });
+});

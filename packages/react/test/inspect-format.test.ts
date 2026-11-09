@@ -115,6 +115,44 @@ describe("formatValue", () => {
     ).toBe("[\n  undefined,\n  [Function],\n  [Symbol],\n  12n,\n  NaN,\n  Infinity\n]");
   });
 
+  it("prints the markers it is given", () => {
+    const markers = {
+      redacted: "[masqué]",
+      circular: "[circulaire]",
+      unreadable: "[illisible]",
+      symbol: "[symbole]",
+      function: "[fonction]",
+      elidedObject: "{…objet}",
+      elidedArray: "[…tableau]",
+    };
+    const value: Record<string, unknown> = {
+      idTag: "SECRET",
+      f: () => 1,
+      s: Symbol("s"),
+      deep: { o: {}, a: [1] },
+      get bad(): never {
+        throw new Error("boom");
+      },
+    };
+    value["self"] = value;
+    const text = print(value, { markers, maxDepth: 2, sensitiveKeys: sensitiveKeySet(["idTag"]) });
+    expect(text).toBe(
+      [
+        "{",
+        '  "idTag": "[masqué]",',
+        '  "f": [fonction],',
+        '  "s": [symbole],',
+        '  "deep": {',
+        '    "o": {…objet},',
+        '    "a": […tableau]',
+        "  },",
+        '  "bad": [illisible],',
+        '  "self": [circulaire]',
+        "}",
+      ].join("\n"),
+    );
+  });
+
   it("prints a throwing getter as unreadable", () => {
     const value = {
       ok: 1,

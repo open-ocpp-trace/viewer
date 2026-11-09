@@ -114,8 +114,9 @@ from its ancestors and follows the page's color scheme.
 
 ## Localization
 
-Every text, accessible label and status the components show comes from `defaultStrings` (English). A host
-replaces them with two props, on `<TraceViewer>` (which passes them to everything it renders) or on a standalone
+The texts, accessible labels and statuses the components show come from `defaultStrings` (English), including
+the markers the inspector prints inside its blocks in place of hidden values (`inspector.markers.*`:
+`"[redacted]"`, `[Circular]`, `{…}`…), which copied blocks use too. A host replaces them with two props, on `<TraceViewer>` (which passes them to everything it renders) or on a standalone
 `<TraceList>`, `<FilterPanel>` or `<EntryInspector>`:
 
 - `strings`: a partial copy of `defaultStrings` (`PartialViewerStrings`): any subset of the leaves, nested
@@ -152,7 +153,8 @@ Function leaves and their named parameters:
 | `filter.clearGroup`   | `legend`                                                                                           |
 | `filter.option`       | `value`, `count`                                                                                   |
 
-`filter.invalid`'s `reason` is the filter engine's own message, in English. Host strings (the labels of host
+`filter.invalid`'s `reason` is the filter engine's own message, in English, and a copied block cut at its size
+limit ends with `…[truncated]`, also in English. Host strings (the labels of host
 columns, the `error` prop) are shown as given.
 
 A bridge to i18next, without any dependency of the viewer on it:
