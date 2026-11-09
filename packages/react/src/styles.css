@@ -1,0 +1,68 @@
+/*
+ * Default look of the Open OCPP Trace viewer. Every rule is scoped to an
+ * `oot-` class and reads `--oot-*` custom properties with a fallback, so a
+ * host themes it by setting them on any ancestor. The layout virtualization
+ * depends on is inline, so the components work without this file.
+ */
+
+.oot-list {
+  font-family: var(--oot-font-family, ui-monospace, monospace);
+  font-size: var(--oot-font-size, 0.8125rem);
+  color: var(--oot-color, CanvasText);
+  background: var(--oot-background, Canvas);
+}
+
+.oot-row {
+  align-items: center;
+  box-sizing: border-box;
+  border-bottom: 1px solid var(--oot-border-color, rgb(128 128 128 / 30%));
+}
+
+.oot-row--header {
+  font-weight: 600;
+  background: var(--oot-header-background, rgb(128 128 128 / 12%));
+}
+
+.oot-row--gap {
+  font-style: italic;
+  background: var(--oot-gap-background, rgb(255 170 0 / 15%));
+}
+
+.oot-row--unparsed {
+  background: var(--oot-unparsed-background, rgb(220 40 40 / 10%));
+}
+
+.oot-cell {
+  flex: 1 1 0;
+  min-width: 0;
+  padding: 0 0.5em;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.oot-cell--timestamp {
+  flex: 0 0 15em;
+}
+
+.oot-cell--connector,
+.oot-cell--direction,
+.oot-cell--messageType {
+  flex: 0 0 7em;
+}
+
+.oot-cell--unparsed,
+.oot-cell--gap {
+  flex: 3 1 0;
+}
+
+.oot-badge,
+.oot-list-error {
+  font-weight: 600;
+  color: var(--oot-alert-color, rgb(180 30 30));
+}
+
+.oot-list-message,
+.oot-list-error {
+  padding: 0.5em;
+}

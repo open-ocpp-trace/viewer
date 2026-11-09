@@ -13,13 +13,16 @@
     "dist"
   ],
   "type": "module",
-  "sideEffects": false,
+  "sideEffects": [
+    "**/*.css"
+  ],
   "exports": {
     ".": {
       "@open-ocpp-trace/viewer-source": "./src/index.ts",
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
     },
+    "./styles.css": "./dist/styles.css",
     "./package.json": "./package.json"
   },
   "scripts": {

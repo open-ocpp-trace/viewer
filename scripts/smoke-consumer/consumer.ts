@@ -4,7 +4,13 @@
 // consumer does, so a tarball whose `types` entry does not resolve fails.
 
 import { VIEWER_CORE_VERSION } from "@open-ocpp-trace/viewer-core";
-import { VIEWER_REACT_VERSION, hostReactVersion } from "@open-ocpp-trace/viewer-react";
+import {
+  TraceList,
+  type TraceListProps,
+  VIEWER_REACT_VERSION,
+  hostReactVersion,
+  useFilterEngine,
+} from "@open-ocpp-trace/viewer-react";
 import { VIEWER_STANDALONE_VERSION, bundledReactVersion } from "@open-ocpp-trace/viewer-standalone";
 
 const versions: readonly string[] = [
@@ -16,3 +22,7 @@ const react: string = hostReactVersion();
 const bundled: string = bundledReactVersion();
 
 export const summary: string = [...versions, react, bundled].join(" ");
+
+// The components' declarations reference React's types.
+export type ListProps = TraceListProps;
+export const components: readonly unknown[] = [TraceList, useFilterEngine];

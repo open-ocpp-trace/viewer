@@ -7,3 +7,7 @@ export const VIEWER_REACT_VERSION: string = "0.0.0";
 export function hostReactVersion(): string {
   return version;
 }
+
+export { useFilterEngine } from "./hooks.ts";
+export { TraceList } from "./TraceList.tsx";
+export type { TraceListProps } from "./TraceList.tsx";

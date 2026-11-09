@@ -75,7 +75,10 @@ step "verify the tarballs (publint, attw)"
 for tarball in "$tmp"/tarballs/*.tgz; do
   printf '\nsmoke: verify %s\n' "$(basename -- "$tarball")"
   "$bin/publint" --strict "$tarball"
-  "$bin/attw" "$tarball" --profile esm-only --format ascii
+  # viewer-react's `./styles.css` export is a stylesheet, which has no
+  # type declarations for attw to find.
+  "$bin/attw" "$tarball" --profile esm-only --format ascii \
+    --exclude-entrypoints ./styles.css
 done
 
 for react_version in $react_versions; do
