@@ -13,7 +13,7 @@ import { buildSnapshot } from "./snapshot.ts";
 const NOT_ANALYZED: Record<NotAnalyzedReason, string> = {
   unparsed: "unparsed: the SDK reader rejected this line, so it was never sent",
   gap: "gap marker: not a record, so it was never sent",
-  pending: "pending: no analysis has run yet",
+  pending: "pending: not analyzed yet (no analysis has run since this entry was added)",
   rejected: "rejected: DebugKit rejected the whole snapshot",
   "mapping-broken": "mapping dropped: DebugKit's events did not fit the snapshot",
   "not-sent": "not sent: outside the analyzed snapshot (limits, or newer than it)",
@@ -112,7 +112,13 @@ export function App({ store, parse = parseOpenOcppTrace }: AppProps): ReactEleme
 
   function selectEvent(eventId: string): void {
     const entryId = analysis?.mapping.entryByEvent.get(eventId);
-    if (entryId === undefined || store.get(entryId) === undefined) {
+    const entry = entryId === undefined ? undefined : store.get(entryId);
+    // The same rule as the other direction: a reused id is not this event's entry.
+    if (
+      entryId === undefined ||
+      entry === undefined ||
+      !("eventId" in entryStatus(analysis, entry))
+    ) {
       setTimelineNote(`Event ${eventId} has no single viewer entry; the selection is unchanged.`);
       return;
     }

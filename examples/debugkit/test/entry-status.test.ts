@@ -74,6 +74,15 @@ describe("entryStatus", () => {
     expect(entryStatus(analysis, heartbeat)).toEqual({ reason: "not-sent" });
   });
 
+  it("treats a re-added id as pending until the next analysis", () => {
+    const analysis = analyzeSnapshot(buildSnapshot([heartbeat]));
+    expect(entryStatus(analysis, heartbeat)).toHaveProperty("eventId");
+    // Same id, equal content, but a new record: not the line DebugKit parsed.
+    const readded: ViewerEntry = { ...heartbeat, record: { ...HEARTBEAT } };
+
+    expect(entryStatus(analysis, readded)).toEqual({ reason: "pending" });
+  });
+
   it("does not map an entry of a snapshot DebugKit rejected", () => {
     // DebugKit drops a record without messageId; with no record left, it rejects the snapshot.
     const { messageId: _dropped, ...withoutId } = HEARTBEAT;

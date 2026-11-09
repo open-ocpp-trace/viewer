@@ -201,6 +201,37 @@ describe("the DebugKit example", () => {
     );
   });
 
+  it("does not map a re-added entry id to the previous record's event", async () => {
+    const capacity = (await createExampleStore()).size;
+    const store = createViewerStore({ maxEntries: capacity });
+    store.load(await readFixtureEntries("failed-auth", readSpecFixture()));
+    store.load(await readFixtureEntries("edge", readEdgeCases()));
+    const oldest = store.toArray()[0]!.id;
+    const analysis = analyzeSnapshot(buildSnapshot(store.toArray()));
+    const index = eventIndex(analysis, oldest);
+    expect(index).toBeGreaterThanOrEqual(0);
+    render(<App store={store} />);
+
+    // Evict the oldest entry, then add a new one under its id; no re-analysis yet.
+    act(() => {
+      store.apply([LIVE_HEARTBEAT]);
+    });
+    act(() => {
+      store.apply([{ type: "add", entry: { ...LIVE_HEARTBEAT.entry, id: oldest } }]);
+    });
+    expect(store.get(oldest)).toBeDefined();
+
+    fireEvent.click(row(oldest));
+    expect(highlighted()).toEqual([]);
+    expect(within(detailPanel()).getByText(/pending/)).toBeDefined();
+
+    fireEvent.click(timelineItems()[index]!);
+    expect(highlighted()).toEqual([]);
+    expect(screen.getByRole("status", { name: "Timeline selection" }).textContent).toMatch(
+      /no single viewer entry/,
+    );
+  });
+
   it("shows a failed analysis and keeps the previous one flagged as stale", async () => {
     const store = await createExampleStore();
     let failing = false;

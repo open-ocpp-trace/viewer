@@ -31,6 +31,11 @@ export interface AnalysisSnapshot {
   readonly text: string;
   readonly lines: readonly SnapshotLine[];
   readonly entryIds: readonly EntryId[];
+  /**
+   * The line of each entry id. The store can reuse an evicted id for a new
+   * entry: only the entry whose record is this line's record was analyzed.
+   */
+  readonly lineByEntry: ReadonlyMap<EntryId, SnapshotLine>;
   /** Entries never sent to DebugKit, by cause. */
   readonly skipped: {
     /** Unparsed frames: not records. */
@@ -95,6 +100,7 @@ export function buildSnapshot(
     text: kept.map((item) => item.text).join(""),
     lines,
     entryIds: lines.map((line) => line.entryId),
+    lineByEntry: new Map(lines.map((line) => [line.entryId, line])),
     skipped,
     truncated,
   };
