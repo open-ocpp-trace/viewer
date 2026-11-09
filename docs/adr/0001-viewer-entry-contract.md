@@ -73,12 +73,14 @@ The store (#3) applies these rules:
 4. **Immutable core fields.** An update only carries a metadata patch, so it never touches `record`,
    `kind`, `id` or `raw`.
 5. **Merge.** The patch (`EntryMetadataPatch`) is merged shallowly per metadata field. `custom` is
-   merged per key. `deliveries` is merged **per target**: each delivery in the patch replaces the
-   existing delivery with the same `target`, a new target is appended, and other targets keep their
-   state and order. The gateway sends the full delivery list once, with the frame, then one
-   delivery at a time as its status changes, addressed by its index in that list; a full-list
-   replacement would force its adapter to keep every list, while a per-target merge only needs the
-   index-to-target mapping it saw on `add`. A patch cannot remove a field.
+   merged per key. A patch key, in `custom` too, whose value is `undefined` is ignored; `null` is a
+   value and is stored. A patch cannot remove a field. `deliveries` is merged **per target**:
+   `target` is unique within an entry, and a duplicate `target` in an `add` or a patch keeps the
+   last one. Each delivery in the patch replaces the existing delivery with the same `target`
+   whole, so a delta carries `role`, `updatedAt` and `reason` again; a new target is appended,
+   and other targets keep their state and order. The gateway's type only shows a
+   `deliveries: Delivery[]` aligned with its destinations; a per-target merge handles both a full
+   list and one delivery at a time, without the adapter keeping any list.
 6. **Duplicate add.** An `add` for an id already held is ignored and counted. An `add` for an
    evicted id is accepted as a new entry, appended at the end: the store keeps no tombstones, so
    its memory stays bounded.
@@ -96,9 +98,21 @@ that needs it enforces it before emitting.
 receives batches of `EntryUpdate`s and returns an `Unsubscribe`. The viewer subscribes first and
 buffers the batches it receives, applies the snapshot (its entries carry no revision), then replays
 the buffer in order. An entry present in both the snapshot and an early batch is a duplicate `add`,
-ignored by rule 6, so the overlap is safe. Transports (WebSocket, SSE, polling) and codecs (JSONL, producer envelopes) stay in
+ignored by rule 6, so the overlap is safe. Transports (WebSocket, SSE, polling) and codecs
+(JSONL, producer envelopes) stay in
 adapters and examples; core has no transport type. A connection loss is reported by the adapter as a
 `gap` entry.
+
+### Untrusted data
+
+Everything an adapter emits is untrusted:
+
+- ids and `custom` keys are plain data: the store indexes entries by `Map` and merges `custom` by
+  spread or into null-prototype objects, never by `target[key] = value` or `Object.assign` onto a
+  plain object, so `__proto__` or `constructor` is just a key;
+- an update whose `type`, or an entry whose `kind`, is unknown is dropped and counted;
+- `raw`, `reason`, labels and `custom` values are text, never rendered as HTML;
+- ids share one namespace per viewer: when several adapters feed one viewer, each prefixes its ids.
 
 ### Selection and extensions
 

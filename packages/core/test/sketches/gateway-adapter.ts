@@ -8,7 +8,6 @@
 import type { TraceRecord } from "@open-ocpp-trace/core";
 import type {
   EntryDelivery,
-  EntryId,
   EntryUpdate,
   Unsubscribe,
   ViewerAdapter,
@@ -49,10 +48,12 @@ export type GatewayEnvelope = GatewayEnvelopeBase &
       }
   );
 
-/** A newer state of `deliveries[index]` of an envelope already sent. */
+/**
+ * A newer state of one delivery of an envelope already sent. The delivery
+ * carries its `target`, which is all the viewer needs to merge it.
+ */
 export interface GatewayDeliveryChange {
   id: string;
-  index: number;
   delivery: GatewayDelivery;
 }
 
@@ -108,9 +109,6 @@ export interface GatewayAdapter {
 
 export function createGatewayAdapter(): GatewayAdapter {
   const listeners = new Set<(updates: readonly EntryUpdate[]) => void>();
-  // The gateway addresses a delivery by its index in the envelope's list; the
-  // viewer merges deliveries per target, so the adapter keeps the mapping.
-  const targets = new Map<EntryId, readonly string[]>();
   let gaps = 0;
   const emit = (updates: readonly EntryUpdate[]): void => {
     for (const listener of listeners) listener(updates);
@@ -125,14 +123,9 @@ export function createGatewayAdapter(): GatewayAdapter {
       },
     },
     receive(envelope) {
-      targets.set(
-        envelope.id,
-        envelope.deliveries.map((delivery) => delivery.target),
-      );
       emit([{ type: "add", entry: gatewayEntry(envelope) }]);
     },
-    deliveryChanged({ id, index, delivery }) {
-      if (targets.get(id)?.[index] !== delivery.target) return;
+    deliveryChanged({ id, delivery }) {
       // No revision: a counter stamped here would only restate arrival order.
       // Keeping delivery statuses forward-only (queued, submitted, then a
       // final status) is this adapter's job, not the viewer's.

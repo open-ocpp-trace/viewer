@@ -170,7 +170,7 @@ describe("adapter sketches", () => {
       deliveries: [queued],
       trace: frozen,
     });
-    gateway.deliveryChanged({ id: "t-1", index: 0, delivery: { ...queued, status: "written" } });
+    gateway.deliveryChanged({ id: "t-1", delivery: { ...queued, status: "written" } });
     gateway.reconnected("2026-11-09T10:05:00.000Z", 3);
     unsubscribe();
     gateway.reconnected("2026-11-09T10:06:00.000Z");

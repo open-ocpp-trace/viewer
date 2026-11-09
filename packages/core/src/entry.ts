@@ -28,9 +28,16 @@ export type EntryDeliveryStatus =
 /** Known roles of a delivery target, plus any other string. */
 export type EntryDeliveryRole = "primary" | "secondary" | "charge-point" | (string & {});
 
-/** The latest known outcome of routing an entry's frame to one target. */
+/**
+ * The latest known outcome of routing an entry's frame to one target. A
+ * delivery in a patch replaces the one with the same `target` whole, so it
+ * carries `role`, `updatedAt` and `reason` again.
+ */
 export interface EntryDelivery {
-  /** The peer the frame was routed to; deliveries are merged per target. */
+  /**
+   * The peer the frame was routed to, unique within an entry; deliveries are
+   * merged per target, and a duplicate target in one list keeps the last one.
+   */
   readonly target: string;
   readonly role?: EntryDeliveryRole;
   readonly status: EntryDeliveryStatus;

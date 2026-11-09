@@ -3,7 +3,9 @@ import type { EntryId, EntryMetadata, ViewerEntry } from "./entry.ts";
 /**
  * Metadata fields to change on an entry already received. Fields are merged
  * shallowly; `custom` is merged per key and `deliveries` per target (see
- * docs/adr/0001-viewer-entry-contract.md). A patch cannot remove a field.
+ * docs/adr/0001-viewer-entry-contract.md). A key whose value is `undefined`,
+ * in `custom` too, is ignored; `null` is a value. A patch cannot remove a
+ * field.
  */
 export type EntryMetadataPatch = EntryMetadata;
 
