@@ -2,6 +2,8 @@ import type { ViewerEntry } from "./entry.ts";
 
 /** One held entry, listed or pending, and what the store caches about it. */
 export interface Slot {
+  /** The checked id the entry is indexed under; never re-read from the entry. */
+  readonly id: string;
   /** Replaced by each update that changes the metadata. */
   entry: ViewerEntry;
   /**

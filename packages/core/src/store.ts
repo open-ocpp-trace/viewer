@@ -71,7 +71,10 @@ export interface ViewerStoreStats {
    * non-string `id` or one starting with {@link STORE_ID_PREFIX}, an `update`
    * with a non-string `id`, a `metadata` that is not a plain object or a
    * `revision` that is not an integer >= 0 (an explicit `undefined` counts
-   * as no revision).
+   * as no revision), a `deliveries` (in an update's patch or an add's
+   * metadata) that is neither an array, `null` nor `undefined`, and any item
+   * whose reading throws (a hostile getter or proxy trap), which is then
+   * applied not at all.
    */
   readonly invalid: number;
 }
@@ -86,8 +89,11 @@ export interface ViewerStore {
   /**
    * Applies one batch of untrusted updates, in array order. Invalid items are
    * dropped and counted in {@link ViewerStoreStats.invalid}; the rest of the
-   * batch still applies. An `add` for an id already held is ignored and
-   * counted (rule 6); an `add` for an evicted id is a new entry.
+   * batch still applies. Each item is read once and applies whole or not at
+   * all. An `add` for an id already held is ignored and counted (rule 6); an
+   * `add` for an evicted id is a new entry. If iterating the batch itself
+   * throws, what was applied before is kept and notified, then the error is
+   * rethrown.
    */
   apply(batch: readonly EntryUpdate[]): void;
   /** Applies a snapshot: each entry as an `add`, in one batch. */
@@ -275,12 +281,12 @@ export function createViewerStore(options: ViewerStoreOptions = {}): ViewerStore
     while (listed.overLimits(maxEntries, maxBytes)) {
       const slot = listed.shift() as Slot;
       headSeq++;
-      index.delete(slot.entry.id);
+      index.delete(slot.id);
       counters.evicted++;
-      if (slot.seq < batchSeq) batchEvicted.push(slot.entry.id);
+      if (slot.seq < batchSeq) batchEvicted.push(slot.id);
     }
     while (pending.overLimits(maxPending, maxPendingBytes)) {
-      index.delete((pending.shift() as Slot).entry.id);
+      index.delete((pending.shift() as Slot).id);
       counters.droppedPending++;
       droppedThisPause++;
     }
@@ -292,17 +298,21 @@ export function createViewerStore(options: ViewerStoreOptions = {}): ViewerStore
     enforceBounds();
   };
 
-  /** Holds a new entry: listed, or pending while paused. */
-  const admit = (added: ViewerEntry): void => {
-    const entry = normalizeAddedEntry(added);
+  /**
+   * Holds a new entry, built by the store from checked values: listed, or
+   * pending while paused. Weighing never throws, so nothing here can fail
+   * half-way.
+   */
+  const admit = (entry: ViewerEntry): void => {
     const slot: Slot = {
+      id: entry.id,
       entry,
       seq: -1,
       coreBytes: coreWeight(entry, maxBytes),
       metadataBytes: metadataWeight(entry, maxBytes),
       revision: undefined,
     };
-    index.set(entry.id, slot);
+    index.set(slot.id, slot);
     if (!paused) return list(slot);
     pending.push(slot);
     enforceBounds();
@@ -317,50 +327,89 @@ export function createViewerStore(options: ViewerStoreOptions = {}): ViewerStore
 
   /**
    * Applies rules 1 and 5 to a held entry, re-weighing its metadata only and
-   * enforcing the bounds at once. Returns whether anything changed.
+   * enforcing the bounds at once. Returns whether anything changed. Every
+   * untrusted read (the merge) happens before the first mutation, and the
+   * watermark is written last, so a throw leaves the entry as it was.
    */
-  const applyUpdate = (slot: Slot, patch: EntryMetadataPatch, revision?: number): boolean => {
-    if (revision !== undefined) {
-      if (slot.revision !== undefined && revision <= slot.revision) {
-        counters.staleUpdates++;
-        return true;
-      }
-      slot.revision = revision;
+  const applyUpdate = (
+    slot: Slot,
+    patch: EntryMetadataPatch,
+    revision: number | undefined,
+  ): boolean => {
+    if (revision !== undefined && slot.revision !== undefined && revision <= slot.revision) {
+      counters.staleUpdates++;
+      return true;
     }
     const metadata = mergeMetadata(slot.entry.metadata, patch);
+    if (metadata !== undefined) {
+      const entry = { ...slot.entry, metadata } as ViewerEntry;
+      const bytes = metadataWeight(entry, maxBytes);
+      slot.entry = entry;
+      (slot.seq < 0 ? pending : listed).reweigh(bytes - slot.metadataBytes);
+      slot.metadataBytes = bytes;
+      batchUpdated.add(slot.id);
+    }
+    if (revision !== undefined) slot.revision = revision;
     if (metadata === undefined) return false;
-    slot.entry = { ...slot.entry, metadata } as ViewerEntry;
-    const bytes = metadataWeight(slot.entry, maxBytes);
-    (slot.seq < 0 ? pending : listed).reweigh(bytes - slot.metadataBytes);
-    slot.metadataBytes = bytes;
-    batchUpdated.add(slot.entry.id);
     enforceBounds();
     return true;
   };
 
+  /**
+   * Applies one untrusted item atomically: a throw while reading it (a
+   * hostile getter or proxy trap) drops it as invalid, with nothing applied.
+   */
   const ingest = (item: unknown): void => {
-    const checked = checkItem(item);
-    if (checked === undefined) {
+    try {
+      const checked = checkItem(item);
+      if (checked === undefined) {
+        counters.invalid++;
+      } else if (checked.type === "add") {
+        if (index.has(checked.id)) {
+          counters.duplicates++;
+        } else {
+          const entry = normalizeAddedEntry(checked);
+          if (entry === undefined) counters.invalid++;
+          else admit(entry);
+        }
+      } else {
+        const slot = index.get(checked.id);
+        if (slot === undefined) counters.unknownUpdates++;
+        else if (!applyUpdate(slot, checked.metadata, checked.revision)) return;
+      }
+    } catch {
       counters.invalid++;
-    } else if (checked.type === "add") {
-      if (index.has(checked.entry.id)) counters.duplicates++;
-      else admit(checked.entry);
-    } else {
-      const slot = index.get(checked.id);
-      if (slot === undefined) counters.unknownUpdates++;
-      else if (!applyUpdate(slot, checked.metadata, checked.revision)) return;
     }
     changed = true;
   };
 
-  /** Runs `body` as one change, then notifies its net delta, if anything changed. */
+  /**
+   * Runs `body` as one change, then notifies its net delta, if anything
+   * changed. When `body` throws (a throwing batch iterator), what it applied
+   * is still notified, then its error is rethrown.
+   */
   const transact = (body: () => void): void => {
     changed = false;
     cleared = false;
     batchSeq = nextSeq;
     batchEvicted = [];
     batchUpdated.clear();
-    body();
+    let failure: { readonly error: unknown } | undefined;
+    try {
+      body();
+    } catch (error) {
+      failure = { error };
+    }
+    try {
+      notify();
+    } catch (error) {
+      if (failure === undefined) throw error;
+    }
+    if (failure !== undefined) throw failure.error;
+  };
+
+  /** Notifies the net delta of the current change, if anything changed. */
+  const notify = (): void => {
     if (!changed) return;
     // Entries listed by this change and still listed: a suffix of the list.
     const added: EntryId[] = [];
@@ -369,7 +418,7 @@ export function createViewerStore(options: ViewerStoreOptions = {}): ViewerStore
       position < listed.length;
       position++
     ) {
-      added.push((listed.at(position) as Slot).entry.id);
+      added.push((listed.at(position) as Slot).id);
     }
     // Updated ids still listed from before this change.
     const updated = [...batchUpdated].filter((id) => {

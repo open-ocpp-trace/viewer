@@ -8,13 +8,24 @@ import type { EntryMetadataPatch } from "./update.ts";
  */
 export const STORE_ID_PREFIX = "viewer-store:";
 
-/** A batch item that passed the shape checks of the « Untrusted data » rules. */
+/**
+ * A batch item that passed the shape checks of the « Untrusted data » rules:
+ * a fresh object of the values read, each field read once. `entry` is still
+ * the untrusted object (its other fields are read by
+ * {@link normalizeAddedEntry}); an update's `metadata` is a null-prototype
+ * snapshot of the patch's defined values.
+ */
 export type CheckedItem =
-  | { readonly type: "add"; readonly entry: ViewerEntry }
+  | {
+      readonly type: "add";
+      readonly id: EntryId;
+      readonly kind: ViewerEntry["kind"];
+      readonly entry: object;
+    }
   | {
       readonly type: "update";
       readonly id: EntryId;
-      readonly revision?: number;
+      readonly revision: number | undefined;
       readonly metadata: EntryMetadataPatch;
     };
 
@@ -29,29 +40,43 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return isObject(value) && !Array.isArray(value);
 }
 
+/** Whether a `deliveries` value is allowed: an array, `null` or `undefined`. */
+function validDeliveries(deliveries: unknown): boolean {
+  return deliveries === undefined || deliveries === null || Array.isArray(deliveries);
+}
+
 /**
  * Checks the shape of one untrusted batch item; `undefined` means the item is
  * invalid (dropped and counted). Only the fields the store relies on are
- * checked: the rest of an entry is opaque data.
+ * checked: the rest of an entry is opaque data. Each field is read once and
+ * the values read are returned, so a getter cannot answer the check and a
+ * later use differently. May throw on a hostile item (a throwing getter or
+ * proxy trap): the caller counts it as invalid.
  */
 export function checkItem(item: unknown): CheckedItem | undefined {
   if (!isObject(item)) return undefined;
-  if (item["type"] === "add") {
+  const type = item["type"];
+  if (type === "add") {
     const entry = item["entry"];
-    if (!isObject(entry) || !ENTRY_KINDS.has(entry["kind"])) return undefined;
+    if (!isObject(entry)) return undefined;
+    const kind = entry["kind"];
+    if (!ENTRY_KINDS.has(kind)) return undefined;
     const id = entry["id"];
     if (typeof id !== "string" || id.startsWith(STORE_ID_PREFIX)) return undefined;
-    return { type: "add", entry: entry as unknown as ViewerEntry };
+    return { type, id, kind: kind as ViewerEntry["kind"], entry };
   }
-  if (item["type"] === "update") {
-    const metadata = item["metadata"];
-    if (typeof item["id"] !== "string") return undefined;
-    if (!isObject(metadata) || Array.isArray(metadata)) return undefined;
+  if (type === "update") {
+    const id = item["id"];
+    if (typeof id !== "string") return undefined;
     const revision = item["revision"];
     if (revision !== undefined && !(Number.isInteger(revision) && (revision as number) >= 0)) {
       return undefined;
     }
-    return item as unknown as CheckedItem;
+    const patch = item["metadata"];
+    if (!isRecord(patch)) return undefined;
+    const metadata = definedValues(patch) ?? Object.create(null);
+    if (!validDeliveries(metadata["deliveries"])) return undefined;
+    return { type, id, revision: revision as number | undefined, metadata };
   }
   return undefined;
 }
@@ -137,29 +162,40 @@ const CONTRACT_FIELDS: Readonly<Record<ViewerEntry["kind"], readonly string[]>> 
 };
 
 /**
- * Returns the entry to store for an `add`: a copy holding only the contract
- * fields of its kind that are defined, so no field the byte accounting does
- * not weigh is retained, and whose deliveries keep the last delivery of a
- * duplicate target (rule 5). The copy keeps the same `record` and `metadata`
- * references unless deliveries were merged; the input is never mutated. A
- * field whose getter throws is left out.
+ * Returns the entry to store for a checked `add`, or `undefined` when it is
+ * invalid (a `deliveries` in its metadata that is neither an array, `null`
+ * nor `undefined`). The entry is a copy holding the checked `kind` and `id`
+ * and only the other contract fields of that kind that are defined, each read
+ * once, so no field the byte accounting does not weigh is retained, and whose
+ * deliveries keep the last delivery of a duplicate target (rule 5). The copy
+ * keeps the same `record` and `metadata` references unless deliveries were
+ * merged; the input is never mutated. A field whose getter throws is left
+ * out; a throwing `deliveries` getter throws (the item is invalid).
  */
-export function normalizeAddedEntry(entry: ViewerEntry): ViewerEntry {
-  const copy: Record<string, unknown> = {};
-  for (const field of CONTRACT_FIELDS[entry.kind]) {
+export function normalizeAddedEntry(
+  checked: Extract<CheckedItem, { type: "add" }>,
+): ViewerEntry | undefined {
+  const copy: Record<string, unknown> = { kind: checked.kind, id: checked.id };
+  for (const field of CONTRACT_FIELDS[checked.kind]) {
+    if (field === "kind" || field === "id") continue;
     let value: unknown;
     try {
-      value = (entry as unknown as Record<string, unknown>)[field];
+      value = (checked.entry as Record<string, unknown>)[field];
     } catch {
       continue;
     }
     if (value !== undefined) copy[field] = value;
   }
   const metadata = copy["metadata"];
-  if (isObject(metadata) && Array.isArray(metadata["deliveries"])) {
-    const deliveries = metadata["deliveries"] as readonly EntryDelivery[];
-    const merged = mergeDeliveries([], deliveries);
-    if (merged.length !== deliveries.length) copy["metadata"] = { ...metadata, deliveries: merged };
+  if (isObject(metadata)) {
+    const deliveries = metadata["deliveries"];
+    if (!validDeliveries(deliveries)) return undefined;
+    if (Array.isArray(deliveries)) {
+      const merged = mergeDeliveries([], deliveries as readonly EntryDelivery[]);
+      if (merged.length !== deliveries.length) {
+        copy["metadata"] = { ...metadata, deliveries: merged };
+      }
+    }
   }
   return copy as unknown as ViewerEntry;
 }

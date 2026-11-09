@@ -191,17 +191,29 @@ describe("ViewerStore untrusted data", () => {
     const entry = trace("a", {
       metadata: { deliveries: [{ target: "csms", status: "queued" }] },
     });
-    const odd = trace("b", { metadata: { deliveries: "csms" as unknown as [] } });
-    store.apply([add(entry), add(odd)]);
+    const bare = trace("b", { metadata: { tenant: "t", deliveries: null as unknown as [] } });
+    store.apply([add(entry), add(bare)]);
 
     expect(store.get("a")).toEqual(entry);
-    expect(store.get("b")).toEqual(odd);
+    expect(store.get("b")).toEqual(bare);
     expect(store.get("a")?.metadata).toBe(entry.metadata);
-    expect(store.get("b")?.metadata).toBe(odd.metadata);
+    expect(store.get("b")?.metadata).toBe(bare.metadata);
     expect(store.get("a")?.kind === "trace" && (store.get("a") as typeof entry).record).toBe(
       entry.record,
     );
   });
+
+  it.each([{}, "csms", 1])(
+    "drops and counts an add whose deliveries is %s, neither an array nor null",
+    (deliveries) => {
+      const store = createViewerStore();
+      const odd = trace("b", { metadata: { deliveries: deliveries as unknown as [] } });
+      store.apply([add(odd), ...adds("a")]);
+
+      expect(ids(store)).toEqual(["a"]);
+      expect(store.getStats().invalid).toBe(1);
+    },
+  );
 
   it("drops and counts an add with a reserved id", () => {
     const store = createViewerStore();

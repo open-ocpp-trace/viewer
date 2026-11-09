@@ -112,6 +112,37 @@ describe("ViewerStore updates", () => {
     ]);
   });
 
+  it.each([{}, "csms", 1, true])(
+    "drops and counts an update whose deliveries is %s, neither an array nor null",
+    (deliveries) => {
+      const store = createViewerStore();
+      store.apply([
+        add(trace("a", { metadata: { deliveries: [{ target: "p", status: "queued" }] } })),
+      ]);
+      store.apply([
+        update("a", { tenant: "t", deliveries } as unknown as EntryMetadataPatch),
+        update("a", { sessionId: "s" }),
+      ]);
+
+      expect(store.getStats().invalid).toBe(1);
+      expect(metadata(store, "a")).toEqual({
+        deliveries: [{ target: "p", status: "queued" }],
+        sessionId: "s",
+      });
+    },
+  );
+
+  it("stores a null deliveries from a patch (rule 5)", () => {
+    const store = createViewerStore();
+    store.apply([
+      add(trace("a", { metadata: { deliveries: [{ target: "p", status: "queued" }] } })),
+    ]);
+    store.apply([update("a", { deliveries: null } as unknown as EntryMetadataPatch)]);
+
+    expect(store.getStats().invalid).toBe(0);
+    expect(metadata(store, "a")).toEqual({ deliveries: null });
+  });
+
   it("applies revisions above the watermark only, counting stale ones (rule 1)", () => {
     const store = createViewerStore();
     store.apply(adds("a"));
