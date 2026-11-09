@@ -1,0 +1,46 @@
+/* Host styles of the branded example: every rule is scoped to .branded-host. */
+
+.branded-host {
+  padding: 1rem;
+  border-radius: 12px;
+  background: #0b1020;
+  color: #e5e7eb;
+  font-family: system-ui, sans-serif;
+  /* Tokens set on an ancestor: the viewer only reads them. */
+  --oot-border-color: #374151;
+  --oot-focus-color: #a78bfa;
+  --oot-alert-color: #fca5a5;
+}
+
+.branded-host h2 {
+  margin: 0 0 0.5rem;
+  color: #c4b5fd;
+  letter-spacing: 0.04em;
+}
+
+.branded-host__cta {
+  padding: 0.4rem 1rem;
+  border: 0;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #7c3aed, #db2777);
+  color: #fff;
+  font-weight: 600;
+}
+
+.branded-host table {
+  margin: 0.5rem 0 1rem;
+}
+
+.branded-host th,
+.branded-host td {
+  padding: 0.25rem 0.75rem;
+  border-bottom: 1px solid #374151;
+  text-align: left;
+}
+
+.branded-host__viewer {
+  height: 480px;
+  overflow: hidden;
+  border: 1px solid #374151;
+  border-radius: 8px;
+}

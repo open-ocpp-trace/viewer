@@ -1,0 +1,20 @@
+/* Layout of the playground page: scoped to .playground, like the examples. */
+
+.playground {
+  display: grid;
+  gap: 1rem;
+  padding: 1rem;
+}
+
+.playground__version {
+  margin: 0;
+  font-family: ui-monospace, monospace;
+  font-size: 0.75rem;
+  opacity: 0.7;
+}
+
+.playground__examples {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 36rem), 1fr));
+  gap: 1rem;
+}

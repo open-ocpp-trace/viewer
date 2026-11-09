@@ -10,6 +10,7 @@
     "build": "vp build"
   },
   "dependencies": {
+    "@open-ocpp-trace/viewer-core": "workspace:*",
     "@open-ocpp-trace/viewer-react": "workspace:*",
     "react": "19.3.1",
     "react-dom": "19.3.1"
