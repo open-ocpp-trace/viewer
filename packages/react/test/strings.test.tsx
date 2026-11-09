@@ -13,7 +13,7 @@ import {
   useFilterEngine,
 } from "@open-ocpp-trace/viewer-react";
 
-import { resolveStrings } from "../src/strings-context.ts";
+import { resolveStrings, StringsContext } from "../src/strings-context.ts";
 import { stringParams } from "../src/strings.ts";
 import { add, sdkEntry } from "./fixtures.ts";
 import { stubLayout } from "./layout.ts";
@@ -203,5 +203,21 @@ describe("localized components", () => {
     );
     expect(screen.getByRole("button", { name: "Pause" })).toBeDefined();
     expect(report).toHaveBeenCalled();
+  });
+});
+
+describe("strings of a nested component", () => {
+  it("reads the enclosing strings without props, and only its own props with some", () => {
+    const store = storeWith(0);
+    const outer = resolveStrings({ inspector: { empty: "Ctx", label: "Ctx label" } }, undefined);
+    render(
+      <StringsContext.Provider value={outer}>
+        <EntryInspector store={store} entryId={null} />
+        <EntryInspector store={store} entryId={null} strings={{ inspector: { empty: "Own" } }} />
+      </StringsContext.Provider>,
+    );
+    expect(screen.getByRole("region", { name: "Ctx label" }).textContent).toBe("Ctx");
+    // Own props replace the enclosing strings: the label falls back to the default.
+    expect(screen.getByRole("region", { name: "Entry details" }).textContent).toBe("Own");
   });
 });
