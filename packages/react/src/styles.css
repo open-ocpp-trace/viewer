@@ -3,7 +3,33 @@
  * `oot-` class and reads `--oot-*` custom properties with a fallback, so a
  * host themes it by setting them on any ancestor. The layout virtualization
  * depends on is inline, so the components work without this file.
+ *
+ * This file only ever reads the public `--oot-*` tokens, never declares
+ * them: a declaration here would beat a host ancestor's value. The light
+ * and dark defaults come from `color-scheme` (system colors adapt) and, for
+ * a fallback that does not adapt, from a private `--_oot-*` property set
+ * per scheme on the viewer root.
  */
+
+.oot-viewer[data-oot-color-scheme="light"] {
+  color-scheme: light;
+}
+
+.oot-viewer[data-oot-color-scheme="dark"] {
+  color-scheme: dark;
+  --_oot-alert-color: rgb(255 130 130);
+}
+
+.oot-viewer[data-oot-color-scheme="auto"] {
+  color-scheme: light dark;
+}
+
+/* Scoped to "auto": a viewer asking for "light" stays light on a dark OS. */
+@media (prefers-color-scheme: dark) {
+  .oot-viewer[data-oot-color-scheme="auto"] {
+    --_oot-alert-color: rgb(255 130 130);
+  }
+}
 
 .oot-list {
   font-family: var(--oot-font-family, ui-monospace, monospace);
@@ -75,7 +101,7 @@
 .oot-badge,
 .oot-list-error {
   font-weight: 600;
-  color: var(--oot-alert-color, rgb(180 30 30));
+  color: var(--oot-alert-color, var(--_oot-alert-color, rgb(180 30 30)));
 }
 
 .oot-list-message,
@@ -171,7 +197,7 @@
 .oot-filter-error {
   margin: 0;
   font-weight: 600;
-  color: var(--oot-alert-color, rgb(180 30 30));
+  color: var(--oot-alert-color, var(--_oot-alert-color, rgb(180 30 30)));
 }
 
 .oot-inspector {

@@ -26,6 +26,7 @@ import { exportJsonl, type JsonlExport } from "./export-jsonl.ts";
 import { FilterPanel } from "./FilterPanel.tsx";
 import { useFilterEngine } from "./hooks.ts";
 import { defaultStrings } from "./strings.ts";
+import { themeStyle, type ViewerTheme } from "./theme.ts";
 import { TraceList } from "./TraceList.tsx";
 
 /** Props of {@link TraceViewer}. */
@@ -91,8 +92,15 @@ export interface TraceViewerProps {
    * unmodified: the detail panel's redaction does not apply.
    */
   onExport?: (exported: JsonlExport, scope: ExportScope) => void;
+  /**
+   * The color scheme and token overrides of this viewer, set on its root
+   * element (`data-oot-color-scheme` and inline `--oot-*` properties).
+   */
+  theme?: ViewerTheme;
   className?: string;
 }
+
+const ROOT_STYLE = { display: "flex", flexDirection: "column", height: "100%" } as const;
 
 /** What an export of {@link TraceViewer} covers. */
 export type ExportScope = "selection" | "filtered";
@@ -209,7 +217,11 @@ export function TraceViewer(props: TraceViewerProps): ReactElement {
 
   const className = props.className === undefined ? "oot-viewer" : `oot-viewer ${props.className}`;
   return (
-    <div className={className} style={{ display: "flex", flexDirection: "column", height: "100%" }}>
+    <div
+      className={className}
+      data-oot-color-scheme={props.theme?.colorScheme ?? "auto"}
+      style={themeStyle(props.theme, ROOT_STYLE)}
+    >
       <div className="oot-toolbar">
         <button
           type="button"

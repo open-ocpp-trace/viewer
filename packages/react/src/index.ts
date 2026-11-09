@@ -16,6 +16,8 @@ export { FilterPanel } from "./FilterPanel.tsx";
 export type { FilterPanelProps } from "./FilterPanel.tsx";
 export { useFilterEngine } from "./hooks.ts";
 export { defaultSensitiveKeys } from "./inspect-format.ts";
+export { themeTokens } from "./theme.ts";
+export type { ColorScheme, ThemeToken, ViewerTheme } from "./theme.ts";
 export { TraceList } from "./TraceList.tsx";
 export type { TraceListProps } from "./TraceList.tsx";
 export { TraceViewer } from "./TraceViewer.tsx";
