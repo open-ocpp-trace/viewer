@@ -13,7 +13,8 @@ import {
   type TraceStats,
 } from "./filter-stats.ts";
 import type { ViewerStore, ViewerStoreChange } from "./store.ts";
-import { createListeners, reportAsync } from "./store-listeners.ts";
+import { reportViewerError, type ViewerErrorHandler } from "./report-error.ts";
+import { createListeners } from "./store-listeners.ts";
 
 /** Options of {@link createFilterEngine}. */
 export interface FilterEngineOptions {
@@ -33,6 +34,15 @@ export interface FilterEngineOptions {
    * and raw frames may hold secrets.
    */
   readonly payloadSearch?: boolean;
+  /**
+   * Receives, synchronously, each listener error (`{ component:
+   * "filterEngine", callback: "listener" }`) and an internal error while
+   * following the store (`callback: "follow"`), the correlator
+   * (`"correlate"`) or applying a filter (`"setFilter"`). Without it, they go
+   * to the default reporter of {@link reportViewerError}:
+   * `globalThis.reportError`, else `console.error`.
+   */
+  readonly onError?: ViewerErrorHandler;
 }
 
 /**
@@ -122,12 +132,12 @@ export interface FilterEngine {
   readonly version: number;
   /**
    * Listeners run in subscription order. A throwing listener does not stop
-   * the others; the first error is reported asynchronously (as a rejected
-   * promise nobody handles), never thrown into the store, the correlator,
-   * `connect` or `setFilter`, as with {@link Correlator.subscribe}. An
-   * internal error while following the store is reported likewise, the list
-   * left as it was; the next store change then lists the store anew.
-   * Listeners should not throw.
+   * the others; each error goes to {@link FilterEngineOptions.onError},
+   * never thrown into the store, the correlator, `connect` or `setFilter`,
+   * as with {@link Correlator.subscribe}. An internal error while following
+   * the store or the correlator, or while `setFilter` lists anew, is
+   * reported likewise, the list left as it was; the next store change then
+   * lists the store anew.
    */
   subscribe(listener: (change: FilterChange) => void): Unsubscribe;
 }
@@ -154,20 +164,17 @@ function sameIds(a: readonly EntryId[], b: readonly EntryId[]): boolean {
   return a.length === b.length && a.every((id, index) => id === b[index]);
 }
 
-/**
- * {@link createFilterEngine} with the function that receives listener and
- * internal errors. Not exported from the package.
- */
-export function createFilterEngineWith(
-  options: FilterEngineOptions | undefined,
-  report: (error: unknown) => void,
-): FilterEngine {
+/** Creates a {@link FilterEngine} listing every entry until a filter is set. */
+export function createFilterEngine(options?: FilterEngineOptions): FilterEngine {
+  const onError = options?.onError;
+  const report = (callback: string, error: unknown): void =>
+    reportViewerError(onError, error, { component: "filterEngine", callback });
   const fields = fieldMap(options?.fields);
   const fieldIds = [...fields.keys()];
   const correlator = options?.correlator;
   const payloadSearch = options?.payloadSearch === true;
   const ctx: MatchContext = { fields, ...(correlator !== undefined && { correlator }) };
-  const listeners = createListeners<FilterChange>(report);
+  const listeners = createListeners<FilterChange>((error) => report("listener", error));
   let compiled: CompiledFilter = compileFilter({}, fields, payloadSearch);
   /** Listed entries of the store, in store list order. */
   let cache = new Map<EntryId, Cached>();
@@ -298,21 +305,20 @@ export function createFilterEngineWith(
   function emit(): void {
     version += 1;
     stats = undefined;
-    try {
-      listeners.emit({ version });
-    } catch (error) {
-      report(error);
-    }
+    listeners.emit({ version });
   }
 
-  /** Runs `step`, notifying if it changed anything; an error is reported and marks the state stale. */
-  function guard(step: () => boolean): void {
+  /**
+   * Runs `step`, notifying if it changed anything; an error is reported
+   * under `callback` and marks the state stale.
+   */
+  function guard(callback: string, step: () => boolean): void {
     let changed: boolean;
     try {
       changed = step();
     } catch (error) {
       stale = true;
-      report(error);
+      report(callback, error);
       return;
     }
     if (changed) emit();
@@ -331,10 +337,10 @@ export function createFilterEngineWith(
       if (connected !== undefined) throw new Error("the filter engine is already connected");
       const connection = {};
       const onStore = (change: ViewerStoreChange): void => {
-        if (connected === connection) guard(() => follow(store, change));
+        if (connected === connection) guard("follow", () => follow(store, change));
       };
       const onCorrelator = (change: CorrelationChange): void => {
-        if (connected === connection) guard(() => correlate(change));
+        if (connected === connection) guard("correlate", () => correlate(change));
       };
 
       // Subscribe before seeding, so a change made by a listener of the seed
@@ -366,7 +372,7 @@ export function createFilterEngineWith(
       compiled = compileFilter(filter, fields, payloadSearch);
       const store = source;
       if (store === undefined) return;
-      guard(() => {
+      guard("setFilter", () => {
         if (stale) return rebuild(store);
         // The only full pass: membership and the filtered counts; the buffer is untouched.
         const before = ids;
@@ -412,9 +418,4 @@ export function createFilterEngineWith(
   };
   holdings.set(engine, () => cache.size);
   return engine;
-}
-
-/** Creates a {@link FilterEngine} listing every entry until a filter is set. */
-export function createFilterEngine(options?: FilterEngineOptions): FilterEngine {
-  return createFilterEngineWith(options, reportAsync);
 }

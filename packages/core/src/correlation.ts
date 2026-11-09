@@ -1,7 +1,8 @@
 import type { Unsubscribe } from "./adapter.ts";
 import { type CallNode, createCallIndex, type Direction } from "./correlation-index.ts";
 import type { EntryId, ViewerEntry } from "./entry.ts";
-import { createListeners, firstError, reportAsync } from "./store-listeners.ts";
+import { reportViewerError, type ViewerErrorHandler } from "./report-error.ts";
+import { createListeners } from "./store-listeners.ts";
 import type { ViewerStore, ViewerStoreChange, ViewerStoreStats } from "./store.ts";
 
 /**
@@ -28,6 +29,14 @@ export type CorrelationScope = "conversation" | "chargePoint" | "global";
 export interface CorrelatorOptions {
   /** Default `conversation`; any other value throws a `RangeError`. */
   readonly scope?: CorrelationScope;
+  /**
+   * Receives, synchronously, each listener error (`{ component:
+   * "correlator", callback: "listener" }`) and an internal error while
+   * following the store (`callback: "follow"`). Without it, they go to the
+   * default reporter of {@link reportViewerError}: `globalThis.reportError`,
+   * else `console.error`.
+   */
+  readonly onError?: ViewerErrorHandler;
 }
 
 /** A CALL. */
@@ -145,24 +154,16 @@ export interface Correlator {
   readonly version: number;
   /**
    * Listeners run in subscription order. A throwing listener does not stop
-   * the others; the first error is reported asynchronously (as a rejected
-   * promise nobody handles), never thrown into the store or `connect`: the
-   * correlator runs inside the store's listener, where an error would
-   * surface in the unrelated caller of `apply`. The seed change emitted by
-   * `connect` is reported the same way, since rethrowing would lose the
-   * {@link Unsubscribe} and leave the correlator connected. An internal
-   * error while following the store is reported likewise, after the change
-   * collected so far is emitted.
-   *
-   * Under Node's default `--unhandled-rejections=throw`, such a rejection
-   * terminates the process: listeners should not throw.
+   * the others; each error goes to {@link CorrelatorOptions.onError}, never
+   * thrown into the store or `connect`: the correlator runs inside the
+   * store's listener, where an error would surface in the unrelated caller
+   * of `apply`. The seed change emitted by `connect` is reported the same
+   * way, since rethrowing would lose the {@link Unsubscribe} and leave the
+   * correlator connected. An internal error while following the store is
+   * reported likewise (`callback: "follow"`), after the change collected so
+   * far is emitted.
    */
   subscribe(listener: (change: CorrelationChange) => void): Unsubscribe;
-}
-
-/** Creates a {@link Correlator}; see {@link CorrelationScope}. */
-export function createCorrelator(options?: CorrelatorOptions): Correlator {
-  return createCorrelatorWith(options, reportAsync);
 }
 
 interface ReadRecord {
@@ -240,16 +241,13 @@ export function correlatorInternals(correlator: Correlator): CorrelatorInternals
   return found;
 }
 
-/**
- * {@link createCorrelator} with the function that receives listener errors.
- * Not exported from the package.
- */
-export function createCorrelatorWith(
-  options: CorrelatorOptions | undefined,
-  report: (error: unknown) => void,
-): Correlator {
+/** Creates a {@link Correlator}; see {@link CorrelationScope}. */
+export function createCorrelator(options?: CorrelatorOptions): Correlator {
   const scope = checkScope(options);
-  const listeners = createListeners<CorrelationChange>(report);
+  const onError = options?.onError;
+  const report = (callback: string, error: unknown): void =>
+    reportViewerError(onError, error, { component: "correlator", callback });
+  const listeners = createListeners<CorrelationChange>((error) => report("listener", error));
   let index = createCallIndex();
   /** Correlated entries: the CALL node, or null for a response. */
   let tracked = new Map<EntryId, CallNode | null>();
@@ -365,11 +363,7 @@ export function createCorrelatorWith(
     if (changed.length === 0 && removed.length === 0 && !cleared) return;
     version += 1;
     lists = undefined;
-    try {
-      listeners.emit({ version, changed, removed, cleared });
-    } catch (error) {
-      report(error);
-    }
+    listeners.emit({ version, changed, removed, cleared });
   }
 
   const correlator: Correlator = {
@@ -431,13 +425,17 @@ export function createCorrelatorWith(
         if (connected !== connection) return;
         const removed: EntryId[] = [];
         const changed = new Set<EntryId>();
-        const errors = firstError();
-        errors.run(() => follow(change, removed, changed));
-        const { failure } = errors;
-        // Never leave silent partial state: emit what was applied.
-        if (failure !== undefined) lists = undefined;
+        // Wrapped, so that a thrown `undefined` counts.
+        let failure: { readonly error: unknown } | undefined;
+        try {
+          follow(change, removed, changed);
+        } catch (error) {
+          failure = { error };
+          // Never leave silent partial state: emit what was applied.
+          lists = undefined;
+        }
         emit([...changed], removed, change.cleared);
-        if (failure !== undefined) report(failure.error);
+        if (failure !== undefined) report("follow", failure.error);
       }
       return () => {
         if (connected !== connection) return;

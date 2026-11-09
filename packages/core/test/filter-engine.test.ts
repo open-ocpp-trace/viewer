@@ -14,7 +14,7 @@ import {
   type ViewerStore,
 } from "@open-ocpp-trace/viewer-core";
 
-import { cachedSize, createFilterEngineWith } from "../src/filter-engine.ts";
+import { cachedSize } from "../src/filter-engine.ts";
 import { call, result } from "./correlation-fixtures.ts";
 import { context, gateway, record, select, simulator } from "./filter-fixtures.ts";
 import { add, gap } from "./store-fixtures.ts";
@@ -32,7 +32,7 @@ function setup(
 ): { store: ViewerStore; engine: FilterEngine; changes: FilterChange[]; reported: unknown[] } {
   store.load(entries);
   const reported: unknown[] = [];
-  const engine = createFilterEngineWith(options, (error) => reported.push(error));
+  const engine = createFilterEngine({ ...options, onError: (error) => reported.push(error) });
   const changes: FilterChange[] = [];
   engine.subscribe((change) => changes.push(change));
   engine.connect(store);
@@ -393,7 +393,7 @@ describe("FilterEngine connection", () => {
     const store = createViewerStore();
     store.load([simulator.boot]);
     const reported: unknown[] = [];
-    const engine = createFilterEngineWith(undefined, (error) => reported.push(error));
+    const engine = createFilterEngine({ onError: (error) => reported.push(error) });
     const seen: number[] = [];
     engine.subscribe(() => {
       throw new Error("listener");

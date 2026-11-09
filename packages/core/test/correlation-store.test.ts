@@ -10,7 +10,7 @@ import {
   type ViewerStore,
 } from "@open-ocpp-trace/viewer-core";
 
-import { correlatorInternals, createCorrelatorWith } from "../src/correlation.ts";
+import { correlatorInternals } from "../src/correlation.ts";
 import { call, result } from "./correlation-fixtures.ts";
 import { add, gap, unparsed } from "./store-fixtures.ts";
 
@@ -291,7 +291,7 @@ describe("Correlator and store clear, pause and listeners", () => {
 
   it("never lets a listener error reach the store", () => {
     const reported: unknown[] = [];
-    const correlator = createCorrelatorWith(undefined, (error) => reported.push(error));
+    const correlator = createCorrelator({ onError: (error) => reported.push(error) });
     correlator.subscribe(() => {
       throw new Error("listener");
     });
@@ -308,7 +308,7 @@ describe("Correlator and store clear, pause and listeners", () => {
 
   it("reports a listener error of the seed change and still returns the unsubscribe", () => {
     const reported: unknown[] = [];
-    const correlator = createCorrelatorWith(undefined, (error) => reported.push(error));
+    const correlator = createCorrelator({ onError: (error) => reported.push(error) });
     correlator.subscribe(() => {
       throw new Error("listener");
     });
@@ -324,7 +324,7 @@ describe("Correlator and store clear, pause and listeners", () => {
 
   it("emits what it collected before an internal error, then reports it", () => {
     const reported: unknown[] = [];
-    const correlator = createCorrelatorWith(undefined, (error) => reported.push(error));
+    const correlator = createCorrelator({ onError: (error) => reported.push(error) });
     const store = createViewerStore();
     const failing: ViewerStore = {
       ...store,

@@ -72,11 +72,3 @@ export function firstError(): FirstError {
     },
   };
 }
-
-/**
- * Reports `error` asynchronously, as an unhandled rejection: the default
- * for errors that cannot be rethrown to the caller.
- */
-export function reportAsync(error: unknown): void {
-  void Promise.reject(error);
-}

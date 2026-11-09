@@ -5,6 +5,7 @@ import { describe, expect, it } from "vite-plus/test";
 import {
   computeStats,
   createCorrelator,
+  createFilterEngine,
   createViewerStore,
   type EntryDelivery,
   type EntryMetadata,
@@ -15,7 +16,7 @@ import {
   type ViewerEntry,
 } from "@open-ocpp-trace/viewer-core";
 
-import { cachedSize, createFilterEngineWith } from "../src/filter-engine.ts";
+import { cachedSize } from "../src/filter-engine.ts";
 import { frame } from "./correlation-fixtures.ts";
 import { context, select } from "./filter-fixtures.ts";
 
@@ -53,9 +54,11 @@ function run(
   const store = createViewerStore({ maxEntries: 8 });
   const correlator = createCorrelator();
   const reported: unknown[] = [];
-  const engine = createFilterEngineWith({ fields: [zone], correlator }, (error) =>
-    reported.push(error),
-  );
+  const engine = createFilterEngine({
+    fields: [zone],
+    correlator,
+    onError: (error) => reported.push(error),
+  });
   let disconnect: (() => void) | undefined;
   if (order === "before") disconnect = correlator.connect(store);
   engine.connect(store);

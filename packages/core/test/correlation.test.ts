@@ -8,7 +8,6 @@ import {
   type TraceEntry,
 } from "@open-ocpp-trace/viewer-core";
 
-import { createCorrelatorWith } from "../src/correlation.ts";
 import { call, correlate, error, result } from "./correlation-fixtures.ts";
 import { deepFreeze, gap, unparsed } from "./store-fixtures.ts";
 
@@ -407,7 +406,7 @@ describe("Correlator listeners", () => {
     const store = createViewerStore();
     store.load([call("c1", "m1")]);
     const reported: unknown[] = [];
-    const correlator = createCorrelatorWith(undefined, (error) => reported.push(error));
+    const correlator = createCorrelator({ onError: (error) => reported.push(error) });
     const calls: string[] = [];
     correlator.subscribe(() => {
       calls.push("first");
