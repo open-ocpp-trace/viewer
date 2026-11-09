@@ -1,9 +1,76 @@
 # @open-ocpp-trace/viewer-react
 
+React components of the Open OCPP Trace viewer: a virtualized trace list, a filter panel, an entry inspector and
+`<TraceViewer>`, which composes them. The data model (store, correlation, filters) lives in the framework-neutral
+`@open-ocpp-trace/viewer-core`.
+
+## Install
+
+```sh
+bun add @open-ocpp-trace/viewer-react @open-ocpp-trace/viewer-core
+```
+
+React and React DOM 18 or 19 are peer dependencies. Import the stylesheet once, anywhere in the host:
+
+```ts
+import "@open-ocpp-trace/viewer-react/styles.css";
+```
+
+## Usage
+
+The host owns the store and feeds it; the viewer only reads it.
+
+```tsx
+import { createViewerStore } from "@open-ocpp-trace/viewer-core";
+import { TraceViewer } from "@open-ocpp-trace/viewer-react";
+
+const store = createViewerStore();
+store.load(entries); // ViewerEntry[]: traces, unparsed frames and gaps
+
+export function Traces(): ReactElement {
+  return (
+    <div style={{ height: 480 }}>
+      <TraceViewer store={store} />
+    </div>
+  );
+}
+```
+
+`<TraceViewer>` fills the height of its container: give the container a height. Later entries arrive through
+`store.apply([{ type: "add", entry }])`.
+
+## Props
+
+**Component props** are plain React props of `<TraceViewer>` (see `TraceViewerProps` for the full list):
+
+| Prop                                                          | Purpose                                                                     |
+| ------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| `store`                                                       | The entries to show (required)                                              |
+| `filter` / `defaultFilter` / `onFilterChange`                 | Controlled or uncontrolled `TraceFilter`                                    |
+| `selection` / `defaultSelection` / `onSelectionChange`        | Controlled or uncontrolled `ViewerSelection`                                |
+| `payloadSearch`                                               | Lets the text search read payloads                                          |
+| `loading`, `error`                                            | Host status, shown in the list                                              |
+| `onExport`                                                    | Shows the export buttons and receives the JSONL text built by `exportJsonl` |
+| `onCopy`, `renderPayload`, `revealSensitive`, `sensitiveKeys` | Inspector behaviour                                                         |
+| `theme`                                                       | Color scheme and tokens of this viewer ([Theming](#theming))                |
+| `strings`, `translate`                                        | Localization ([Localization](#localization))                                |
+| `columns`, `filterControls`, `toolbarActions`, `detailPanels` | Host slots ([Slots](#slots))                                                |
+
+**Integration adapters** come from `@open-ocpp-trace/viewer-core` and connect the viewer to a data source; they
+have no React dependency:
+
+- `createViewerStore(options)`: the bounded store a `ViewerStore` prop expects (`load`, `apply`, `pause`, `resume`).
+- `ViewerAdapter`: a source exposing `snapshot()` and `subscribe(listener)`. The host loads the snapshot into the
+  store and passes each batch of `EntryUpdate`s to `store.apply`.
+- `createCorrelator({ scope })`: pairs CALLs with their responses. `correlator.connect(store)`, then pass it as
+  `correlator` to enable the inspector's response and CALL links.
+- `ColumnDefinition` (`columns`) and `FilterFieldDefinition` (`fields`): host columns and filterable producer
+  fields, described by value only.
+
 ## Theming
 
-Import the stylesheet once: `import "@open-ocpp-trace/viewer-react/styles.css";`. Every rule is
-scoped to an `oot-` class; the file has no global reset, `:root`, element or `@font-face` rule.
+Every rule of the stylesheet is scoped to an `oot-` class; the file has no global reset, `:root`, element or
+`@font-face` rule.
 
 `<TraceViewer theme={…}>` themes one viewer, on its root element only:
 
@@ -94,3 +161,101 @@ A bridge to i18next, without any dependency of the viewer on it:
 const translate: TranslateFunction = (key, params) =>
   i18n.exists(`ocppViewer.${key}`) ? i18n.t(`ocppViewer.${key}`, params) : undefined;
 ```
+
+## Slots
+
+Four props of `<TraceViewer>` add host UI without forking the viewer. Each slot has an `id`, unique within its
+prop: elements are keyed by it, and a duplicate id is ignored with one `console.warn`. Labels and titles are
+host strings, shown as given (`translate` does not apply to them). Slot functions are read at call time, so a new
+array per render neither remounts the slots nor re-runs anything; memoize the arrays anyway.
+
+- `columns: ColumnDefinition[]`: columns appended after the built-in ones, rendered from `value(entry)`.
+
+  ```ts
+  const columns: ColumnDefinition[] = [
+    {
+      id: "site",
+      label: "Site",
+      value: (entry) => {
+        const site = entry.metadata?.custom?.["site"];
+        return typeof site === "string" ? site : undefined;
+      },
+    },
+  ];
+  ```
+
+- `filterControls: FilterControl[]`: rendered after the built-in groups of the filter panel, each in a
+  `<fieldset>` with `label` as its legend. `render({ filter, setFilter })` gets the panel's current filter;
+  `setFilter` takes the same path as a built-in control (validation, `onFilterChange`). A control usually edits
+  a producer field declared in `fields`; `filter.fields` is an array of `{ id, values }`:
+
+  ```tsx
+  const siteField: FilterFieldDefinition = { id: "site", label: "Site", values: (e) => siteOf(e) };
+  const northOnly: FilterControl = {
+    id: "north-only",
+    label: "Site",
+    render: ({ filter, setFilter }) => {
+      const others = (filter.fields ?? []).filter((field) => field.id !== "site");
+      const on = others.length !== (filter.fields ?? []).length;
+      const fields = on ? others : [...others, { id: "site", values: ["north"] }];
+      return (
+        <label>
+          <input type="checkbox" checked={on} onChange={() => setFilter({ ...filter, fields })} />
+          North only
+        </label>
+      );
+    },
+  };
+  <TraceViewer store={store} fields={[siteField]} filterControls={[northOnly]} />;
+  ```
+
+- `toolbarActions: ToolbarAction[]`: buttons after the built-in toolbar buttons. `run(context)` and the optional
+  `disabled(context)` get a `ViewerActionContext`: `store`, `selection`, `selectedEntry`, `listed()` (the
+  entries the filter lists, in order) and `select(entryId)`.
+
+  ```ts
+  const actions: ToolbarAction[] = [
+    {
+      id: "copy-ids",
+      label: "Copy IDs",
+      disabled: (context) => context.listed().length === 0,
+      run: (context) =>
+        copy(
+          context
+            .listed()
+            .map((entry) => entry.id)
+            .join("\n"),
+        ),
+    },
+  ];
+  ```
+
+- `detailPanels: DetailPanel[]`: sections under the inspector for the selected entry, shown only for the
+  entries `appliesTo(entry)` accepts (all by default). `render(context)` gets a `DetailPanelContext`: `entry`,
+  `store`, `correlator` and `select(entryId)`. A panel that throws shows the `detailPanelError` string in its place
+  and recovers on the next entry; the viewer stays usable. A host component library plugs in here, for example a
+  failure summary like DebugKit's, without the viewer depending on it:
+
+  ```tsx
+  const panels: DetailPanel[] = [
+    {
+      id: "failure",
+      title: "Failure",
+      appliesTo: (entry) => entry.kind === "trace" && entry.record.messageType === "CALLERROR",
+      render: ({ entry, select }) => <FailureSummary entry={entry} onOpen={select} />,
+    },
+  ];
+  ```
+
+A throw in `run`, `disabled` or `appliesTo` is reported (`reportError`, else `console.error`): the action or the
+panel is disabled or hidden, and the viewer stays mounted.
+
+## Callbacks
+
+- `onSelectionChange(selection, entry)`: called when the user or a slot selects an entry, with that entry (or
+  `undefined` when the store does not hold it), and once with `{ entryId: null }` when the selected entry leaves
+  the store. Pair it with `selection` for a controlled selection, for instance to sync an external timeline.
+- `onFilterChange(filter)`: called with every filter the user or a filter control builds, in both modes.
+- `onExport(exported, scope)`: receives the JSONL export of the selection or of the filtered entries.
+
+`onSelectionChange` is read at call time: a new function per render is never called for an earlier change.
