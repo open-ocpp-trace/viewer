@@ -22,7 +22,14 @@ export default defineConfig({
     options: { typeAware: true, typeCheck: true },
   },
   fmt: {
-    ignorePatterns: ["**/dist/**", "**/node_modules/**", "bun.lock"],
+    // The vendored specification fixtures stay byte for byte as published;
+    // scripts/sync-spec-fixtures.sh is the only thing that writes them.
+    ignorePatterns: [
+      "**/dist/**",
+      "**/node_modules/**",
+      "bun.lock",
+      "packages/core/test/fixtures/spec/**",
+    ],
   },
   test: {
     include: ["packages/*/test/**/*.test.ts"],
