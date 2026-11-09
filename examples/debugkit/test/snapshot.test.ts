@@ -131,3 +131,27 @@ describe("buildSnapshot", () => {
     expect(snapshot).toMatchObject({ text: "", entryIds: [], truncated: 0 });
   });
 });
+
+describe("buildSnapshot serialization cache", () => {
+  it("does not re-serialize a record already written by an earlier snapshot", () => {
+    let reads = 0;
+    const base = trace("t", "m-1", "2024-01-15T10:00:00.000Z");
+    if (base.kind !== "trace") throw new Error("expected a trace entry");
+    const record = new Proxy(base.record, {
+      get(target, property, receiver) {
+        reads += 1;
+        return Reflect.get(target, property, receiver) as unknown;
+      },
+    });
+    const entries: ViewerEntry[] = [{ kind: "trace", id: "t", record }];
+
+    const first = buildSnapshot(entries);
+    expect(reads).toBeGreaterThan(0);
+    reads = 0;
+    const second = buildSnapshot(entries);
+
+    expect(reads).toBe(0);
+    expect(second).toEqual(first);
+    expect(second).not.toBe(first);
+  });
+});

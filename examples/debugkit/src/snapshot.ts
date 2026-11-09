@@ -55,6 +55,28 @@ export interface AnalysisSnapshot {
 const encoder = new TextEncoder();
 
 /**
+ * The JSONL line and UTF-8 size of each record already written, or
+ * `"invalid"` when the SDK writer rejected it. Records are immutable and
+ * shared by identity across snapshots, so each one is written once.
+ */
+const serialized = new WeakMap<TraceRecord, { text: string; size: number } | "invalid">();
+
+function serialize(record: TraceRecord): { text: string; size: number } | "invalid" {
+  let cached = serialized.get(record);
+  if (cached === undefined) {
+    try {
+      const text = serializeRecord(record);
+      cached = { text, size: encoder.encode(text).length };
+    } catch (error) {
+      if (!(error instanceof JsonlWriteError)) throw error;
+      cached = "invalid";
+    }
+    serialized.set(record, cached);
+  }
+  return cached;
+}
+
+/**
  * Builds the snapshot of `entries` (all the trace entries the store holds,
  * not the filtered list, so a filter change never calls for a new analysis).
  * Gap and unparsed entries never reach DebugKit; they are only counted. When
@@ -83,15 +105,12 @@ export function buildSnapshot(
       truncated += 1;
       continue;
     }
-    let text: string;
-    try {
-      text = serializeRecord(entry.record);
-    } catch (error) {
-      if (!(error instanceof JsonlWriteError)) throw error;
+    const line = serialize(entry.record);
+    if (line === "invalid") {
       skipped.invalid += 1;
       continue;
     }
-    const size = encoder.encode(text).length;
+    const { text, size } = line;
     if (bytes + size > limits.maxBytes) {
       truncated = 1;
       continue;

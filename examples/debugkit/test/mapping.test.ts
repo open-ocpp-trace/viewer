@@ -238,3 +238,27 @@ describe("mapEvents", () => {
     }
   });
 });
+
+describe("mapEvents line key cache", () => {
+  it("does not re-key a record already keyed by an earlier mapping", () => {
+    let reads = 0;
+    const record = new Proxy(call("m-1", 1), {
+      get(target, property, receiver) {
+        reads += 1;
+        return Reflect.get(target, property, receiver) as unknown;
+      },
+    });
+    const snapshot = snapshotOf([record]);
+    const { events } = parseOpenOcppTrace(snapshot.text);
+
+    reads = 0;
+    const first = mapEvents(snapshot.lines, events);
+    expect(reads).toBeGreaterThan(0);
+    reads = 0;
+    const second = mapEvents(snapshot.lines, events);
+
+    expect(reads).toBe(0);
+    expect(second).toEqual(first);
+    expect(first.status).toBe("aligned");
+  });
+});

@@ -39,19 +39,20 @@ export function analyzeSnapshot(
   snapshot: AnalysisSnapshot,
   parse: (input: string) => ParseResult = parseOpenOcppTrace,
 ): Analysis {
-  const nothing = {
+  // Built only on the early returns: the ok path maps the real events.
+  const nothing = () => ({
     events: [],
     warnings: [],
     failures: [],
     mapping: mapEvents(snapshot.lines, []),
-  };
-  if (snapshot.text === "") return { snapshot, status: "empty", ...nothing };
+  });
+  if (snapshot.text === "") return { snapshot, status: "empty", ...nothing() };
   let result: ParseResult;
   try {
     result = parse(snapshot.text);
   } catch (error) {
     if (!(error instanceof ParseError)) throw error;
-    return { snapshot, status: "error", error: error.message, ...nothing };
+    return { snapshot, status: "error", error: error.message, ...nothing() };
   }
   const { events, warnings } = result;
   return {

@@ -75,6 +75,10 @@ export function App({ store, parse = parseOpenOcppTrace }: AppProps): ReactEleme
     };
   }, [store]);
 
+  // Mutable copies for the DebugKit components, stable across renders so
+  // that a selection or note change does not hand them new arrays.
+  const events = useMemo(() => [...(analysis?.events ?? [])], [analysis]);
+  const failures = useMemo(() => [...(analysis?.failures ?? [])], [analysis]);
   const eventsById = useMemo(
     () => new Map(analysis?.events.map((event) => [event.id, event])),
     [analysis],
@@ -159,13 +163,13 @@ export function App({ store, parse = parseOpenOcppTrace }: AppProps): ReactEleme
                 : "")}
           </p>
           <SessionTimeline
-            events={[...(analysis?.events ?? [])]}
+            events={events}
             selectedEventId={selectedEventId}
             onSelectEvent={selectEvent}
           />
         </section>
         <section aria-label="DebugKit failures">
-          <FailureSummary failures={[...(analysis?.failures ?? [])]} />
+          <FailureSummary failures={failures} />
         </section>
         <AnalysisStatus analysis={analysis} stale={stale} failure={failure} />
       </aside>

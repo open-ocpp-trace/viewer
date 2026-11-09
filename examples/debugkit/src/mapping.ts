@@ -50,13 +50,28 @@ const DIRECTIONS: Record<TraceRecord["direction"], Direction> = {
 };
 
 /**
+ * The key of each record already keyed. Records are immutable and shared by
+ * identity across snapshots, so each one is keyed once.
+ */
+const lineKeys = new WeakMap<TraceRecord, EventKey>();
+
+function lineKey(record: TraceRecord): EventKey {
+  let key = lineKeys.get(record);
+  if (key === undefined) {
+    key = computeLineKey(record);
+    lineKeys.set(record, key);
+  }
+  return key;
+}
+
+/**
  * The key DebugKit derives from `record`. A `raw` frame that parses as an
  * OCPP-J frame (DebugKit's own schema) wins over the decomposed fields, as it
  * does in `parseOpenOcppTrace`; otherwise the fields are used. A record
  * without `messageId` is dropped by DebugKit whatever its `raw` holds, so its
  * key keeps no messageId and matches no event.
  */
-function lineKey(record: TraceRecord): EventKey {
+function computeLineKey(record: TraceRecord): EventKey {
   let messageId = record.messageId;
   let messageType = MESSAGE_TYPES[record.messageType];
   if (record.raw !== undefined && messageId !== undefined) {
