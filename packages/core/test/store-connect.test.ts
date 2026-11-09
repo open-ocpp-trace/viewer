@@ -231,4 +231,167 @@ describe("ViewerStore connect", () => {
     expect(snapshots).toBe(0);
     expect(store.version).toBe(0);
   });
+
+  describe("with a listener that throws", () => {
+    /** Subscribes a listener that throws on its first call only. */
+    const throwOnce = (store: ReturnType<typeof createViewerStore>, message: string) => {
+      let thrown = false;
+      store.subscribe(() => {
+        if (thrown) return;
+        thrown = true;
+        throw new Error(message);
+      });
+    };
+
+    it("unsubscribes and rethrows after a synchronous snapshot, keeping what was applied", () => {
+      const store = createViewerStore();
+      throwOnce(store, "boom");
+      let fake: ReturnType<typeof fakeAdapter>;
+      fake = fakeAdapter(() => {
+        fake.emit(adds("b"));
+        fake.emit(adds("c"));
+        return entries("a");
+      });
+
+      expect(() => store.connect(fake.adapter)).toThrow("boom");
+      // The replay went on after the error.
+      expect(ids(store)).toEqual(["a", "b", "c"]);
+      expect(fake.unsubscribed).toBe(1);
+
+      const version = store.version;
+      fake.emit(adds("d"));
+      expect(ids(store)).toEqual(["a", "b", "c"]);
+      expect(store.version).toBe(version);
+    });
+
+    it("keeps forwarding after a promised snapshot, without an unhandled rejection", async () => {
+      const store = createViewerStore();
+      throwOnce(store, "boom-async");
+      const fake = fakeAdapter(() => Promise.resolve(entries("a")));
+      store.connect(fake.adapter);
+      fake.emit(adds("b"));
+
+      // Let an unhandled rejection, if any, reach the test runner.
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      expect(ids(store)).toEqual(["a", "b"]);
+      fake.emit(adds("c"));
+      expect(ids(store)).toEqual(["a", "b", "c"]);
+      expect(fake.unsubscribed).toBe(0);
+    });
+  });
+
+  describe("buffering before the snapshot", () => {
+    const dropped = (n: number) => `${STORE_ID_PREFIX}gap:${n}`;
+
+    it("keeps at most maxEntries - 1 buffered items, and lists a gap for the dropped adds", async () => {
+      const store = createViewerStore({ maxEntries: 10 });
+      const snapshot = deferred<readonly ViewerEntry[]>();
+      const fake = fakeAdapter(() => snapshot.promise);
+      store.connect(fake.adapter);
+      for (let i = 0; i < 1000; i++) fake.emit(adds(`b${i}`));
+
+      snapshot.resolve([]);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+
+      const kept = Array.from({ length: 9 }, (_, i) => `b${991 + i}`);
+      expect(ids(store)).toEqual([dropped(1), ...kept]);
+      expect(store.get(dropped(1))).toEqual({
+        kind: "gap",
+        id: dropped(1),
+        reason: "dropped",
+        missedCount: 991,
+      });
+    });
+
+    it("drops the oldest batches whole and lists the gap after the snapshot", async () => {
+      const store = createViewerStore({ maxEntries: 6 });
+      const state = mirror(store);
+      const snapshot = deferred<readonly ViewerEntry[]>();
+      const fake = fakeAdapter(() => snapshot.promise);
+      store.connect(fake.adapter);
+      fake.emit([{ type: "update", id: "s", metadata: { tenant: "t" } }]);
+      fake.emit(adds("x1", "x2"));
+      fake.emit(adds("y1", "y2"));
+      fake.emit(adds("z1", "z2"));
+
+      snapshot.resolve(entries("s"));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+
+      expect(ids(store)).toEqual(["s", dropped(1), "y1", "y2", "z1", "z2"]);
+      expect(store.get(dropped(1))).toMatchObject({ missedCount: 2 });
+      expect(store.get("s")?.metadata).toBeUndefined();
+      expect(state.changes.map((change) => change.added)).toEqual([
+        ["s"],
+        [dropped(1)],
+        ["y1", "y2"],
+        ["z1", "z2"],
+      ]);
+    });
+
+    it("lists the gap even when only updates were dropped", async () => {
+      const store = createViewerStore({ maxEntries: 3 });
+      const snapshot = deferred<readonly ViewerEntry[]>();
+      const fake = fakeAdapter(() => snapshot.promise);
+      store.connect(fake.adapter);
+      fake.emit([{ type: "update", id: "s", metadata: { tenant: "t" } }]);
+      fake.emit(adds("a", "b"));
+
+      snapshot.resolve(entries("s"));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+
+      expect(ids(store)).toEqual([dropped(1), "a", "b"]);
+      expect(store.get(dropped(1))).toMatchObject({ reason: "dropped", missedCount: 0 });
+    });
+
+    it("keeps the newest batch even when it alone exceeds the cap", async () => {
+      const store = createViewerStore({ maxEntries: 3 });
+      const snapshot = deferred<readonly ViewerEntry[]>();
+      const fake = fakeAdapter(() => snapshot.promise);
+      store.connect(fake.adapter);
+      fake.emit(adds("a"));
+      fake.emit(adds("b", "c", "d"));
+
+      snapshot.resolve([]);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+
+      // The store bounds the batch on apply: the gap is evicted.
+      expect(ids(store)).toEqual(["b", "c", "d"]);
+      expect(store.getStats().evicted).toBe(1);
+    });
+  });
+
+  describe("with an untrusted thenable", () => {
+    it("settles once when the thenable calls back several times", async () => {
+      const store = createViewerStore();
+      const thenable = {
+        // oxlint-disable-next-line unicorn/no-thenable -- the hostile thenable under test
+        then(onFulfilled: (value: unknown) => void, onRejected: (reason: unknown) => void) {
+          onFulfilled(entries("a"));
+          onFulfilled(entries("b"));
+          onRejected(new Error("late"));
+        },
+      };
+      store.connect(fakeAdapter(() => thenable as never).adapter);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+
+      expect(ids(store)).toEqual(["a"]);
+      expect(store.version).toBe(1);
+    });
+
+    it("lists a store gap when then throws", async () => {
+      const store = createViewerStore();
+      const thenable = {
+        // oxlint-disable-next-line unicorn/no-thenable -- the hostile thenable under test
+        then() {
+          throw new Error("hostile");
+        },
+      };
+      const fake = fakeAdapter(() => thenable as never);
+      store.connect(fake.adapter);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+
+      expect(ids(store)).toEqual([`${STORE_ID_PREFIX}gap:1`]);
+      expect(fake.unsubscribed).toBe(0);
+    });
+  });
 });

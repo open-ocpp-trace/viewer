@@ -170,11 +170,25 @@ export interface ViewerStore {
    * {@link STORE_ID_PREFIX}`gap:<n>` shared with {@link resume}) before the
    * replay. Reconnecting is a new `connect`: its overlap with what is held
    * counts as duplicates (rule 6). If `subscribe` or `snapshot` throws, what
-   * was subscribed is unsubscribed and the error rethrown. The returned
-   * {@link Unsubscribe} is idempotent and stops everything, a pending
-   * snapshot included: nothing from it is applied, and its rejection is
-   * still handled. An error thrown by a store listener while a promised
-   * snapshot applies rejects an internal promise nobody awaits.
+   * was subscribed is unsubscribed and the error rethrown. A snapshot that is
+   * a thenable is resolved as a promise: it takes effect once, however often
+   * it calls back, and a `then` that throws counts as a rejection. The
+   * returned {@link Unsubscribe} is idempotent and stops everything, a
+   * pending snapshot included: nothing from it is applied, and its rejection
+   * is still handled.
+   *
+   * While the snapshot is pending, the buffer holds at most `maxEntries - 1`
+   * items (at least 1), adds and updates alike: past it, the oldest batches
+   * are dropped whole, the newest one always kept. If any was dropped, a
+   * store gap (`reason: "dropped"`, id {@link STORE_ID_PREFIX}`gap:<n>`,
+   * `missedCount` the `add` items dropped) is listed after the snapshot and
+   * before the replay, even when only updates were dropped.
+   *
+   * Listeners must not throw while a connection settles. If one does, the
+   * snapshot, gap and replay still apply in full. For a synchronous snapshot,
+   * the connection is then unsubscribed and the first error rethrown, the
+   * store keeping what it applied; for a promised one, the error is not
+   * reported and the connection keeps forwarding.
    */
   connect(adapter: ViewerAdapter): Unsubscribe;
 }
@@ -519,11 +533,17 @@ export function createViewerStore(options: ViewerStoreOptions = {}): ViewerStore
     connect(adapter) {
       return connectAdapter(
         {
+          maxBuffered: maxPending,
           apply: (batch) => store.apply(batch),
           load: (entries) => store.load(entries),
           snapshotFailed: () =>
             transact(() => {
               admitGap(nextGap("unknown"));
+              changed = true;
+            }),
+          bufferDropped: (missedCount) =>
+            transact(() => {
+              admitGap({ ...nextGap("dropped"), missedCount });
               changed = true;
             }),
         },
