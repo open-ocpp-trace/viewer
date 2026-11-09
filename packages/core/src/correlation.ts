@@ -383,7 +383,8 @@ export function createCorrelatorWith(
       connected = connection;
       emit([...seeded], [], false);
 
-      function follow(change: ViewerStoreChange): void {
+      /** Applies one store change, collecting into `removed` and `changed`. */
+      function follow(change: ViewerStoreChange, removed: EntryId[], changed: Set<EntryId>): void {
         const cleared = change.cleared;
         if (cleared) reset();
         const stats = store.getStats();
@@ -398,23 +399,27 @@ export function createCorrelatorWith(
           incomplete = true;
         }
         seen = stats;
-        const removed: EntryId[] = [];
         for (const id of change.evicted) evict(id, removed);
-        const changed = new Set<EntryId>();
         for (const id of change.added) {
           const entry = store.get(id);
           if (entry !== undefined) process(entry, changed);
         }
-        emit([...changed], removed, cleared);
       }
 
       const unsubscribeStore = store.subscribe((change) => {
         if (connected !== connection) return;
+        const removed: EntryId[] = [];
+        const changed = new Set<EntryId>();
+        let failure: { error: unknown } | undefined;
         try {
-          follow(change);
+          follow(change, removed, changed);
         } catch (error) {
-          report(error);
+          // Never leave silent partial state: emit what was applied.
+          failure = { error };
+          lists = undefined;
         }
+        emit([...changed], removed, change.cleared);
+        if (failure !== undefined) report(failure.error);
       });
       return () => {
         if (connected !== connection) return;

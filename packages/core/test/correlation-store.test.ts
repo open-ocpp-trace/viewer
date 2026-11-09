@@ -306,6 +306,28 @@ describe("Correlator and store clear, pause and listeners", () => {
     expect(correlator.get("c1")).toMatchObject({ role: "call" });
   });
 
+  it("emits what it collected before an internal error, then reports it", () => {
+    const reported: unknown[] = [];
+    const correlator = createCorrelatorWith(undefined, (error) => reported.push(error));
+    const store = createViewerStore();
+    const failing: ViewerStore = {
+      ...store,
+      get: (id) => {
+        if (id === "boom") throw new Error("get");
+        return store.get(id);
+      },
+    };
+    const { changes } = connected(failing, correlator);
+    correlator.unansweredCalls();
+
+    store.apply(addAll(call("c1", "m1"), call("boom", "m2"), call("c3", "m3")));
+
+    expect(reported).toEqual([new Error("get")]);
+    expect(changes).toEqual([{ version: 1, changed: ["c1"], removed: [], cleared: false }]);
+    expect(correlator.version).toBe(1);
+    expect(correlator.unansweredCalls()).toEqual(["c1"]);
+  });
+
   it("can connect again after seeding a store throws", () => {
     const correlator = createCorrelator();
     const store = createViewerStore();
