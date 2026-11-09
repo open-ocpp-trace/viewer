@@ -24,6 +24,8 @@ export type {
   Unsubscribe,
   ViewerAdapter,
   ViewerEntry,
+  ViewerErrorContext,
+  ViewerErrorHandler,
   ViewerSelection,
 } from "@open-ocpp-trace/viewer-core";
 export type {

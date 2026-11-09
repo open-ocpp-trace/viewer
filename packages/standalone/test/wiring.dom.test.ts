@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 
-import type { CorrelatorOptions } from "@open-ocpp-trace/viewer-core";
+import type { CorrelatorOptions, ViewerErrorHandler } from "@open-ocpp-trace/viewer-core";
 import { mount } from "@open-ocpp-trace/viewer-standalone";
 
 import { host, track } from "./helpers.ts";
@@ -31,6 +31,7 @@ vi.mock("@open-ocpp-trace/viewer-core", async (importOriginal) => {
 });
 
 afterEach(() => {
+  vi.unstubAllGlobals();
   correlators.created.length = 0;
   correlators.disconnect.length = 0;
 });
@@ -39,14 +40,14 @@ describe("the correlator of a mounted viewer", () => {
   it("is created with the default scope and connected", () => {
     track(mount(host()));
 
-    expect(correlators.created).toEqual([{}]);
+    expect(correlators.created).toEqual([{ onError: expect.any(Function) }]);
     expect(correlators.disconnect).toHaveLength(1);
   });
 
   it("is created with an explicit scope", () => {
     track(mount(host(), { correlation: "chargePoint" }));
 
-    expect(correlators.created).toEqual([{ scope: "chargePoint" }]);
+    expect(correlators.created).toEqual([{ scope: "chargePoint", onError: expect.any(Function) }]);
   });
 
   it("is not created with correlation: false", () => {
@@ -65,5 +66,27 @@ describe("the correlator of a mounted viewer", () => {
     instance.unmount();
 
     expect(disconnect).toHaveBeenCalledTimes(1);
+  });
+
+  it("reports its errors to the current onError", () => {
+    const reportError = vi.fn();
+    vi.stubGlobal("reportError", reportError);
+    const first = vi.fn<ViewerErrorHandler>();
+    const second = vi.fn<ViewerErrorHandler>();
+    const instance = track(mount(host(), { onError: first }));
+    const report = correlators.created[0]?.onError;
+    expect(report).toBeTypeOf("function");
+    const failure = new Error("follow");
+    const context = { component: "correlator", callback: "follow" };
+
+    report?.(failure, context);
+    instance.setOptions({ onError: second });
+    report?.(failure, context);
+    instance.setOptions({ onError: undefined });
+    report?.(failure, context);
+
+    expect(first.mock.calls).toEqual([[failure, context]]);
+    expect(second.mock.calls).toEqual([[failure, context]]);
+    expect(reportError.mock.calls).toEqual([[failure]]);
   });
 });

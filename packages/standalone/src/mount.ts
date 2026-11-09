@@ -10,10 +10,13 @@ import {
   type Correlator,
   type EntryUpdate,
   type FilterFieldDefinition,
+  reportViewerError,
   type TraceFilter,
   type Unsubscribe,
   type ViewerAdapter,
   type ViewerEntry,
+  type ViewerErrorContext,
+  type ViewerErrorHandler,
   type ViewerSelection,
   type ViewerStore,
 } from "@open-ocpp-trace/viewer-core";
@@ -98,6 +101,13 @@ export interface LiveOptions {
   readonly translate?: TranslateFunction | undefined;
   /** Host buttons, rendered after the built-in toolbar buttons. */
   readonly toolbarActions?: readonly ToolbarAction[] | undefined;
+  /**
+   * Receives the errors of host callbacks and of the viewer's own store,
+   * correlator and filter engine, with their `ViewerErrorContext`; without
+   * it, or if it throws, they go to `globalThis.reportError`, else
+   * `console.error`. A new handler applies to every later error.
+   */
+  readonly onError?: ViewerErrorHandler | undefined;
 }
 
 /** The options of {@link mount}. */
@@ -151,6 +161,7 @@ const LIVE_KEYS = Object.keys({
   strings: true,
   translate: true,
   toolbarActions: true,
+  onError: true,
 } satisfies Record<keyof LiveOptions, true>) as readonly (keyof LiveOptions)[];
 
 const KNOWN_KEYS: ReadonlySet<string> = new Set<string>([...MOUNT_ONLY, ...LIVE_KEYS]);
@@ -199,14 +210,19 @@ export function mount(element: Element, options: MountOptions = {}): ViewerInsta
   node.className = "oot-standalone-root";
   shadow.append(node);
 
+  // The store and the correlator outlive option changes: they report to the
+  // handler set when the error happens.
+  const onError = (error: unknown, context: ViewerErrorContext): void =>
+    reportViewerError(live.onError, error, context);
   const store = createViewerStore({
     ...(maxEntries === undefined ? {} : { maxEntries }),
     ...(maxBytes === undefined ? {} : { maxBytes }),
+    onError,
   });
   const correlator =
     correlation === false
       ? undefined
-      : createCorrelator(correlation === undefined ? {} : { scope: correlation });
+      : createCorrelator(correlation === undefined ? { onError } : { scope: correlation, onError });
   const stops: Unsubscribe[] = [];
   let root: Root | undefined;
   const teardown = (): void => {
