@@ -165,6 +165,7 @@ describe("<EntryInspector>", () => {
         },
       ],
       "u",
+      { revealSensitive: true },
     );
     expect(screen.getByText("Unparsed")).toBeTruthy();
     expect(field("Reason")).toBe("invalid JSON");
@@ -342,6 +343,92 @@ describe("<EntryInspector> blocks", () => {
       '{\n  "idTag": "VISIBLE",\n  "Foo": "[redacted]"\n}',
     );
     expect(block("Raw frame")).toBeNull();
+  });
+});
+
+describe("<EntryInspector> raw frame while sensitive fields are hidden", () => {
+  const HIDDEN = "The raw frame is hidden: it may contain sensitive fields";
+  const SECRET_RAW = '[2,"m-a","Authorize",{"idTag":"SECRET"}]';
+
+  function expectRawHidden(): void {
+    expect(block("Raw frame")).toBeNull();
+    expect(screen.getByText(HIDDEN)).toBeTruthy();
+  }
+
+  /** Nests `depth` objects with a loop. */
+  function deep(depth: number): unknown {
+    let value: unknown = "bottom";
+    for (let i = 0; i < depth; i++) value = { next: value };
+    return value;
+  }
+
+  it("hides the raw frame of a record without a payload", () => {
+    const { root } = inspect([sdkEntry("n", { payload: undefined, raw: SECRET_RAW })], "n");
+    expectRawHidden();
+    expect(root.textContent).not.toContain("SECRET");
+  });
+
+  it("hides the raw frame of an unparsed entry, shown on request", () => {
+    const entry: ViewerEntry = { kind: "unparsed", id: "u", raw: SECRET_RAW, reason: "bad" };
+    const { root } = inspect([entry], "u", { onCopy: () => {} });
+    expectRawHidden();
+    expect(root.textContent).not.toContain("SECRET");
+    expect(screen.queryByRole("button", { name: "Copy Raw frame" })).toBeNull();
+
+    const { store } = setup([entry]);
+    render(<EntryInspector store={store} entryId="u" revealSensitive />);
+    expect(block("Raw frame")!.textContent).toBe(SECRET_RAW);
+  });
+
+  it("hides the raw frame when the meta was not printed whole", () => {
+    const entry = sdkEntry("m", { raw: "R", meta: { text: "y".repeat(1000) } });
+    inspect([entry], "m", { maxChars: 100 });
+    expectRawHidden();
+  });
+
+  it("hides the raw frame when the payload was cut at the depth limit", () => {
+    inspect([sdkEntry("d", { payload: deep(70), raw: "R" })], "d");
+    expectRawHidden();
+  });
+
+  it("hides the raw frame when a payload property could not be read", () => {
+    const payload = {
+      get bad(): never {
+        throw new Error("boom");
+      },
+    };
+    const record = { ...sdkEntry("g").record, payload, raw: "R" };
+    inspect([{ kind: "trace", id: "g", record }], "g");
+    expectRawHidden();
+  });
+
+  it("hides the raw frame of a CALLERROR without error details", () => {
+    const entry = sdkEntry("e", {
+      messageType: "CALLERROR",
+      error: { code: "InternalError" },
+      raw: "R",
+    });
+    inspect([entry], "e");
+    expectRawHidden();
+  });
+
+  it("shows the raw frame when payload and meta were printed whole", () => {
+    const entry = sdkEntry("c", { payload: { note: "hi" }, meta: { producer: "gw" }, raw: "R" });
+    inspect([entry], "c");
+    expect(block("Raw frame")!.textContent).toBe("R");
+    expect(screen.queryByText(HIDDEN)).toBeNull();
+  });
+
+  it("shows the raw frame when no key is sensitive", () => {
+    const entries: ViewerEntry[] = [
+      sdkEntry("n", { payload: undefined, raw: SECRET_RAW }),
+      { kind: "unparsed", id: "u", raw: SECRET_RAW, reason: "bad" },
+    ];
+    const { store } = setup(entries);
+    const { rerender } = render(<EntryInspector store={store} entryId="n" sensitiveKeys={[]} />);
+    expect(block("Raw frame")!.textContent).toBe(SECRET_RAW);
+    rerender(<EntryInspector store={store} entryId="u" sensitiveKeys={[]} />);
+    expect(block("Raw frame")!.textContent).toBe(SECRET_RAW);
   });
 });
 

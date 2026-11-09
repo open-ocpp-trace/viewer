@@ -37,6 +37,8 @@ export interface Formatted {
   readonly truncated: boolean;
   /** A container past `maxDepth` was not looked into. */
   readonly elided: boolean;
+  /** A value could not be read (a throwing getter or proxy) and printed `[Unreadable]`. */
+  readonly unreadable: boolean;
   /** Properties printed as `"[redacted]"`; those past a truncation or elision are not counted. */
   readonly redactedCount: number;
 }
@@ -75,6 +77,7 @@ export function formatValue(value: unknown, options: FormatOptions): Formatted {
   let length = 0;
   let truncated = false;
   let elided = false;
+  let unreadable = false;
   let redactedCount = 0;
   const ancestors = new Set<object>();
 
@@ -141,6 +144,7 @@ export function formatValue(value: unknown, options: FormatOptions): Formatted {
       try {
         container = open(item, task.depth);
       } catch {
+        unreadable = true;
         emit(UNREADABLE);
         continue;
       }
@@ -174,10 +178,11 @@ export function formatValue(value: unknown, options: FormatOptions): Formatted {
     try {
       item = (task.value as Readonly<Record<string | number, unknown>>)[key];
     } catch {
+      unreadable = true;
       emit(UNREADABLE);
       continue;
     }
     stack.push({ kind: "value", value: item, depth: task.depth + 1 });
   }
-  return { text: out.join(""), truncated, elided, redactedCount };
+  return { text: out.join(""), truncated, elided, unreadable, redactedCount };
 }

@@ -54,11 +54,13 @@ export interface EntryInspectorProps {
   renderPayload?: (text: string, entry: TraceEntry) => ReactNode;
   /**
    * Shows the values of sensitive fields, otherwise printed `"[redacted]"`.
-   * While they are hidden, the raw frame of a record is not shown either
-   * when a value was redacted or its payload or error details were not
-   * printed whole. The raw frame of an unparsed entry is always shown, as
-   * it cannot be inspected. Value-based secrets (a `SetVariables` value
-   * whose variable is `BasicAuthPassword`) are not detected.
+   * While they are hidden and `sensitiveKeys` is not empty, raw frames fail
+   * closed: the raw frame of an unparsed entry is never shown, and the raw
+   * frame of a record only when its payload (and the error details of a
+   * CALLERROR) is present and, like its meta when present, was printed in
+   * full with nothing redacted, truncated, cut at the depth limit or
+   * unreadable. Value-based secrets (a `SetVariables` value whose variable
+   * is `BasicAuthPassword`) are not detected.
    */
   revealSensitive?: boolean;
   /** Property names to redact, case-insensitively; default `defaultSensitiveKeys`. Memoize it. */
@@ -200,6 +202,26 @@ function rawBlock(raw: string, limits: ReturnType<typeof useLimits>, copy: Detai
   );
 }
 
+/** Sensitive fields are hidden and at least one key is sensitive. */
+function redacting(keys: ReadonlySet<string> | null): keys is ReadonlySet<string> {
+  return keys !== null && keys.size > 0;
+}
+
+/** Present and printed in full: nothing redacted, truncated, elided or unreadable. */
+function whole(printed: Formatted | null): boolean {
+  return (
+    printed !== null &&
+    printed.redactedCount === 0 &&
+    !printed.truncated &&
+    !printed.elided &&
+    !printed.unreadable
+  );
+}
+
+function rawHiddenNote() {
+  return <p className="oot-inspector__note">{strings.rawHidden}</p>;
+}
+
 function usePrinted(value: unknown, limit: number, keys: ReadonlySet<string> | null) {
   return useMemo(
     () =>
@@ -227,11 +249,13 @@ function TraceDetails({ entry, props, keys, copy }: DetailsProps & { entry: Trac
     meta: usePrinted(values.meta, limits.limit("meta"), keys),
     custom: usePrinted(values.custom, limits.limit("custom"), keys),
   };
-  const unsure = (p: Formatted | null) =>
-    p !== null && (p.redactedCount > 0 || p.truncated || p.elided);
+  // Fails closed: the raw frame is shown only when every decoded part it
+  // holds was printed whole, so nothing a key would redact can hide in it.
   const rawHidden =
-    keys !== null &&
-    (unsure(printed.payload) || unsure(printed.error) || (printed.meta?.redactedCount ?? 0) > 0);
+    redacting(keys) &&
+    (!whole(printed.payload) ||
+      (fields.messageType === "CALLERROR" && !whole(printed.error)) ||
+      (printed.meta !== null && !whole(printed.meta)));
   const raw = text(read(record, "raw"));
   const source = read(metadata, "source");
   const sourceId = text(read(source, "id"));
@@ -308,12 +332,7 @@ function TraceDetails({ entry, props, keys, copy }: DetailsProps & { entry: Trac
       <Pairing entry={entry} props={props} />
       {block("error", "error")}
       {block("payload", "payload")}
-      {raw !== null &&
-        (rawHidden ? (
-          <p className="oot-inspector__note">{strings.rawHidden}</p>
-        ) : (
-          rawBlock(raw, limits, copy)
-        ))}
+      {raw !== null && (rawHidden ? rawHiddenNote() : rawBlock(raw, limits, copy))}
       {block("meta", "meta")}
       <Fields
         fields={[
@@ -367,7 +386,7 @@ function Pairing({ entry, props }: { entry: TraceEntry; props: EntryInspectorPro
   );
 }
 
-function UnparsedDetails({ entry, props, copy }: DetailsProps & { entry: UnparsedEntry }) {
+function UnparsedDetails({ entry, props, keys, copy }: DetailsProps & { entry: UnparsedEntry }) {
   const limits = useLimits(props.maxChars ?? 20_000);
   return (
     <>
@@ -381,7 +400,7 @@ function UnparsedDetails({ entry, props, copy }: DetailsProps & { entry: Unparse
           [labels.receivedAt, text(entry.receivedAt)],
         ]}
       />
-      {rawBlock(text(entry.raw) ?? "", limits, copy)}
+      {redacting(keys) ? rawHiddenNote() : rawBlock(text(entry.raw) ?? "", limits, copy)}
     </>
   );
 }

@@ -45,6 +45,7 @@ describe("formatValue", () => {
       text: "[\n  1\n]",
       truncated: false,
       elided: false,
+      unreadable: false,
       redactedCount: 0,
     });
   });
@@ -122,6 +123,7 @@ describe("formatValue", () => {
       },
     };
     expect(print(value)).toBe('{\n  "ok": 1,\n  "bad": [Unreadable]\n}');
+    expect(formatValue(value, OPEN).unreadable).toBe(true);
   });
 
   it("prints a proxy whose traps throw as unreadable", () => {
@@ -136,6 +138,7 @@ describe("formatValue", () => {
     const revocable = Proxy.revocable([], {});
     revocable.revoke();
     expect(print([hostile, revocable.proxy])).toBe("[\n  [Unreadable],\n  [Unreadable]\n]");
+    expect(formatValue([hostile], OPEN).unreadable).toBe(true);
   });
 
   it("redacts sensitive keys case-insensitively at any depth", () => {
