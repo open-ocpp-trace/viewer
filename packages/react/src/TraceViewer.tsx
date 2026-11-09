@@ -144,14 +144,21 @@ function* listed(engine: FilterEngine): Generator<ViewerEntry> {
   }
 }
 
-/** A host toolbar button; a throw of `disabled` disables it. */
+/**
+ * A host toolbar button; a throw of `disabled` disables it. Keyed by the
+ * action id, it reports that throw once, not on every render.
+ */
 function HostAction(props: { action: ToolbarAction; context: ViewerActionContext }): ReactElement {
   const { action, context } = props;
+  const reported = useRef(false);
   let disabled = false;
   try {
     disabled = action.disabled?.(context) === true;
   } catch (error) {
-    reportHostError(error);
+    if (!reported.current) {
+      reported.current = true;
+      reportHostError(error);
+    }
     disabled = true;
   }
   const run = (): void => {

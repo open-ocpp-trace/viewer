@@ -22,7 +22,7 @@ import {
   type ViewerActionContext,
 } from "@open-ocpp-trace/viewer-react";
 
-import { sdkEntry } from "./fixtures.ts";
+import { add, sdkEntry } from "./fixtures.ts";
 import { stubLayout } from "./layout.ts";
 
 stubLayout();
@@ -215,6 +215,30 @@ describe("toolbar actions", () => {
     expect(report).toHaveBeenCalledWith(failure);
     fireEvent.click(row("a"));
     expect(row("a").getAttribute("aria-selected")).toBe("true");
+  });
+
+  it("reports a throwing disabled once per action across renders", () => {
+    const report = vi.fn();
+    vi.stubGlobal("reportError", report);
+    const broken = (id: string): ToolbarAction => ({
+      id,
+      label: id,
+      disabled: () => {
+        throw new Error(`${id} failure`);
+      },
+      run: () => {},
+    });
+    const store = storeWith(ENTRIES);
+    render(<TraceViewer store={store} toolbarActions={[broken("one"), broken("two")]} />);
+    act(() => store.apply([add(sdkEntry("d"))]));
+    act(() => store.apply([add(sdkEntry("e"))]));
+    expect(listedIds()).toContain("e");
+    expect(report).toHaveBeenCalledTimes(2);
+    expect(report.mock.calls.map(([error]) => (error as Error).message)).toEqual([
+      "one failure",
+      "two failure",
+    ]);
+    expect((screen.getByRole("button", { name: "one" }) as HTMLButtonElement).disabled).toBe(true);
   });
 });
 
