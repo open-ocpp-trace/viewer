@@ -3,6 +3,7 @@ import { describe, expect, expectTypeOf, it } from "vite-plus/test";
 
 import type {
   EntryMetadata,
+  EntryMetadataPatch,
   EntryUpdate,
   GapEntry,
   TraceEntry,
@@ -25,6 +26,7 @@ const record: TraceRecord = {
   action: "Heartbeat",
   payload: {},
   raw: '[2,"42","Heartbeat",{}]',
+  meta: { recorder: { name: "contract-test" } },
 };
 
 describe("entry kinds", () => {
@@ -91,6 +93,7 @@ describe("entry updates", () => {
     };
     expect(update.type).toBe("update");
 
+    // The `record` cases below rely on excess-property checks on literals.
     const withRecord: EntryUpdate = {
       type: "update",
       id: "1",
@@ -105,6 +108,25 @@ describe("entry updates", () => {
       metadata: { record },
     };
     expect([withRecord, withNestedRecord]).toHaveLength(2);
+  });
+
+  it("never patches the entry's kind, id or raw frame", () => {
+    // @ts-expect-error a patch cannot change the kind
+    const withKind: EntryMetadataPatch = { kind: "gap" };
+    // @ts-expect-error nor the id
+    const withId: EntryMetadataPatch = { id: "2" };
+    // @ts-expect-error nor the raw frame
+    const withRaw: EntryMetadataPatch = { raw: "[5]" };
+    expect([withKind, withId, withRaw]).toHaveLength(3);
+  });
+
+  it("keeps deliveries readonly", () => {
+    // Type-level only: never called.
+    const pushDelivery = (metadata: Required<EntryMetadata>): void => {
+      // @ts-expect-error deliveries are only changed through a patch
+      metadata.deliveries.push({ target: "csms-b", status: "queued" });
+    };
+    expectTypeOf(pushDelivery).toBeFunction();
   });
 
   it("accepts statuses and gap reasons beyond the known vocabulary", () => {
@@ -122,7 +144,14 @@ describe("entry updates", () => {
 });
 
 describe("adapter sketches", () => {
-  const frozen = Object.freeze({ ...record }) as TraceRecord;
+  // Deep-frozen, so a sketch writing into the record, its meta or its
+  // payload throws in strict mode.
+  const frozen = deepFreeze(structuredClone(record));
+
+  it("runs on a deeply frozen record", () => {
+    expect(Object.isFrozen(frozen.meta) && Object.isFrozen(frozen.meta?.["recorder"])).toBe(true);
+    expect(Object.isFrozen(frozen.payload)).toBe(true);
+  });
 
   it("passes the simulator's record through untouched", async () => {
     const { adapter, push } = createSimulatorAdapter([{ line: lineOf(frozen), record: frozen }], {
@@ -192,6 +221,14 @@ describe("adapter sketches", () => {
     });
   });
 });
+
+function deepFreeze<T>(value: T): T {
+  if (value !== null && typeof value === "object") {
+    for (const child of Object.values(value)) deepFreeze(child);
+    Object.freeze(value);
+  }
+  return value;
+}
 
 function lineOf(trace: TraceRecord): { timestamp: string; message: string } {
   return { timestamp: trace.timestamp, message: `Sent: ${trace.raw ?? ""}` };

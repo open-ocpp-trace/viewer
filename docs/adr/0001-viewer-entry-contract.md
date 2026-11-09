@@ -38,14 +38,16 @@ may carry `receivedAt` (RFC 3339 arrival time at the viewer or adapter) and `met
 
 The record is source-owned: `TraceEntry.record` is `Readonly<TraceRecord>`, and the viewer never
 mutates or copies it. All viewer data (identity, arrival time, producer context) lives beside the
-record, in the entry, never inside it or its `meta`. Every entry field is `readonly`.
+record, in the entry, never inside it or its `meta`. Entry types are top-level `readonly` only
+(TypeScript's `readonly` is shallow); the viewer never mutates an entry or its record deeply.
 
 ### Metadata and precedence
 
 `EntryMetadata` holds optional producer context: `tenant`, `chargePointId`, `sessionId`,
 `conversationId`, `source` (`EntrySource`), `deliveries` (`EntryDelivery[]`) and `custom` fields.
 
-A field present on the record wins; metadata only supplies context the record lacks. The effective
+A top-level `TraceRecord` field present on the record wins; metadata only supplies context the record
+lacks. `record.meta` stays opaque to core, so in practice only `chargePointId` overlaps: the effective
 charge point of a trace entry is `record.chargePointId ?? metadata.chargePointId`. The same record can
 therefore be displayed bare or wrapped with any producer's context without changing what it says.
 

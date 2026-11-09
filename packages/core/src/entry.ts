@@ -56,9 +56,11 @@ export interface EntrySource {
 /**
  * Producer context kept beside an entry, never inside its record.
  *
- * Precedence: a field present on the {@link TraceRecord} wins, and metadata
- * only supplies context the record lacks. The effective charge point of a
- * trace entry is `entry.record.chargePointId ?? entry.metadata?.chargePointId`.
+ * Precedence: a top-level field present on the {@link TraceRecord} wins, and
+ * metadata only supplies context the record lacks. `record.meta` stays opaque
+ * to core, so in practice only `chargePointId` overlaps: the effective charge
+ * point of a trace entry is
+ * `entry.record.chargePointId ?? entry.metadata?.chargePointId`.
  */
 export interface EntryMetadata {
   readonly tenant?: string;
@@ -66,6 +68,7 @@ export interface EntryMetadata {
   readonly sessionId?: string;
   readonly conversationId?: string;
   readonly source?: EntrySource;
+  /** In a patch: merged per `target` (see {@link EntryDelivery}). */
   readonly deliveries?: readonly EntryDelivery[];
   /** Producer-specific fields, opaque to the viewer. */
   readonly custom?: Readonly<Record<string, unknown>>;
@@ -119,5 +122,9 @@ export interface GapEntry extends EntryBase {
   readonly missedCount?: number;
 }
 
-/** One row of the viewer, discriminated by `kind`. */
+/**
+ * One row of the viewer, discriminated by `kind`. Entry types are top-level
+ * readonly only, as TypeScript's `readonly` is shallow; the viewer never
+ * mutates an entry deeply either.
+ */
 export type ViewerEntry = TraceEntry | UnparsedEntry | GapEntry;
