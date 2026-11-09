@@ -64,9 +64,10 @@ const UNREADABLE = "[Unreadable]";
 
 /**
  * Prints `value` as two-space indented JSON-like text, iteratively (no
- * recursion, so any depth is safe) and stopping at `options.maxChars`, so the
- * cost is bounded by the output whatever the input size (an object's keys are
- * listed once). Never throws: values JSON cannot hold, cycles, throwing
+ * recursion, so any depth is safe) and stopping at `options.maxChars`. The
+ * cost is O(maxChars + the keys of each visited object): every object it
+ * enters has all its keys listed once, so a 1 000 000-key object costs a
+ * listing of 1 000 000 keys on each print. Never throws: values JSON cannot hold, cycles, throwing
  * getters and proxies print as markers.
  */
 export function formatValue(value: unknown, options: FormatOptions): Formatted {

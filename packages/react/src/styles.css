@@ -112,9 +112,14 @@
   border-right: 1px solid var(--oot-border-color, rgb(128 128 128 / 30%));
 }
 
+/* A narrow host shrinks the detail panel first and keeps the list visible. */
+.oot-viewer-list {
+  min-width: var(--oot-list-min-width, 16em);
+}
+
 .oot-viewer__detail {
   display: flex;
-  flex: 0 0 var(--oot-detail-width, 28em);
+  flex: 0 1 var(--oot-detail-width, 28em);
   min-width: 0;
   border-left: 1px solid var(--oot-border-color, rgb(128 128 128 / 30%));
 }

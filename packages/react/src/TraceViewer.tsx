@@ -70,7 +70,11 @@ export interface TraceViewerProps {
   error?: string | null;
   /** Copy handler of the detail panel, as `EntryInspectorProps.onCopy`. */
   onCopy?: (text: string, part: InspectorPart) => void;
-  /** Payload rendering of the detail panel, as `EntryInspectorProps.renderPayload`. */
+  /**
+   * Payload rendering of the detail panel, as `EntryInspectorProps.renderPayload`.
+   * `entry` is the untouched entry, sensitive fields included; render `text`
+   * to keep the redaction.
+   */
   renderPayload?: (text: string, entry: TraceEntry) => ReactNode;
   /**
    * Shows sensitive fields in the detail panel, as
@@ -256,7 +260,7 @@ export function TraceViewer(props: TraceViewerProps): ReactElement {
           {...(fields !== undefined && { fields })}
           {...(payloadSearch !== undefined && { payloadSearch })}
         />
-        <div className="oot-viewer-list" style={{ flex: "1 1 auto", minWidth: 0 }}>
+        <div className="oot-viewer-list" style={{ flex: "1 1 auto" }}>
           <TraceList
             engine={engine}
             {...(correlator !== undefined && { correlator })}
