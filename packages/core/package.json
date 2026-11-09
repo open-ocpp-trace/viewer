@@ -27,5 +27,8 @@
   },
   "dependencies": {
     "@open-ocpp-trace/core": "0.1.0"
+  },
+  "devDependencies": {
+    "@open-ocpp-trace/jsonl": "0.1.0"
   }
 }
