@@ -215,6 +215,60 @@ describe("<TraceViewer>", () => {
       }
     });
 
+    it("keeps a selection restored before its entry arrives, then shows it", () => {
+      const onSelectionChange = vi.fn();
+      const store = createViewerStore();
+      render(
+        <TraceViewer
+          store={store}
+          selection={{ entryId: "x" }}
+          onSelectionChange={onSelectionChange}
+        />,
+      );
+      act(() => store.apply([add(sdkEntry("a"))]));
+      act(() => store.apply([add(sdkEntry("x"))]));
+      expect(onSelectionChange).not.toHaveBeenCalled();
+      expect(selectedIds()).toEqual(["x"]);
+    });
+
+    it("clears once a selection not arrived yet when the store is cleared", () => {
+      const onSelectionChange = vi.fn();
+      const store = storeWith(ENTRIES);
+      render(
+        <TraceViewer
+          store={store}
+          defaultSelection={{ entryId: "x" }}
+          onSelectionChange={onSelectionChange}
+        />,
+      );
+      act(() => store.apply([add(sdkEntry("d"))]));
+      act(() => store.clear());
+      act(() => store.apply([add(sdkEntry("x"))]));
+      expect(onSelectionChange).toHaveBeenCalledExactlyOnceWith({ entryId: null });
+      expect(selectedIds()).toEqual([]);
+    });
+
+    it("keeps the selection of a pending entry dropped while paused", () => {
+      const onSelectionChange = vi.fn();
+      const store = storeWith([sdkEntry("a")], 2);
+      render(
+        <TraceViewer
+          store={store}
+          defaultSelection={{ entryId: "x" }}
+          onSelectionChange={onSelectionChange}
+        />,
+      );
+      act(() => store.pause());
+      act(() => store.apply([add(sdkEntry("x"))]));
+      act(() => store.apply([add(sdkEntry("y"))]));
+      expect(store.getStats().droppedPending).toBe(1);
+      act(() => store.resume());
+      expect(store.get("x")).toBeUndefined();
+      expect(onSelectionChange).not.toHaveBeenCalled();
+      act(() => store.apply([add(sdkEntry("x"))]));
+      expect(selectedIds()).toEqual(["x"]);
+    });
+
     it("follows a controlled selection and announces an eviction once", () => {
       const onSelectionChange = vi.fn();
       const store = storeWith(ENTRIES.slice(0, 2), 2);

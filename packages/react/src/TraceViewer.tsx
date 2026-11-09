@@ -47,7 +47,11 @@ export interface TraceViewerProps {
   /**
    * Called when the user selects an entry, and once with `{ entryId: null }`
    * when the selected entry leaves the store (evicted or cleared), in both
-   * modes. An entry the filter hides stays selected. The `{ entryId: null }`
+   * modes. An entry the filter hides stays selected. Only an eviction or a
+   * clear of the store counts as leaving: an id not listed yet (restored
+   * from a URL before its entry arrives) stays selected and shows once the
+   * entry is added, and so does an entry dropped from the pending queue
+   * while paused, which never was listed. The `{ entryId: null }`
    * call runs in an effect after the store change, never inside the store's
    * notification: an error it throws is passed to `reportError` (or
    * `console.error`) and neither reaches `store.apply()` nor unmounts the
@@ -120,9 +124,12 @@ export function TraceViewer(props: TraceViewerProps): ReactElement {
   const [gone, setGone] = useState<{ readonly id: EntryId } | null>(null);
   useEffect(
     () =>
-      store.subscribe(() => {
+      store.subscribe((change) => {
         const { selectedId: id, controlled: isControlled } = latest.current;
-        if (id === null || id === announced.current || store.get(id) !== undefined) return;
+        if (id === null || id === announced.current) return;
+        // Left the store: an id never listed yet (restored from a URL before
+        // its entry arrives) stays selected until the entry shows up.
+        if (!change.cleared && !change.evicted.includes(id)) return;
         announced.current = id;
         if (!isControlled) setOwnSelection(null);
         setGone({ id });
