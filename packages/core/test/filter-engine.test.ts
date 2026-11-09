@@ -14,6 +14,7 @@ import {
 } from "@open-ocpp-trace/viewer-core";
 
 import { createFilterEngineWith } from "../src/filter-engine.ts";
+import { computeStats } from "../src/filter-stats.ts";
 import { call, result } from "./correlation-fixtures.ts";
 import { context, gateway, record, select, simulator } from "./filter-fixtures.ts";
 import { add, gap } from "./store-fixtures.ts";
@@ -128,7 +129,7 @@ describe("FilterEngine", () => {
 
     store.apply([add(gateway.queued), add(simulator.boot)]);
     expect(listed(engine)).toEqual([]);
-    expect(changes).toEqual([]);
+    expect(changes).toEqual([{ version: 1 }]);
 
     store.apply([
       {
@@ -140,7 +141,10 @@ describe("FilterEngine", () => {
     expect(listed(engine)).toEqual(["g2"]);
     expect(engine.at(0)!.metadata?.deliveries?.[0]?.status).toBe("failed");
     store.apply([{ type: "update", id: "s1", metadata: { tenant: "t" } }]);
-    expect(changes).toEqual([{ version: 1 }]);
+    expect(engine.getStats().buffer.tenants.get("t")).toBe(1);
+    expect(changes).toHaveLength(3);
+    store.apply([{ type: "update", id: "s1", metadata: { conversationId: "c" } }]);
+    expect(changes).toHaveLength(3);
 
     store.apply([add(simulator.status), add(simulator.gap)]);
     expect(listed(engine)).toEqual(["s5"]);
@@ -148,7 +152,31 @@ describe("FilterEngine", () => {
 
     store.clear();
     expect(engine.size).toBe(0);
-    expect(changes).toEqual([{ version: 1 }, { version: 2 }, { version: 3 }]);
+    expect(changes.map((change) => change.version)).toEqual([1, 2, 3, 4, 5]);
+  });
+
+  it("counts the listed buffer and the matching entries, not the pending ones", () => {
+    const { store, engine } = setup([simulator.boot, simulator.gap, gateway.primary]);
+    const before = engine.getStats();
+    expect(before.buffer).toEqual(computeStats(store.toArray()));
+    expect(before.filtered).toEqual(before.buffer);
+
+    engine.setFilter({ chargePointIds: ["CP-1"] });
+    store.pause();
+    store.apply([add(simulator.status)]);
+    const stats = engine.getStats();
+
+    expect(stats).not.toBe(before);
+    expect(stats).toBe(engine.getStats());
+    expect(stats.buffer.total).toBe(3);
+    expect(stats.buffer.chargePointIds).toEqual(
+      new Map<string | null, number>([
+        ["CP-1", 1],
+        [null, 1],
+        ["CP-7", 1],
+      ]),
+    );
+    expect(stats.filtered.kinds).toEqual({ trace: 1, unparsed: 0, gap: 1 });
   });
 
   it("does not list pending entries until resume", () => {
@@ -300,9 +328,9 @@ describe("FilterEngine connection", () => {
     let fail = false;
     const flaky: ViewerStore = {
       ...store,
-      toArray: () => {
-        if (fail) throw new Error("toArray");
-        return store.toArray();
+      get: (id) => {
+        if (fail) throw new Error("get");
+        return store.get(id);
       },
     };
     const { engine, reported } = setup([simulator.boot], {}, flaky);
@@ -311,7 +339,14 @@ describe("FilterEngine connection", () => {
     store.apply([add(simulator.status)]);
 
     expect(listed(engine)).toEqual(["s1"]);
-    expect(reported).toEqual([new Error("toArray")]);
+    expect(engine.getStats().buffer.total).toBe(1);
+    expect(reported).toEqual([new Error("get")]);
+
+    fail = false;
+    store.apply([add(simulator.result)]);
+
+    expect(listed(engine)).toEqual(["s1", "s2", "s3"]);
+    expect(engine.getStats().buffer.total).toBe(3);
   });
 
   it("returns the current entry object after a metadata update", () => {
