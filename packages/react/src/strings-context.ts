@@ -1,8 +1,7 @@
-import { createContext, useContext, useMemo } from "react";
+import { createContext, useCallback, useContext, useMemo, useRef } from "react";
 
 import { reportViewerError, type ViewerErrorHandler } from "@open-ocpp-trace/viewer-core";
 
-import { useStableCallback } from "./hooks.ts";
 import {
   defaultStrings,
   type PartialViewerStrings,
@@ -122,9 +121,14 @@ export function useViewerStrings(
   component: string,
 ): ViewerStrings {
   const inherited = useContext(StringsContext);
-  const report = useStableCallback((error: unknown): void =>
-    reportViewerError(onError, error, { component, callback: "translate" }),
-  );
+  // Assigned during render, not in an effect: function leaves call
+  // `translate` while rendering, before any effect of this render runs.
+  const latest = useRef({ onError, component });
+  latest.current = { onError, component };
+  const report = useCallback((error: unknown): void => {
+    const { onError: handler, component: name } = latest.current;
+    reportViewerError(handler, error, { component: name, callback: "translate" });
+  }, []);
   const own = useMemo(
     () =>
       overrides === undefined && translate === undefined

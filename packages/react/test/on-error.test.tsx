@@ -266,6 +266,12 @@ describe("useFilterEngine onError", () => {
 });
 
 describe("standalone components onError", () => {
+  /** A translate failing for a parameterised leaf: called during render. */
+  function translateOption(key: string): string | undefined {
+    if (key === "filter.option") throw new Error(key);
+    return undefined;
+  }
+
   function Panel(props: { store: ViewerStore; onError: ViewerErrorHandler }): ReactElement {
     const engine = useFilterEngine(props.store);
     return (
@@ -332,6 +338,70 @@ describe("standalone components onError", () => {
       component: "EntryInspector",
       callback: "translate",
     });
+  });
+
+  it("reports a parameterised translate error to the latest onError", () => {
+    const store = storeWith(ENTRIES);
+    function OptionPanel(props: { onError: ViewerErrorHandler }): ReactElement {
+      const engine = useFilterEngine(store);
+      return <FilterPanel engine={engine} translate={translateOption} onError={props.onError} />;
+    }
+    const first = vi.fn<ViewerErrorHandler>();
+    const second = vi.fn<ViewerErrorHandler>();
+    const { rerender } = render(<OptionPanel onError={first} />);
+    expect(first).toHaveBeenCalledWith(new Error("filter.option"), {
+      component: "FilterPanel",
+      callback: "translate",
+    });
+    first.mockClear();
+    rerender(<OptionPanel onError={second} />);
+    expect(first).not.toHaveBeenCalled();
+    expect(second).toHaveBeenCalledWith(new Error("filter.option"), {
+      component: "FilterPanel",
+      callback: "translate",
+    });
+  });
+
+  it.each([
+    ["FilterPanel", "filter.panelLabel"],
+    ["TraceList", "listLabel"],
+    ["EntryInspector", "inspector.empty"],
+  ])("reports both errors of <%s> to the default when onError throws", (name, key) => {
+    const reportError = vi.fn();
+    vi.stubGlobal("reportError", reportError);
+    const failure = new Error(key);
+    const handlerError = new Error("handler");
+    const onError: ViewerErrorHandler = () => {
+      throw handlerError;
+    };
+    const translate = (candidate: string): string | undefined => {
+      if (candidate === key) throw failure;
+      return undefined;
+    };
+    const store = storeWith(ENTRIES);
+    function Host(): ReactElement {
+      const engine = useFilterEngine(store);
+      if (name === "FilterPanel") {
+        return <FilterPanel engine={engine} translate={translate} onError={onError} />;
+      }
+      if (name === "TraceList") {
+        return (
+          <TraceList
+            engine={engine}
+            selectedId={null}
+            onSelectedIdChange={() => {}}
+            translate={translate}
+            onError={onError}
+          />
+        );
+      }
+      return (
+        <EntryInspector store={store} entryId={null} translate={translate} onError={onError} />
+      );
+    }
+    const { container } = render(<Host />);
+    expect(reportError.mock.calls).toEqual([[failure], [handlerError]]);
+    expect(container.childElementCount).toBeGreaterThan(0);
   });
 
   it("reports a <FilterPanel> translate error by default without onError", () => {
