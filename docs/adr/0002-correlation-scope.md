@@ -83,7 +83,10 @@ gaining its `responseId`), `removed` the evicted ids that had one, `cleared` a r
 
 Eviction keeps a response's `callId` and `action` after its CALL leaves; a CALL evicted unanswered leaves
 `unansweredCalls()`; a response arriving after its CALL was evicted is an orphan with an incomplete
-history. Paused entries are correlated when the store lists them on resume, in arrival order.
+history. So is a response whose CALL is evicted by the same store change that adds it: a change's
+evictions are applied before its additions. That is the only order that does not depend on how the
+batch was cut, since a net delta does not say which addition caused which eviction; matching first
+would pair the response only when both happen to land in one change. Paused entries are correlated when the store lists them on resume, in arrival order.
 
 One store at a time: a second `connect` throws. The returned `Unsubscribe` stops following, resets the
 state, emits `cleared: true` if anything was correlated, and allows a new `connect`.
