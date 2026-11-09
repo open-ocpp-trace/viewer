@@ -1,9 +1,9 @@
 import type { Unsubscribe } from "./adapter.ts";
 import type { EntryId, ViewerEntry } from "./entry.ts";
 import { coreWeight, metadataWeight } from "./store-estimate.ts";
-import { checkItem, normalizeAddedEntry } from "./store-ingest.ts";
+import { checkItem, mergeMetadata, normalizeAddedEntry } from "./store-ingest.ts";
 import { createListeners } from "./store-listeners.ts";
-import type { EntryUpdate } from "./update.ts";
+import type { EntryMetadataPatch, EntryUpdate } from "./update.ts";
 
 /** Default {@link ViewerStoreOptions.maxEntries}. */
 export const DEFAULT_MAX_ENTRIES = 10_000;
@@ -11,11 +11,7 @@ export const DEFAULT_MAX_ENTRIES = 10_000;
 /** Default {@link ViewerStoreOptions.maxBytes}: 64 MiB. */
 export const DEFAULT_MAX_BYTES: number = 64 * 1024 * 1024;
 
-/**
- * Prefix of the ids the store gives its own entries (such as the gap it lists
- * when entries were dropped). An adapter must not use it.
- */
-export const STORE_ID_PREFIX = "viewer-store:";
+export { STORE_ID_PREFIX } from "./store-ingest.ts";
 
 /**
  * Bounds of a viewer store. Each limit is an integer >= 1; any other value
@@ -64,9 +60,11 @@ export interface ViewerStoreStats {
   readonly staleUpdates: number;
   /**
    * Batch items dropped as invalid: not an object, an unknown `type`, an
-   * `add` whose entry is not an object or has an unknown `kind` or a
-   * non-string `id`, an `update` with a non-string `id` or a `metadata` that
-   * is not a plain object.
+   * `add` whose entry is not an object or has an unknown `kind`, a
+   * non-string `id` or one starting with {@link STORE_ID_PREFIX}, an `update`
+   * with a non-string `id`, a `metadata` that is not a plain object or a
+   * `revision` that is not an integer >= 0 (an explicit `undefined` counts
+   * as no revision).
    */
   readonly invalid: number;
 }
@@ -140,13 +138,16 @@ export interface ViewerStoreChange {
 }
 
 interface Slot {
-  readonly entry: ViewerEntry;
+  /** Replaced by each update that changes the metadata. */
+  entry: ViewerEntry;
   /** Position in the listing sequence; the listed index is `seq - headSeq`. */
   readonly seq: number;
   /** Cached weight of the record or raw frame, computed once at add. */
   readonly coreBytes: number;
   /** Cached weight of the metadata, recomputed when it changes. */
-  readonly metadataBytes: number;
+  metadataBytes: number;
+  /** Revision watermark (rule 1), none until a revised update applies. */
+  revision: number | undefined;
 }
 
 /** The backing array is compacted once this many evicted slots precede the head. */
@@ -187,7 +188,7 @@ export function createViewerStore(options: ViewerStoreOptions = {}): ViewerStore
   let headSeq = 0;
   let nextSeq = 0;
   let listedBytes = 0;
-  const counters = { evicted: 0, duplicates: 0, unknownUpdates: 0, invalid: 0 };
+  const counters = { evicted: 0, duplicates: 0, unknownUpdates: 0, staleUpdates: 0, invalid: 0 };
   const listeners = createListeners<ViewerStoreChange>();
   let version = 0;
   let stats: ViewerStoreStats | undefined;
@@ -196,6 +197,7 @@ export function createViewerStore(options: ViewerStoreOptions = {}): ViewerStore
   let changed = false;
   let batchSeq = 0;
   let batchEvicted: EntryId[] = [];
+  const batchUpdated = new Set<EntryId>();
 
   const slotAt = (position: number): Slot | undefined => listed[head + position];
   const listedCount = (): number => listed.length - head;
@@ -229,11 +231,35 @@ export function createViewerStore(options: ViewerStoreOptions = {}): ViewerStore
       seq: nextSeq++,
       coreBytes: coreWeight(entry, maxBytes),
       metadataBytes: metadataWeight(entry, maxBytes),
+      revision: undefined,
     };
     index.set(entry.id, slot);
     listed.push(slot);
     listedBytes += slot.coreBytes + slot.metadataBytes;
     enforceBounds();
+  };
+
+  /**
+   * Applies rules 1 and 5 to a held entry, re-weighing its metadata only and
+   * enforcing the bounds at once. Returns whether anything changed.
+   */
+  const applyUpdate = (slot: Slot, patch: EntryMetadataPatch, revision?: number): boolean => {
+    if (revision !== undefined) {
+      if (slot.revision !== undefined && revision <= slot.revision) {
+        counters.staleUpdates++;
+        return true;
+      }
+      slot.revision = revision;
+    }
+    const metadata = mergeMetadata(slot.entry.metadata, patch);
+    if (metadata === undefined) return false;
+    slot.entry = { ...slot.entry, metadata } as ViewerEntry;
+    const bytes = metadataWeight(slot.entry, maxBytes);
+    listedBytes += bytes - slot.metadataBytes;
+    slot.metadataBytes = bytes;
+    batchUpdated.add(slot.entry.id);
+    enforceBounds();
+    return true;
   };
 
   const ingest = (item: unknown): void => {
@@ -243,10 +269,10 @@ export function createViewerStore(options: ViewerStoreOptions = {}): ViewerStore
     } else if (checked.type === "add") {
       if (index.has(checked.entry.id)) counters.duplicates++;
       else append(checked.entry);
-    } else if (!index.has(checked.id)) {
-      counters.unknownUpdates++;
     } else {
-      return;
+      const slot = index.get(checked.id);
+      if (slot === undefined) counters.unknownUpdates++;
+      else if (!applyUpdate(slot, checked.metadata, checked.revision)) return;
     }
     changed = true;
   };
@@ -268,16 +294,19 @@ export function createViewerStore(options: ViewerStoreOptions = {}): ViewerStore
       const slot = slotAt(position);
       if (slot !== undefined) added.push(slot.entry.id);
     }
+    // Updated ids still listed from before this batch.
+    const updated = [...batchUpdated].filter((id) => (index.get(id)?.seq ?? batchSeq) < batchSeq);
     version++;
     stats = undefined;
     const change: ViewerStoreChange = Object.freeze({
       version,
       added: Object.freeze(added),
-      updated: Object.freeze([]),
+      updated: Object.freeze(updated),
       evicted: Object.freeze(batchEvicted),
       cleared: false,
     });
     batchEvicted = [];
+    batchUpdated.clear();
     listeners.emit(change);
   };
 
@@ -321,7 +350,6 @@ export function createViewerStore(options: ViewerStoreOptions = {}): ViewerStore
         pendingBytes: 0,
         paused: false,
         droppedPending: 0,
-        staleUpdates: 0,
         ...counters,
       });
       return stats;

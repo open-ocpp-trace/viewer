@@ -5,6 +5,7 @@ import {
   DEFAULT_MAX_BYTES,
   DEFAULT_MAX_ENTRIES,
   type EntryUpdate,
+  STORE_ID_PREFIX,
   type ViewerStoreOptions,
 } from "@open-ocpp-trace/viewer-core";
 
@@ -196,17 +197,12 @@ describe("ViewerStore untrusted data", () => {
     expect(store.get("b")).toBe(odd);
   });
 
-  it("counts an update for an id it does not hold, and ignores one for a held id", () => {
+  it("drops and counts an add with a reserved id", () => {
     const store = createViewerStore();
-    store.apply(adds("a"));
-    const entry = store.get("a");
-    store.apply([
-      { type: "update", id: "z", metadata: { tenant: "t" } },
-      { type: "update", id: "a", metadata: { tenant: "t" } },
-    ]);
+    store.apply([add(trace(`${STORE_ID_PREFIX}gap:1`)), ...adds("a")]);
 
-    expect(store.getStats().unknownUpdates).toBe(1);
-    expect(store.get("a")).toBe(entry);
+    expect(ids(store)).toEqual(["a"]);
+    expect(store.getStats().invalid).toBe(1);
   });
 
   it("keeps its index the size of the listed entries", () => {
