@@ -19,7 +19,8 @@ import type { ViewerStore, ViewerStoreChange } from "./store.ts";
  * a trace without any charge point or session behaves like `global`, and two
  * different known values never match. The key is computed once, when the
  * entry is first seen: a later metadata update does not re-correlate it.
- * `tenant` and `conversationId` are not part of any key.
+ * `tenant` and `conversationId` are not part of any key. See
+ * `docs/adr/0002-correlation-scope.md`.
  */
 export type CorrelationScope = "conversation" | "chargePoint" | "global";
 
@@ -82,6 +83,8 @@ export interface OrphanCorrelation {
   /**
    * Since connect or the last clear, the store evicted or dropped entries,
    * or listed a gap, before this response: its CALL may be missing.
+   * Evictions and drops before connect count too, and so does an entry added
+   * and evicted in one batch (read from the store's counters).
    */
   readonly incompleteHistory: boolean;
 }
@@ -97,7 +100,10 @@ export interface CorrelationChange {
   readonly changed: readonly EntryId[];
   /** Evicted ids that had a correlation. */
   readonly removed: readonly EntryId[];
-  /** Every correlation known before the change is gone. */
+  /**
+   * Every correlation known before the change is gone: the store was
+   * cleared, or the correlator was disconnected.
+   */
   readonly cleared: boolean;
 }
 
@@ -116,7 +122,8 @@ export interface Correlator {
   readonly scope: CorrelationScope;
   /**
    * Seeds from the listed entries, emitting one change if any correlates,
-   * then follows the store's changes: `cleared` resets, `evicted` ids leave
+   * then follows the store's changes, one {@link CorrelationChange} at most
+   * per store change: `cleared` resets (emitting `cleared: true`), `evicted` ids leave
    * every index (a response keeps its `callId` and `action`), `added` entries
    * are correlated in order, `updated` entries are not re-correlated. One
    * store at a time: a second connect throws. The returned
@@ -135,7 +142,9 @@ export interface Correlator {
   /**
    * Listeners run in subscription order. A throwing listener does not stop
    * the others; the first error is reported asynchronously (as an unhandled
-   * promise rejection), never thrown into the store or `connect`.
+   * promise rejection), never thrown into the store or `connect`: the
+   * correlator runs inside the store's listener, where an error would
+   * surface in the unrelated caller of `apply`.
    */
   subscribe(listener: (change: CorrelationChange) => void): Unsubscribe;
 }
