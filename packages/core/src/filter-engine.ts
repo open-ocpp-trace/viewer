@@ -69,13 +69,13 @@ export interface FilterEngineStats {
  */
 export interface FilterEngine {
   /**
-   * Lists the matching entries of `store` (notifying if the store lists
-   * any), then follows the store and the correlator, at most one
-   * {@link FilterChange} per change of either. One store at a time: a
-   * second connect throws. If reading the store throws while seeding,
-   * connect rethrows and stays disconnected; if subscribing to the store or
-   * the correlator throws, connect also releases the seed (notifying if the
-   * store listed anything) before rethrowing. The returned
+   * Subscribes to the store and the correlator, lists the matching entries
+   * of `store`, then notifies if the store lists any: a change a listener
+   * makes during that notification is followed. From then on it follows
+   * both, at most one {@link FilterChange} per change of either. One store
+   * at a time: a second connect throws. If subscribing or reading the store
+   * throws, connect drops the subscriptions it made, rethrows and stays
+   * disconnected, without notifying. The returned
    * {@link Unsubscribe} stops following, empties the list and the counts
    * (notifying if anything was counted) and allows a new connect.
    */
@@ -322,16 +322,6 @@ export function createFilterEngineWith(
     connect(store) {
       if (connected !== undefined) throw new Error("the filter engine is already connected");
       const connection = {};
-      try {
-        rebuild(store);
-      } catch (error) {
-        empty();
-        throw error;
-      }
-      connected = connection;
-      source = store;
-      if (cache.size > 0) emit();
-
       const onStore = (change: ViewerStoreChange): void => {
         if (connected === connection) guard(() => follow(store, change));
       };
@@ -339,16 +329,21 @@ export function createFilterEngineWith(
         if (connected === connection) guard(() => correlate(change));
       };
 
+      // Subscribe before seeding, so a change made by a listener of the seed
+      // notification is followed; the callbacks ignore anything before then.
       const subscriptions: Unsubscribe[] = [];
       try {
         subscriptions.push(store.subscribe(onStore));
         if (correlator !== undefined) subscriptions.push(correlator.subscribe(onCorrelator));
+        rebuild(store);
       } catch (error) {
         for (const unsubscribe of subscriptions) unsubscribe();
-        connected = undefined;
-        release();
+        empty();
         throw error;
       }
+      connected = connection;
+      source = store;
+      if (cache.size > 0) emit();
       return () => {
         if (connected !== connection) return;
         connected = undefined;

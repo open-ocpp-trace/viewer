@@ -14,7 +14,7 @@ import {
   type ViewerStore,
 } from "@open-ocpp-trace/viewer-core";
 
-import { createFilterEngineWith } from "../src/filter-engine.ts";
+import { cachedSize, createFilterEngineWith } from "../src/filter-engine.ts";
 import { call, result } from "./correlation-fixtures.ts";
 import { context, gateway, record, select, simulator } from "./filter-fixtures.ts";
 import { add, gap } from "./store-fixtures.ts";
@@ -37,6 +37,19 @@ function setup(
   engine.subscribe((change) => changes.push(change));
   engine.connect(store);
   return { store, engine, changes, reported };
+}
+
+/** Asserts the engine equals a full recomputation over the store (no producer field, no correlator). */
+function expectRecomputed(engine: FilterEngine, store: ViewerStore): void {
+  const entries = store.toArray();
+  const ids = select(engine.filter, entries);
+  expect(listed(engine)).toEqual(ids);
+  const matching = new Set(ids);
+  expect(engine.getStats()).toEqual({
+    buffer: computeStats(entries),
+    filtered: computeStats(entries.filter((entry) => matching.has(entry.id))),
+  });
+  expect(cachedSize(engine)).toBe(store.size);
 }
 
 const heartbeat = { actions: ["Heartbeat"] };
@@ -264,12 +277,37 @@ describe("FilterEngine connection", () => {
     expect(listed(engine)).toEqual(["s1", "s2"]);
   });
 
-  it("stays disconnected when seeding throws", () => {
+  it("follows a store change a listener makes during the seed notification", () => {
     const store = createViewerStore();
     store.load([simulator.boot]);
     const engine = createFilterEngine();
+    let reacted = false;
+    engine.subscribe(() => {
+      if (reacted) return;
+      reacted = true;
+      store.apply([add(simulator.status)]);
+    });
+
+    engine.connect(store);
+
+    expect(listed(engine)).toEqual(["s1", "s2"]);
+    expectRecomputed(engine, store);
+  });
+
+  it("stays disconnected and unsubscribes when seeding throws", () => {
+    const store = createViewerStore();
+    store.load([simulator.boot]);
+    const engine = createFilterEngine();
+    let unsubscribed = false;
     const failing: ViewerStore = {
       ...store,
+      subscribe: (listener) => {
+        const unsubscribe = store.subscribe(listener);
+        return () => {
+          unsubscribed = true;
+          unsubscribe();
+        };
+      },
       toArray: () => {
         throw new Error("toArray");
       },
@@ -277,12 +315,13 @@ describe("FilterEngine connection", () => {
 
     expect(() => engine.connect(failing)).toThrow("toArray");
     expect(engine.size).toBe(0);
+    expect(unsubscribed).toBe(true);
     engine.connect(store);
     expect(listed(engine)).toEqual(["s1"]);
   });
 
   it.each(["store", "correlator"])(
-    "releases the seed and stays disconnected when subscribing to the %s throws",
+    "stays disconnected without notifying when subscribing to the %s throws",
     (source) => {
       const store = createViewerStore();
       store.load([simulator.boot]);
@@ -313,7 +352,7 @@ describe("FilterEngine connection", () => {
 
       expect(() => engine.connect(failingStore)).toThrow("subscribe");
 
-      expect(changes).toEqual([{ version: 1 }, { version: 2 }]);
+      expect(changes).toEqual([]);
       expect(engine.size).toBe(0);
       expect(storeUnsubscribed).toBe(source === "correlator");
       store.apply([add(simulator.status)]);

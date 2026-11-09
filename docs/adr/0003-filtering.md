@@ -56,8 +56,11 @@ Matches beyond the budget are missed. `record.meta` and `metadata.custom` stay e
 `createFilterEngine` lists the matching entries of one store in store list order. Pending (paused)
 entries are not listed; they join on resume. The engine follows the store and, when given, the
 correlator: the order in which the two are notified is not guaranteed, so a correlator change re-evaluates
-the entries and both connection orders converge. `connect` mirrors the correlator's: one store at a time,
-a failing seed leaves it disconnected, a failing subscription releases the seed before rethrowing. A
+the entries and both connection orders converge. `connect` allows one store at a time. It subscribes
+to the store and the correlator before it lists the store and notifies the seed, so a change a listener
+makes during that notification is followed; a failing subscription or seed drops the subscriptions
+made and leaves it disconnected, without notifying. (The correlator's own `connect` still notifies
+before it subscribes; that is left to a follow-up.) A
 `FilterChange` is notified when the listed entries or the counts change, and only then: a delivery
 update on an entry the filter hides changes the counts, so it notifies. Listener errors are reported
 asynchronously, as the correlator's are.
