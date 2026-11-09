@@ -178,8 +178,9 @@ function isElement(value: unknown): value is Element {
  * it appends there, and renders it before returning.
  */
 export function mount(element: Element, options: MountOptions = {}): ViewerInstance {
-  // Destructured first, so null options keep throwing the destructuring
-  // TypeError before the element check.
+  if (typeof options !== "object" || options === null) {
+    throw new TypeError("mount() needs an options object");
+  }
   const { maxEntries, maxBytes, correlation, adapter, entries, nonce, ...initial } = options;
   if (!isElement(element)) throw new TypeError("mount() needs an Element to mount into");
   rejectUnknown(options, "mount()");

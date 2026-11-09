@@ -32,15 +32,28 @@ describe("mount", () => {
     expect(() => mount(document.createTextNode("x") as unknown as Element)).toThrow(TypeError);
   });
 
-  it("rejects null options with a TypeError, before the element check, and leaves the element empty", () => {
-    const element = host();
-    const options = null as unknown as MountOptions;
+  it.each([
+    ["null", null],
+    ["a string", "theme"],
+    ["a number", 1],
+    ["a boolean", true],
+    ["a function", () => ({})],
+  ])(
+    "rejects %s as options, before the element check, and leaves the element empty",
+    (_, value) => {
+      const element = host();
+      const options = value as unknown as MountOptions;
+      const message = "mount() needs an options object";
 
-    expect(() => mount(element, options)).toThrow(TypeError);
-    expect(() => mount(element, options)).toThrow(/Cannot destructure/);
-    expect(() => mount(null as unknown as Element, options)).toThrow(/Cannot destructure/);
-    expect(element.childNodes).toHaveLength(0);
-    track(mount(element));
+      expect(() => mount(element, options)).toThrow(new TypeError(message));
+      expect(() => mount(null as unknown as Element, options)).toThrow(new TypeError(message));
+      expect(element.childNodes).toHaveLength(0);
+      track(mount(element));
+    },
+  );
+
+  it("accepts undefined options", () => {
+    track(mount(host(), undefined));
   });
 
   it.each([
