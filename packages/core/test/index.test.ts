@@ -14,6 +14,7 @@ describe("@open-ocpp-trace/viewer-core", () => {
       "DEFAULT_MAX_ENTRIES",
       "STORE_ID_PREFIX",
       "VIEWER_CORE_VERSION",
+      "createCorrelator",
       "createViewerStore",
     ]);
     expect(viewerCore.STORE_ID_PREFIX).toBe("viewer-store:");

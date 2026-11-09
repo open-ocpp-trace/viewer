@@ -2,6 +2,17 @@
 export const VIEWER_CORE_VERSION: string = "0.0.0";
 
 export type { Unsubscribe, ViewerAdapter } from "./adapter.ts";
+export { createCorrelator } from "./correlation.ts";
+export type {
+  CallCorrelation,
+  CorrelationChange,
+  CorrelationScope,
+  Correlator,
+  CorrelatorOptions,
+  EntryCorrelation,
+  OrphanCorrelation,
+  ResponseCorrelation,
+} from "./correlation.ts";
 export type {
   EntryDelivery,
   EntryDeliveryRole,
