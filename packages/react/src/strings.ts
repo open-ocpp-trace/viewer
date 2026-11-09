@@ -18,6 +18,14 @@ export const defaultStrings = {
   noMatch: "No entries match the filter",
   unparsed: "Unparsed",
   jumpToLatest: "Jump to latest",
+  toolbar: {
+    /** A toggle button: its pressed state tells whether the store is paused. */
+    pause: "Pause",
+    /** The number of entries held back while paused. */
+    pending: (count: number): string => `${count} pending`,
+    /** A toggle button: its pressed state tells whether the list follows. */
+    follow: "Follow latest",
+  },
   /** The text of a gap row; the count and the reason are omitted when unknown. */
   gap(missedCount: number | null, reason: string | null): string {
     const missed =

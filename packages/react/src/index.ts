@@ -13,3 +13,5 @@ export type { FilterPanelProps } from "./FilterPanel.tsx";
 export { useFilterEngine } from "./hooks.ts";
 export { TraceList } from "./TraceList.tsx";
 export type { TraceListProps } from "./TraceList.tsx";
+export { TraceViewer } from "./TraceViewer.tsx";
+export type { TraceViewerProps } from "./TraceViewer.tsx";
