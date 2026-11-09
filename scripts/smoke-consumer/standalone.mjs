@@ -9,6 +9,12 @@
 // React DOM's error reporting keeps a `typeof process` guarded fallback,
 // which a browser never reaches, so a bare `process.` is allowed.
 //
+// A page with `script-src 'self'` and no `'unsafe-eval'` blocks `eval` and
+// the `Function` constructor: the asset text must call neither (`new
+// Function(`, `Function(`, `eval(`, also as a property such as
+// `globalThis.eval(`; names that merely end in them, such as
+// `resolveFunction(`, are fine).
+//
 // Usage: node standalone.mjs <path to the copied dist/index.js>
 
 import assert from "node:assert/strict";
@@ -22,6 +28,9 @@ const text = readFileSync(asset, "utf8");
 for (const nodeOnly of ["process.env", "require(", "node:"]) {
   assert.ok(!text.includes(nodeOnly), `the asset references \`${nodeOnly}\``);
 }
+
+const dynamicCode = text.match(/(?<![\w$])(?:eval|Function)\s*\(/);
+assert.equal(dynamicCode, null, `the asset calls \`${dynamicCode?.[0]}\``);
 
 delete globalThis.process;
 assert.equal(typeof globalThis.process, "undefined", "process is still defined");

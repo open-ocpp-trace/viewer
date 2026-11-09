@@ -166,10 +166,14 @@ jobs:
       # attw, installs them with npm into projects outside the workspace,
       # one with React 18 and one with React 19, imports viewer-core under
       # Node.js and Bun, checks that viewer-react uses the consumer's single
-      # React copy, type-checks a TypeScript consumer, and loads the
-      # standalone asset without bare specifiers or Node.js globals. This is `vp run smoke`, called
-      # directly so that the consumer runs on the `node` checked above
-      # rather than on a Node.js that `vp run` may manage itself.
+      # React copy and type-checks a TypeScript consumer. Then it installs
+      # the standalone tarball alone into a project without React, checks
+      # that no React package came with it, type-checks a React-free
+      # consumer, loads the asset without bare specifiers, Node.js globals
+      # or eval, and mounts and unmounts two viewers in a happy-dom page.
+      # This is `vp run smoke`, called directly so that the consumer runs on
+      # the `node` checked above rather than on a Node.js that `vp run` may
+      # manage itself.
       - run: sh scripts/smoke-consumer.sh
         env:
           # The consumers install the SDK packages from GitHub Packages.

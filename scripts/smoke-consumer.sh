@@ -16,10 +16,21 @@
 #   3. type-checks smoke-consumer/consumer.ts with `tsc --noEmit`, once
 #      with `moduleResolution: "bundler"` and once with "nodenext", so the
 #      `types` entry of every tarball must resolve;
-# then copies the installed viewer-standalone `dist/` to a directory with
-# no node_modules and imports it by file URL with `process` removed, so a
-# bare import specifier or a Node.js-only reference left in the asset
-# fails.
+# then installs the viewer-standalone tarball alone into a React-free
+# project and:
+#   4. checks that neither React, its types, viewer-react nor viewer-core
+#      was installed with it;
+#   5. type-checks smoke-consumer/standalone/consumer.ts with `tsc
+#      --noEmit` and `skipLibCheck: false`, with "bundler" and "nodenext",
+#      so `dist/index.d.ts` must stand without React types;
+#   6. copies its `dist/` to a directory with no node_modules, checks that
+#      the asset calls neither `eval` nor the `Function` constructor, and
+#      imports it by file URL with `process` removed, so a bare import
+#      specifier or a Node.js-only reference left in the asset fails;
+#   7. mounts two viewers from that copy into a happy-dom page (happy-dom
+#      from the workspace, not the consumer), checks that each renders in
+#      its own shadow root, then unmounts both and checks that the host
+#      elements are back as they were and that no global was added.
 # No custom export condition is set, so the packages resolve to `dist/`
 # exactly as for a published install.
 #
@@ -133,9 +144,40 @@ EOF
   done
 done
 
-step "load the viewer-standalone asset without bare specifiers or Node.js globals"
+consumer="$tmp/consumer-standalone"
+step "install only the viewer-standalone tarball into a React-free project"
+mkdir "$consumer"
+cp "$fixtures/standalone/consumer.ts" "$fixtures"/standalone/tsconfig.*.json "$consumer/"
+cp "$workspace/.npmrc" "$consumer/.npmrc"
+cat > "$consumer/package.json" <<'EOF'
+{
+  "name": "open-ocpp-trace-viewer-smoke-standalone",
+  "private": true,
+  "type": "module"
+}
+EOF
+(cd "$consumer" && npm install --no-audit --no-fund --ignore-scripts \
+  "$tmp"/tarballs/open-ocpp-trace-viewer-standalone-*.tgz)
+for absent in react react-dom @types/react @types/react-dom \
+  @open-ocpp-trace/viewer-react @open-ocpp-trace/viewer-core; do
+  if [ -e "$consumer/node_modules/$absent" ]; then
+    echo "smoke: the viewer-standalone install pulled $absent" >&2
+    exit 1
+  fi
+done
+echo "smoke: no React, React types, viewer-react or viewer-core installed"
+
+for resolution in bundler nodenext; do
+  step "type-check the React-free consumer (moduleResolution: $resolution)"
+  (cd "$consumer" && node "$tsc" --project "tsconfig.$resolution.json")
+done
+
+step "load the viewer-standalone asset without bare specifiers, Node.js globals or eval"
 asset="$tmp/standalone-asset"
-cp -R "$tmp/consumer-react-19/node_modules/@open-ocpp-trace/viewer-standalone/dist" "$asset"
+cp -R "$consumer/node_modules/@open-ocpp-trace/viewer-standalone/dist" "$asset"
 node "$fixtures/standalone.mjs" "$asset/index.js"
+
+step "mount, render and unmount two standalone viewers in a happy-dom page"
+node "$fixtures/standalone/dom.mjs" "$asset/index.js" "$workspace/node_modules/happy-dom"
 
 step "passed"
