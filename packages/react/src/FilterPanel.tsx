@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactElement } from "react";
+import { useEffect, useMemo, useState, type ReactElement } from "react";
 
 import type {
   FilterEngine,
@@ -9,13 +9,12 @@ import type {
 import {
   DraftInput,
   Group,
-  isRecord,
   optionsOf,
   readList,
-  readString,
   type Value,
   ValueGroup,
 } from "./filter-controls.tsx";
+import { isRecord, readString } from "./guards.ts";
 import { useStableCallback, useVersion } from "./hooks.ts";
 import { ResetBoundary } from "./reset-boundary.tsx";
 import { sameFilter } from "./same-filter.ts";
@@ -104,8 +103,44 @@ export function FilterPanel(props: FilterPanelProps): ReactElement {
   }, [engine, current]);
 
   useVersion(engine);
+  // The same object while the engine version is unchanged.
   const stats = engine.getStats().buffer;
-  const view: Readonly<Record<string, unknown>> = isRecord(current) ? current : {};
+  const view = useMemo(
+    (): Readonly<Record<string, unknown>> => (isRecord(current) ? current : {}),
+    [current],
+  );
+  const fieldDefinitions = props.fields;
+  // Option lists copy and sort the observed values: rebuilt only when the
+  // stats, the filter or the field labels change, not on every render.
+  const groups = useMemo(() => {
+    const kindsSelected = readList(view["kinds"]);
+    const selectedFields = readFields(view["fields"]);
+    const fieldIds = new Set([
+      ...stats.fields.keys(),
+      ...(fieldDefinitions ?? []).map((field) => field.id),
+      ...selectedFields.map((field) => field.id),
+    ]);
+    return {
+      kinds: {
+        selected: kindsSelected,
+        options: optionsOf(new Map(KINDS.map((kind) => [kind, stats.kinds[kind]])), kindsSelected),
+      },
+      lists: LISTS.map((property) => {
+        const selected = readList(view[property]);
+        return { property, selected, options: optionsOf(stats[property], selected) };
+      }),
+      selectedFields,
+      fields: [...fieldIds].map((id) => {
+        const selected = selectedFields.find((field) => field.id === id)?.values;
+        return {
+          id,
+          label: fieldDefinitions?.find((field) => field.id === id)?.label ?? id,
+          selected,
+          options: optionsOf(stats.fields.get(id), selected),
+        };
+      }),
+    };
+  }, [stats, view, fieldDefinitions]);
 
   // Stable, so a host control that keeps it reaches the latest callback.
   const change = useStableCallback((next: TraceFilter): void => {
@@ -135,14 +170,8 @@ export function FilterPanel(props: FilterPanelProps): ReactElement {
     set({ timeRange: Object.keys(kept).length === 0 ? undefined : kept });
   }
 
-  const selectedFields = readFields(view["fields"]);
-  const fieldIds = new Set([
-    ...stats.fields.keys(),
-    ...(props.fields ?? []).map((field) => field.id),
-    ...selectedFields.map((field) => field.id),
-  ]);
   function setField(id: string, values: Value[] | undefined): void {
-    const next = selectedFields.filter((field) => field.id !== id);
+    const next = groups.selectedFields.filter((field) => field.id !== id);
     if (values !== undefined) next.push({ id, values });
     set({ fields: next.length === 0 ? undefined : next });
   }
@@ -198,11 +227,8 @@ export function FilterPanel(props: FilterPanelProps): ReactElement {
         </Group>
         <ValueGroup
           legend={strings.kinds}
-          options={optionsOf(
-            new Map(KINDS.map((kind) => [kind, stats.kinds[kind]])),
-            readList(view["kinds"]),
-          )}
-          selected={readList(view["kinds"])}
+          options={groups.kinds.options}
+          selected={groups.kinds.selected}
           onChange={(kinds) => set({ kinds })}
           display={(kind) => strings.kindNames[String(kind)] ?? String(kind)}
         />
@@ -219,27 +245,24 @@ export function FilterPanel(props: FilterPanelProps): ReactElement {
           />
           <DraftInput label={strings.to} value={to} onCommit={(value) => setBound("to", value)} />
         </Group>
-        {LISTS.map((property) => (
+        {groups.lists.map(({ property, selected, options }) => (
           <ValueGroup
             key={property}
             legend={strings[property]}
-            options={optionsOf(stats[property], readList(view[property]))}
-            selected={readList(view[property])}
+            options={options}
+            selected={selected}
             onChange={(values) => set({ [property]: values })}
           />
         ))}
-        {[...fieldIds].map((id) => {
-          const selected = selectedFields.find((field) => field.id === id)?.values;
-          return (
-            <ValueGroup
-              key={id}
-              legend={props.fields?.find((field) => field.id === id)?.label ?? id}
-              options={optionsOf(stats.fields.get(id), selected)}
-              selected={selected}
-              onChange={(values) => setField(id, values)}
-            />
-          );
-        })}
+        {groups.fields.map(({ id, label, selected, options }) => (
+          <ValueGroup
+            key={id}
+            legend={label}
+            options={options}
+            selected={selected}
+            onChange={(values) => setField(id, values)}
+          />
+        ))}
         <Group
           legend={strings.messageIds}
           onClear={

@@ -10,6 +10,7 @@ import {
   type ViewerStore,
 } from "@open-ocpp-trace/viewer-core";
 
+import { readProp } from "./guards.ts";
 import {
   DEFAULT_MAX_DEPTH,
   defaultSensitiveKeys,
@@ -73,17 +74,6 @@ export interface EntryInspectorProps {
   /** Translates the strings, as `TraceViewerProps.translate`. */
   translate?: TranslateFunction;
   className?: string;
-}
-
-/** Reads a property of untrusted data without throwing. */
-function read(value: unknown, key: string): unknown {
-  try {
-    return typeof value === "object" && value !== null
-      ? (value as Record<string, unknown>)[key]
-      : undefined;
-  } catch {
-    return undefined;
-  }
 }
 
 /** Longest plain field rendered; longer values are clipped and end with « … ». */
@@ -273,11 +263,11 @@ function deliveriesText(deliveries: unknown, strings: ViewerStrings): string | n
       .slice(0, 64)
       .map((d) =>
         strings.inspector.delivery(
-          text(read(d, "target")) ?? "",
-          text(read(d, "role")),
-          text(read(d, "status")) ?? "",
-          text(read(d, "reason")),
-          text(read(d, "updatedAt")),
+          text(readProp(d, "target")) ?? "",
+          text(readProp(d, "role")),
+          text(readProp(d, "status")) ?? "",
+          text(readProp(d, "reason")),
+          text(readProp(d, "updatedAt")),
         ),
       )
       .join("\n");
@@ -311,16 +301,16 @@ function TraceDetails({ entry, props, keys, copy }: DetailsProps & { entry: Trac
   const all = useStrings();
   const strings = all.inspector;
   const labels = strings.fields;
-  const record = read(entry, "record");
-  const metadata = read(entry, "metadata");
+  const record = readProp(entry, "record");
+  const metadata = readProp(entry, "metadata");
   const limits = useLimits(props.maxChars ?? 20_000);
   const fields = readEntryFields(entry, props.correlator);
-  const error = fields.messageType === "CALLERROR" ? read(record, "error") : undefined;
+  const error = fields.messageType === "CALLERROR" ? readProp(record, "error") : undefined;
   const values = {
-    payload: read(record, "payload"),
-    error: read(error, "details"),
-    meta: read(record, "meta"),
-    custom: read(metadata, "custom"),
+    payload: readProp(record, "payload"),
+    error: readProp(error, "details"),
+    meta: readProp(record, "meta"),
+    custom: readProp(metadata, "custom"),
   };
   const printed: Record<keyof typeof values, Formatted | null> = {
     payload: usePrinted(values.payload, limits.limit("payload"), keys, strings.markers),
@@ -328,7 +318,7 @@ function TraceDetails({ entry, props, keys, copy }: DetailsProps & { entry: Trac
     meta: usePrinted(values.meta, limits.limit("meta"), keys, strings.markers),
     custom: usePrinted(values.custom, limits.limit("custom"), keys, strings.markers),
   };
-  const raw = rawText(read(record, "raw"));
+  const raw = rawText(readProp(record, "raw"));
   const rawHoldsKey = useMemo(
     () => raw !== null && redacting(keys) && rawMayHoldKey(raw, keys),
     [raw, keys],
@@ -342,9 +332,9 @@ function TraceDetails({ entry, props, keys, copy }: DetailsProps & { entry: Trac
       !whole(printed.payload) ||
       (fields.messageType === "CALLERROR" && !whole(printed.error)) ||
       (printed.meta !== null && !whole(printed.meta)));
-  const source = read(metadata, "source");
-  const sourceId = text(read(source, "id"));
-  const delivered = deliveriesText(read(metadata, "deliveries"), all);
+  const source = readProp(metadata, "source");
+  const sourceId = text(readProp(source, "id"));
+  const delivered = deliveriesText(readProp(metadata, "deliveries"), all);
 
   const block = (name: keyof typeof values, part: InspectorPart | null) => {
     const shown = printed[name];
@@ -384,12 +374,12 @@ function TraceDetails({ entry, props, keys, copy }: DetailsProps & { entry: Trac
           [labels.messageId, fields.messageId],
           [labels.chargePoint, fields.chargePointId],
           [labels.connector, text(fields.connectorId)],
-          [labels.ocppVersion, text(read(record, "ocppVersion"))],
-          [labels.transport, text(read(record, "transport"))],
+          [labels.ocppVersion, text(readProp(record, "ocppVersion"))],
+          [labels.transport, text(readProp(record, "transport"))],
           [labels.timestamp, fields.timestamp],
-          [labels.receivedAt, text(read(entry, "receivedAt"))],
-          [labels.errorCode, text(read(error, "code"))],
-          [labels.errorDescription, text(read(error, "description"))],
+          [labels.receivedAt, text(readProp(entry, "receivedAt"))],
+          [labels.errorCode, text(readProp(error, "code"))],
+          [labels.errorDescription, text(readProp(error, "description"))],
         ]}
       />
       <Pairing entry={entry} props={props} />
@@ -399,13 +389,13 @@ function TraceDetails({ entry, props, keys, copy }: DetailsProps & { entry: Trac
       {block("meta", "meta")}
       <Fields
         fields={[
-          [labels.tenant, text(read(metadata, "tenant"))],
+          [labels.tenant, text(readProp(metadata, "tenant"))],
           [
             labels.source,
-            sourceId === null ? null : strings.source(sourceId, text(read(source, "label"))),
+            sourceId === null ? null : strings.source(sourceId, text(readProp(source, "label"))),
           ],
-          [labels.session, text(read(metadata, "sessionId"))],
-          [labels.conversation, text(read(metadata, "conversationId"))],
+          [labels.session, text(readProp(metadata, "sessionId"))],
+          [labels.conversation, text(readProp(metadata, "conversationId"))],
           [labels.deliveries, delivered],
         ]}
       />
@@ -459,32 +449,32 @@ function UnparsedDetails({ entry, props, keys, copy }: DetailsProps & { entry: U
       <p className="oot-inspector__badge">{all.unparsed}</p>
       <Fields
         fields={[
-          [labels.reason, text(read(entry, "reason"))],
-          [labels.timestamp, text(read(entry, "timestamp"))],
-          [labels.direction, text(read(entry, "direction"))],
-          [labels.transport, text(read(entry, "transport"))],
-          [labels.receivedAt, text(read(entry, "receivedAt"))],
+          [labels.reason, text(readProp(entry, "reason"))],
+          [labels.timestamp, text(readProp(entry, "timestamp"))],
+          [labels.direction, text(readProp(entry, "direction"))],
+          [labels.transport, text(readProp(entry, "transport"))],
+          [labels.receivedAt, text(readProp(entry, "receivedAt"))],
         ]}
       />
       {redacting(keys)
         ? rawHiddenNote(all)
-        : rawBlock(rawText(read(entry, "raw")) ?? "", limits, copy, all)}
+        : rawBlock(rawText(readProp(entry, "raw")) ?? "", limits, copy, all)}
     </>
   );
 }
 
 function GapDetails({ entry }: { entry: GapEntry }) {
-  const count = read(entry, "missedCount");
+  const count = readProp(entry, "missedCount");
   const missed = typeof count === "number" ? count : null;
   const all = useStrings();
   const labels = all.inspector.fields;
   return (
     <>
-      <p>{all.gap(missed, text(read(entry, "reason")))}</p>
+      <p>{all.gap(missed, text(readProp(entry, "reason")))}</p>
       <Fields
         fields={[
-          [labels.timestamp, text(read(entry, "timestamp"))],
-          [labels.receivedAt, text(read(entry, "receivedAt"))],
+          [labels.timestamp, text(readProp(entry, "timestamp"))],
+          [labels.receivedAt, text(readProp(entry, "receivedAt"))],
         ]}
       />
     </>

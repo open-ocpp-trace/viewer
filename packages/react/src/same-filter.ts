@@ -1,8 +1,6 @@
 import type { TraceFilter } from "@open-ocpp-trace/viewer-core";
 
-function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
+import { isRecord } from "./guards.ts";
 
 function same(a: unknown, b: unknown): boolean {
   if (Object.is(a, b)) return true;

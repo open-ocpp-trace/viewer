@@ -8,16 +8,8 @@ export type Value = string | number | null;
 // The filter may be malformed host data: the panel reads it defensively, so
 // rendering never throws before the engine has rejected it.
 
-export function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
 export function readList(value: unknown): readonly Value[] | undefined {
   return Array.isArray(value) ? (value as Value[]) : undefined;
-}
-
-export function readString(value: unknown): string {
-  return typeof value === "string" ? value : "";
 }
 
 function compare(a: Value, b: Value): number {

@@ -211,6 +211,17 @@ describe("<FilterPanel> controls", () => {
     expect(checkbox("Charge points", "CP-2 (2)")).toBeDefined();
   });
 
+  it("lists a value first observed in an appended entry, in order", () => {
+    const { store, engine } = connected(ENTRIES);
+    render(<FilterPanel engine={engine} />);
+    act(() => store.apply([add(sdkEntry("d", { chargePointId: "CP-0" }))]));
+    const names = within(group("Charge points"))
+      .getAllByRole("checkbox")
+      .map((box) => box.parentElement?.textContent);
+    expect(names).toEqual(["(none) (2)", "CP-0 (1)", "CP-1 (1)", "CP-2 (1)"]);
+    expect(checkbox("Kinds", "Traces (4)")).toBeDefined();
+  });
+
   it("keeps the focus on its value when a new value sorts before it", () => {
     const { store, engine } = connected([
       sdkEntry("a", { chargePointId: "CP-2" }),

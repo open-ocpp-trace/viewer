@@ -21,6 +21,7 @@ import {
   type ViewerEntry,
 } from "@open-ocpp-trace/viewer-core";
 
+import { readProp, readString } from "./guards.ts";
 import { useIsomorphicLayoutEffect, useVersion } from "./hooks.ts";
 import type { PartialViewerStrings, TranslateFunction, ViewerStrings } from "./strings.ts";
 import { useViewerStrings } from "./strings-context.ts";
@@ -76,19 +77,6 @@ const DEFAULT_ROW_HEIGHT = 28;
 const OVERSCAN = 8;
 const PREVIEW_LENGTH = 120;
 
-/** Reads one property of an untrusted entry; never throws. */
-function own(entry: ViewerEntry, key: string): unknown {
-  try {
-    return (entry as unknown as Readonly<Record<string, unknown>>)[key];
-  } catch {
-    return undefined;
-  }
-}
-
-function textOf(value: unknown): string {
-  return typeof value === "string" ? value : "";
-}
-
 function hostValue(column: ColumnDefinition, entry: ViewerEntry): string {
   let value: unknown;
   try {
@@ -123,8 +111,8 @@ function hostCells(columns: readonly ColumnDefinition[], entry: ViewerEntry): Re
 }
 
 function gapText(entry: ViewerEntry, strings: ViewerStrings): string {
-  const count = own(entry, "missedCount");
-  const reason = own(entry, "reason");
+  const count = readProp(entry, "missedCount");
+  const reason = readProp(entry, "reason");
   return strings.gap(
     typeof count === "number" && Number.isInteger(count) && count >= 0 ? count : null,
     typeof reason === "string" ? reason : null,
@@ -132,14 +120,14 @@ function gapText(entry: ViewerEntry, strings: ViewerStrings): string {
 }
 
 function unparsedMarker(entry: ViewerEntry, strings: ViewerStrings): ReactElement {
-  const raw = textOf(own(entry, "raw"));
+  const raw = readString(readProp(entry, "raw"));
   const preview = raw.length > PREVIEW_LENGTH ? `${raw.slice(0, PREVIEW_LENGTH)}…` : raw;
   return cell(
     "unparsed",
     "oot-cell--unparsed",
     <>
       <span className="oot-badge">{strings.unparsed}</span>{" "}
-      <span className="oot-unparsed-reason">{textOf(own(entry, "reason"))}</span>{" "}
+      <span className="oot-unparsed-reason">{readString(readProp(entry, "reason"))}</span>{" "}
       <span className="oot-unparsed-raw">{preview}</span>
     </>,
     BUILT_IN.length - UNPARSED_LEADING,
