@@ -88,8 +88,8 @@ for react_version in $react_versions; do
   # The viewer-react declarations reference React's types: a TypeScript
   # consumer installs the @types packages of its React major.
   case $major in
-    18) types_versions="@types/react@18.3.31 @types/react-dom@18.3.7" ;;
-    19) types_versions="@types/react@19.3.0 @types/react-dom@19.3.0" ;;
+    18) types_react="@types/react@18.3.31" types_react_dom="@types/react-dom@18.3.7" ;;
+    19) types_react="@types/react@19.3.0" types_react_dom="@types/react-dom@19.3.0" ;;
     *) echo "smoke: no @types versions for React $major" >&2; exit 1 ;;
   esac
 
@@ -108,7 +108,7 @@ EOF
   # One install for every tarball: viewer-react depends on the exact
   # viewer-core version, which only the local tarball provides.
   (cd "$consumer" && npm install --no-audit --no-fund --ignore-scripts \
-    "react@$react_version" "react-dom@$react_version" $types_versions \
+    "react@$react_version" "react-dom@$react_version" "$types_react" "$types_react_dom" \
     "$tmp"/tarballs/open-ocpp-trace-viewer-core-*.tgz \
     "$tmp"/tarballs/open-ocpp-trace-viewer-react-*.tgz \
     "$tmp"/tarballs/open-ocpp-trace-viewer-standalone-*.tgz)
