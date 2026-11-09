@@ -9,4 +9,30 @@ export function bundledReactVersion(): string {
 }
 
 export { mount } from "./mount.ts";
-export type { MountOnlyOptions, MountOptions, ViewerInstance } from "./mount.ts";
+export type { LiveOptions, MountOnlyOptions, MountOptions, ViewerInstance } from "./mount.ts";
+// The types the options and the instance use, so that a host needs neither
+// viewer-core nor viewer-react to name them: `dist/index.d.ts` inlines them.
+export type {
+  ColumnDefinition,
+  CorrelationScope,
+  EntryUpdate,
+  FilterFieldDefinition,
+  GapEntry,
+  TraceEntry,
+  TraceFilter,
+  UnparsedEntry,
+  Unsubscribe,
+  ViewerAdapter,
+  ViewerEntry,
+  ViewerSelection,
+} from "@open-ocpp-trace/viewer-core";
+export type {
+  ExportScope,
+  InspectorPart,
+  JsonlExport,
+  PartialViewerStrings,
+  ToolbarAction,
+  TranslateFunction,
+  ViewerActionContext,
+  ViewerTheme,
+} from "@open-ocpp-trace/viewer-react";
