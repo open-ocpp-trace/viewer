@@ -159,6 +159,24 @@ describe("toolbar actions", () => {
     expect(button().disabled).toBe(false);
   });
 
+  it("evaluates disabled again when the filter changes", () => {
+    const action: ToolbarAction = {
+      id: "needs-entries",
+      label: "Needs entries",
+      disabled: (context) => context.listed().length === 0,
+      run: () => {},
+    };
+    render(<TraceViewer store={storeWith(ENTRIES)} toolbarActions={[action]} />);
+    const button = (): HTMLButtonElement =>
+      screen.getByRole("button", { name: "Needs entries" }) as HTMLButtonElement;
+    expect(button().disabled).toBe(false);
+    fireEvent.change(screen.getByRole("searchbox", { name: "Text" }), {
+      target: { value: "matches nothing" },
+    });
+    expect(listedIds()).toEqual([]);
+    expect(button().disabled).toBe(true);
+  });
+
   it("reports a throwing run and stays usable", () => {
     const report = vi.fn();
     vi.stubGlobal("reportError", report);

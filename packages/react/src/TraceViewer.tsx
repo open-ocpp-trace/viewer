@@ -24,7 +24,7 @@ import type {
 import { EntryInspector, type InspectorPart } from "./EntryInspector.tsx";
 import { exportJsonl, type JsonlExport } from "./export-jsonl.ts";
 import { FilterPanel } from "./FilterPanel.tsx";
-import { useFilterEngine, useStableCallback } from "./hooks.ts";
+import { useEngineVersion, useFilterEngine, useStableCallback } from "./hooks.ts";
 import { reportHostError } from "./report-error.ts";
 import { ResetBoundary } from "./reset-boundary.tsx";
 import {
@@ -215,6 +215,8 @@ export function TraceViewer(props: TraceViewerProps): ReactElement {
     ...(payloadSearch !== undefined && { payloadSearch }),
   });
   useStoreVersion(store);
+  // Host actions read `listed()`: a filter change re-renders them too.
+  useEngineVersion(engine);
   const { paused, pending } = store.getStats();
   const [follow, setFollow] = useState(true);
 
