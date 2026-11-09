@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vite-plus/test";
+import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 
 import {
   createViewerStore,
@@ -6,6 +6,7 @@ import {
   type EntryUpdate,
   type ViewerAdapter,
   type ViewerEntry,
+  type ViewerErrorHandler,
 } from "@open-ocpp-trace/viewer-core";
 
 import { adds, ids, mirror, trace } from "./store-fixtures.ts";
@@ -51,6 +52,10 @@ function deferred<T>() {
 }
 
 const entries = (...names: string[]): ViewerEntry[] => names.map((id) => trace(id));
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
 
 describe("ViewerStore connect", () => {
   it("applies a synchronous snapshot before returning, then forwards batches", () => {
@@ -161,8 +166,9 @@ describe("ViewerStore connect", () => {
     expect(store.version).toBe(0);
   });
 
-  it("ignores a snapshot rejected after unsubscribe, without an unhandled rejection", async () => {
-    const store = createViewerStore();
+  it("ignores a snapshot rejected after unsubscribe, reporting nothing", async () => {
+    const onError = vi.fn<ViewerErrorHandler>();
+    const store = createViewerStore({ onError });
     const snapshot = deferred<readonly ViewerEntry[]>();
     const unsubscribe = store.connect(fakeAdapter(() => snapshot.promise).adapter);
     unsubscribe();
@@ -171,6 +177,7 @@ describe("ViewerStore connect", () => {
     // Let an unhandled rejection, if any, reach the test runner.
     await new Promise((resolve) => setTimeout(resolve, 10));
     expect(store.version).toBe(0);
+    expect(onError).not.toHaveBeenCalled();
   });
 
   it("ignores batches a misbehaving adapter emits after unsubscribe", () => {
@@ -243,8 +250,9 @@ describe("ViewerStore connect", () => {
       });
     };
 
-    it("unsubscribes and rethrows after a synchronous snapshot, keeping what was applied", () => {
-      const store = createViewerStore();
+    it("reports it and keeps forwarding after a synchronous snapshot", () => {
+      const onError = vi.fn<ViewerErrorHandler>();
+      const store = createViewerStore({ onError });
       throwOnce(store, "boom");
       let fake: ReturnType<typeof fakeAdapter>;
       fake = fakeAdapter(() => {
@@ -253,30 +261,82 @@ describe("ViewerStore connect", () => {
         return entries("a");
       });
 
-      expect(() => store.connect(fake.adapter)).toThrow("boom");
-      // The replay went on after the error.
+      expect(() => store.connect(fake.adapter)).not.toThrow();
       expect(ids(store)).toEqual(["a", "b", "c"]);
-      expect(fake.unsubscribed).toBe(1);
+      expect(onError.mock.calls).toEqual([
+        [new Error("boom"), { component: "store", callback: "listener" }],
+      ]);
 
-      const version = store.version;
       fake.emit(adds("d"));
-      expect(ids(store)).toEqual(["a", "b", "c"]);
-      expect(store.version).toBe(version);
+      expect(ids(store)).toEqual(["a", "b", "c", "d"]);
+      expect(fake.unsubscribed).toBe(0);
     });
 
-    it("keeps forwarding after a promised snapshot, without an unhandled rejection", async () => {
-      const store = createViewerStore();
+    it("reports it and keeps forwarding after a promised snapshot", async () => {
+      const onError = vi.fn<ViewerErrorHandler>();
+      const store = createViewerStore({ onError });
       throwOnce(store, "boom-async");
       const fake = fakeAdapter(() => Promise.resolve(entries("a")));
       store.connect(fake.adapter);
       fake.emit(adds("b"));
 
-      // Let an unhandled rejection, if any, reach the test runner.
       await new Promise((resolve) => setTimeout(resolve, 10));
       expect(ids(store)).toEqual(["a", "b"]);
+      expect(onError.mock.calls).toEqual([
+        [new Error("boom-async"), { component: "store", callback: "listener" }],
+      ]);
       fake.emit(adds("c"));
       expect(ids(store)).toEqual(["a", "b", "c"]);
       expect(fake.unsubscribed).toBe(0);
+    });
+  });
+
+  describe("with a snapshot whose reading throws", () => {
+    /** An array whose second element cannot be read. */
+    const hostileSnapshot = (failure: Error): ViewerEntry[] =>
+      new Proxy(entries("a", "b"), {
+        get(target, key, receiver) {
+          if (key === "1") throw failure;
+          return Reflect.get(target, key, receiver);
+        },
+      });
+
+    it("unsubscribes and rethrows for a synchronous snapshot, keeping what was applied", () => {
+      const onError = vi.fn<ViewerErrorHandler>();
+      const store = createViewerStore({ onError });
+      const failure = new Error("unreadable");
+      const fake = fakeAdapter(() => hostileSnapshot(failure));
+
+      expect(() => store.connect(fake.adapter)).toThrow(failure);
+      expect(ids(store)).toEqual(["a"]);
+      expect(fake.unsubscribed).toBe(1);
+      expect(onError).not.toHaveBeenCalled();
+    });
+
+    it("reports it for a promised snapshot, and keeps forwarding", async () => {
+      const onError = vi.fn<ViewerErrorHandler>();
+      const store = createViewerStore({ onError });
+      const failure = new Error("unreadable");
+      const fake = fakeAdapter(() => Promise.resolve(hostileSnapshot(failure)));
+      store.connect(fake.adapter);
+      fake.emit(adds("c"));
+
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      expect(ids(store)).toEqual(["a", "c"]);
+      expect(onError.mock.calls).toEqual([[failure, { component: "store", callback: "snapshot" }]]);
+      fake.emit(adds("d"));
+      expect(ids(store)).toEqual(["a", "c", "d"]);
+    });
+
+    it("reports it to the default reporter without onError", async () => {
+      const reportError = vi.fn();
+      vi.stubGlobal("reportError", reportError);
+      const store = createViewerStore();
+      const failure = new Error("unreadable");
+      store.connect(fakeAdapter(() => Promise.resolve(hostileSnapshot(failure))).adapter);
+
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      expect(reportError.mock.calls).toEqual([[failure]]);
     });
   });
 

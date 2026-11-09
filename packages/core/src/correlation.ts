@@ -249,7 +249,7 @@ export function createCorrelatorWith(
   report: (error: unknown) => void,
 ): Correlator {
   const scope = checkScope(options);
-  const listeners = createListeners<CorrelationChange>();
+  const listeners = createListeners<CorrelationChange>(report);
   let index = createCallIndex();
   /** Correlated entries: the CALL node, or null for a response. */
   let tracked = new Map<EntryId, CallNode | null>();

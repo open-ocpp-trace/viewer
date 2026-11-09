@@ -403,7 +403,7 @@ describe("Correlator listeners", () => {
     expect(correlator.version).toBe(0);
   });
 
-  it("runs every listener and reports a listener error instead of throwing it", () => {
+  it("runs every listener and reports each listener error instead of throwing it", () => {
     const store = createViewerStore();
     store.load([call("c1", "m1")]);
     const reported: unknown[] = [];
@@ -423,7 +423,7 @@ describe("Correlator listeners", () => {
 
     expect(() => correlator.connect(store)).not.toThrow();
     expect(calls).toEqual(["first", "second"]);
-    expect(reported).toEqual([new Error("first")]);
+    expect(reported).toEqual([new Error("first"), new Error("second")]);
   });
 
   it("refuses a second store while connected", () => {

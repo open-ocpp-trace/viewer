@@ -167,7 +167,7 @@ export function createFilterEngineWith(
   const correlator = options?.correlator;
   const payloadSearch = options?.payloadSearch === true;
   const ctx: MatchContext = { fields, ...(correlator !== undefined && { correlator }) };
-  const listeners = createListeners<FilterChange>();
+  const listeners = createListeners<FilterChange>(report);
   let compiled: CompiledFilter = compileFilter({}, fields, payloadSearch);
   /** Listed entries of the store, in store list order. */
   let cache = new Map<EntryId, Cached>();

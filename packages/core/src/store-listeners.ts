@@ -10,13 +10,15 @@ export interface Listeners<T> {
   subscribe(listener: (value: T) => void): Unsubscribe;
   /**
    * Calls the listeners subscribed when the call starts, skipping any that
-   * was unsubscribed meanwhile. A throwing listener does not stop the others;
-   * the first error is rethrown once they all ran.
+   * was unsubscribed meanwhile. Never throws: each listener error goes to
+   * the `report` function of {@link createListeners}, and the others still
+   * run.
    */
   emit(value: T): void;
 }
 
-export function createListeners<T>(): Listeners<T> {
+/** Listeners whose errors go to `report`, which must not throw. */
+export function createListeners<T>(report: (error: unknown) => void): Listeners<T> {
   let subscriptions: Subscription<T>[] = [];
   return {
     subscribe(listener) {
@@ -29,12 +31,15 @@ export function createListeners<T>(): Listeners<T> {
       };
     },
     emit(value) {
-      const errors = firstError();
       // The array is replaced, never mutated, so this is a stable snapshot.
       for (const subscription of subscriptions) {
-        if (subscription.active) errors.run(() => subscription.listener(value));
+        if (!subscription.active) continue;
+        try {
+          subscription.listener(value);
+        } catch (error) {
+          report(error);
+        }
       }
-      errors.rethrow();
     },
   };
 }

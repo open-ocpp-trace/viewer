@@ -3,6 +3,7 @@ import { connectAdapter } from "./store-connect.ts";
 import type { EntryId, GapEntry, ViewerEntry } from "./entry.ts";
 import { coreWeight, metadataWeight } from "./store-estimate.ts";
 import { checkItem, mergeMetadata, normalizeAddedEntry, STORE_ID_PREFIX } from "./store-ingest.ts";
+import { reportViewerError, type ViewerErrorHandler } from "./report-error.ts";
 import { createListeners, firstError, type FirstError } from "./store-listeners.ts";
 import { createSlotQueue, type Slot } from "./store-queue.ts";
 import type { EntryMetadataPatch, EntryUpdate } from "./update.ts";
@@ -44,6 +45,15 @@ export interface ViewerStoreOptions {
    * listed entry until the next add evicts it.
    */
   readonly maxBytes?: number;
+  /**
+   * Receives the errors no caller is left to receive, synchronously: each
+   * listener error (`{ component: "store", callback: "listener" }`) and an
+   * error raised while a promised snapshot settles (`callback:
+   * "snapshot"`). Without it, they go to the default reporter of
+   * {@link reportViewerError}: `globalThis.reportError`, else
+   * `console.error`.
+   */
+  readonly onError?: ViewerErrorHandler;
 }
 
 /** Counters of a viewer store. */
@@ -91,8 +101,10 @@ export interface ViewerStoreStats {
  * returns before it has applied: it runs after the current change has
  * notified, in call order, as its own change with its own notification. Its
  * effects, its no-op checks and its reading of the batch happen when it runs.
- * An error it raises is rethrown from the outermost call, after the queue
- * has run, unless that call already has one.
+ * An error its own body raises (a throwing batch iterator) is rethrown from
+ * the outermost call, after the queue has run, unless that call already has
+ * one. Listener errors are never rethrown: each one goes to
+ * {@link ViewerStoreOptions.onError}.
  */
 export interface ViewerStore {
   /**
@@ -133,10 +145,11 @@ export interface ViewerStore {
    * Calls `listener` after each change, once the store is consistent.
    * Listeners run in subscription order; one subscribed during a
    * notification is first called on the next change, one unsubscribed during
-   * it is not called anymore. A throwing listener does not stop the others:
-   * the first error is rethrown from the call that made the change, after
-   * every listener ran and with the change already applied. Each call returns
-   * its own idempotent {@link Unsubscribe}, even for the same function.
+   * it is not called anymore. A throwing listener does not stop the others,
+   * and its error is not rethrown to the call that made the change: it goes
+   * to {@link ViewerStoreOptions.onError} (`callback: "listener"`), the change
+   * already applied. Each call returns its own idempotent
+   * {@link Unsubscribe}, even for the same function.
    */
   subscribe(listener: (change: ViewerStoreChange) => void): Unsubscribe;
   /**
@@ -200,16 +213,18 @@ export interface ViewerStore {
    * `missedCount` the `add` items dropped) is listed after the snapshot and
    * before the replay, even when only updates were dropped.
    *
-   * Listeners must not throw while a connection settles. If one does, the
-   * snapshot, gap and replay still apply in full. For a synchronous snapshot,
-   * the connection is then unsubscribed and the first error rethrown, the
-   * store keeping what it applied; for a promised one, the error is not
-   * reported and the connection keeps forwarding.
+   * A listener error while a connection settles is reported as for any
+   * change and stops nothing. If reading the snapshot or a buffered batch
+   * throws, the snapshot, gap and replay still apply as far as they can be
+   * read. For a synchronous snapshot, the connection is then unsubscribed
+   * and the first error rethrown, the store keeping what it applied; for a
+   * promised one, the error goes to {@link ViewerStoreOptions.onError}
+   * (`callback: "snapshot"`) and the connection keeps forwarding.
    *
    * Called while a change runs or notifies, the synchronous snapshot, gap
    * and replay are queued as nested calls (see {@link ViewerStore}): they
-   * apply after `connect` returns, and their listener errors are rethrown
-   * from the outermost call.
+   * apply after `connect` returns, their listener errors are reported, and
+   * an error reading them is rethrown from the outermost call.
    */
   connect(adapter: ViewerAdapter): Unsubscribe;
 }
@@ -300,7 +315,10 @@ export function createViewerStore(options: ViewerStoreOptions = {}): ViewerStore
   const maxPending = Math.max(1, maxEntries - 1);
   let maxPendingBytes = pendingBytesBudget();
   let counters = zeroCounters();
-  const listeners = createListeners<ViewerStoreChange>();
+  const onError = options.onError;
+  const listeners = createListeners<ViewerStoreChange>((error) =>
+    reportViewerError(onError, error, { component: "store", callback: "listener" }),
+  );
   let version = 0;
   let stats: ViewerStoreStats | undefined;
   // State of the change being made: whether anything changed, whether the
@@ -421,8 +439,8 @@ export function createViewerStore(options: ViewerStoreOptions = {}): ViewerStore
   /**
    * Runs `body` as one change, then notifies its net delta, if anything
    * changed. When `body` throws (a throwing batch iterator), what it applied
-   * is still notified. Its errors go to `errors`, the body's before a
-   * listener's.
+   * is still notified and its error goes to `errors`. Notifying never
+   * throws: listener errors are reported.
    */
   const runChange = (body: () => void, errors: FirstError): void => {
     changed = false;
@@ -431,7 +449,7 @@ export function createViewerStore(options: ViewerStoreOptions = {}): ViewerStore
     batchEvicted = [];
     batchUpdated.clear();
     errors.run(body);
-    errors.run(notify);
+    notify();
   };
 
   // Changes requested while another one runs or notifies, in call order.
@@ -443,8 +461,8 @@ export function createViewerStore(options: ViewerStoreOptions = {}): ViewerStore
    * change runs or notifies (from a listener, or from a getter read by a
    * batch) is queued and returns at once; it runs after the current change
    * has notified, as its own change. The outermost call runs the queue to
-   * the end, then rethrows the first error raised: its own change's, else
-   * one from a queued change.
+   * the end, then rethrows the first error a body raised: its own change's,
+   * else one from a queued change.
    */
   const transact = (body: () => void): void => {
     if (running) {
@@ -578,6 +596,8 @@ export function createViewerStore(options: ViewerStoreOptions = {}): ViewerStore
               admitGap({ ...nextGap("dropped"), missedCount });
               changed = true;
             }),
+          reportSettleError: (error) =>
+            reportViewerError(onError, error, { component: "store", callback: "snapshot" }),
         },
         adapter,
       );

@@ -105,8 +105,9 @@ describe("ViewerStore reentrancy", () => {
     expect(store.version).toBe(3);
   });
 
-  it("rethrows from the outer call an error raised while a queued change notifies", () => {
-    const store = createViewerStore();
+  it("reports an error raised while a queued change notifies, without throwing", () => {
+    const reported: unknown[] = [];
+    const store = createViewerStore({ onError: (error) => reported.push(error) });
     const failure = new Error("listener");
     store.subscribe((change) => {
       if (change.version === 1) store.apply(adds("r"));
@@ -115,7 +116,8 @@ describe("ViewerStore reentrancy", () => {
     const seen: number[] = [];
     store.subscribe((change) => seen.push(change.version));
 
-    expect(() => store.apply(adds("a"))).toThrow(failure);
+    expect(() => store.apply(adds("a"))).not.toThrow();
+    expect(reported).toEqual([failure]);
     expect(ids(store)).toEqual(["a", "r"]);
     expect(seen).toEqual([1, 2]);
 
@@ -150,18 +152,38 @@ describe("ViewerStore reentrancy", () => {
     expect(state.ids).toEqual(ids(store));
   });
 
-  it("keeps the outer error first when a queued change also fails", () => {
-    const store = createViewerStore();
+  it("reports the listener errors of the outer and the queued change, in order", () => {
+    const reported: unknown[] = [];
+    const store = createViewerStore({ onError: (error) => reported.push(error) });
     const outer = new Error("outer");
+    const inner = new Error("inner");
     store.subscribe((change) => {
       if (change.version === 1) {
         store.apply(adds("r"));
         throw outer;
       }
-      throw new Error("inner");
+      throw inner;
     });
 
-    expect(() => store.apply(adds("a"))).toThrow(outer);
+    expect(() => store.apply(adds("a"))).not.toThrow();
+    expect(reported).toEqual([outer, inner]);
+    expect(ids(store)).toEqual(["a", "r"]);
+  });
+
+  it("rethrows from the outer call the batch error of a queued change", () => {
+    const store = createViewerStore();
+    const failure = new Error("iteration");
+    const hostile = new Proxy(adds("r", "s"), {
+      get(target, key, receiver) {
+        if (key === "1") throw failure;
+        return Reflect.get(target, key, receiver);
+      },
+    });
+    store.subscribe((change) => {
+      if (change.version === 1) store.apply(hostile);
+    });
+
+    expect(() => store.apply(adds("a"))).toThrow(failure);
     expect(ids(store)).toEqual(["a", "r"]);
   });
 });

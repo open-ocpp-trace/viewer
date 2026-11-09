@@ -13,6 +13,8 @@ export interface ConnectTarget {
   snapshotFailed(): void;
   /** Lists a store gap with `reason: "dropped"` for buffered adds dropped. */
   bufferDropped(missedCount: number): void;
+  /** Receives an error raised while a promised snapshot settles; never throws. */
+  reportSettleError(error: unknown): void;
 }
 
 const isThenable = (value: unknown): value is PromiseLike<unknown> =>
@@ -53,9 +55,10 @@ const addCount = (batch: readonly EntryUpdate[]): number => {
  * While the snapshot is pending, the buffer keeps at most
  * `target.maxBuffered` items: past it, the oldest batches are dropped whole
  * (the newest is always kept) and a `dropped` gap is listed after the
- * snapshot. Errors thrown while settling (by store listeners) do not stop the
- * replay; the first one is rethrown for a synchronous snapshot, after
- * unsubscribing, and swallowed for a promised one.
+ * snapshot. Errors thrown while settling (by reading a hostile snapshot or
+ * batch) do not stop the replay; the first one is rethrown for a synchronous
+ * snapshot, after unsubscribing, and passed to `target.reportSettleError`
+ * for a promised one, the connection forwarding on.
  */
 export function connectAdapter(target: ConnectTarget, adapter: ViewerAdapter): Unsubscribe {
   let stopped = false;
@@ -140,8 +143,8 @@ export function connectAdapter(target: ConnectTarget, adapter: ViewerAdapter): U
     snapshot = adapter.snapshot();
     if (isThenable(snapshot)) {
       // An untrusted thenable may call back late, twice, or both ways: it
-      // takes effect once. Errors from settling are not reported, and the
-      // chain is handled at once, so nothing is ever an unhandled rejection.
+      // takes effect once. Errors from settling are reported, and the chain
+      // is handled at once, so nothing is ever an unhandled rejection.
       let settled = false;
       const once = (value: unknown): void => {
         if (settled) return;
@@ -150,7 +153,7 @@ export function connectAdapter(target: ConnectTarget, adapter: ViewerAdapter): U
       };
       Promise.resolve(snapshot)
         .then(once, () => once(undefined))
-        .then(undefined, () => undefined);
+        .then(undefined, (error: unknown) => target.reportSettleError(error));
       return stop;
     }
     settle(snapshot);

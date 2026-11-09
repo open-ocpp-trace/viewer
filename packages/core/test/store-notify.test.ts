@@ -144,9 +144,11 @@ describe("ViewerStore listeners", () => {
     expect(calls).toEqual(["1:1:1:1", "2:1"]);
   });
 
-  it("runs every listener when one throws, then rethrows the first error", () => {
-    const store = createViewerStore();
+  it("runs every listener when one throws, reporting each error instead of rethrowing", () => {
+    const reported: unknown[] = [];
+    const store = createViewerStore({ onError: (error) => reported.push(error) });
     const first = new Error("first");
+    const second = new Error("second");
     const calls: number[] = [];
     store.subscribe(() => {
       calls.push(1);
@@ -154,11 +156,12 @@ describe("ViewerStore listeners", () => {
     });
     store.subscribe(() => {
       calls.push(2);
-      throw new Error("second");
+      throw second;
     });
     store.subscribe(() => calls.push(3));
 
-    expect(() => store.apply(adds("a"))).toThrow(first);
+    expect(() => store.apply(adds("a"))).not.toThrow();
+    expect(reported).toEqual([first, second]);
     expect(calls).toEqual([1, 2, 3]);
     expect(store.version).toBe(1);
     expect(ids(store)).toEqual(["a"]);
