@@ -40,8 +40,9 @@ describe("ViewerStore ingestion", () => {
 
     expect(store.size).toBe(4);
     expect(ids(store)).toEqual(["a", "b", "c", "d"]);
-    expect(store.at(0)).toBe(first);
-    expect(store.get("a")).toBe(first);
+    expect(store.at(0)).toEqual(first);
+    expect(store.get("a")).toBe(store.at(0));
+    expect((store.get("a") as typeof first).record).toBe(first.record);
     expect(store.indexOf("a")).toBe(0);
     expect(store.indexOf("d")).toBe(3);
     expect(store.at(3)?.id).toBe("d");
@@ -82,7 +83,7 @@ describe("ViewerStore ingestion", () => {
     store.load([trace("b")]);
 
     expect(ids(store)).toEqual(["a", "b"]);
-    expect(store.get("a")).toBe(first);
+    expect((store.get("a") as typeof first).record).toBe(first.record);
     expect(store.getStats().duplicates).toBe(2);
   });
 
@@ -185,7 +186,7 @@ describe("ViewerStore untrusted data", () => {
     expect(entry).toEqual(before);
   });
 
-  it("stores an entry without duplicate targets as is", () => {
+  it("stores a copy of an entry without duplicate targets, sharing its record and metadata", () => {
     const store = createViewerStore();
     const entry = trace("a", {
       metadata: { deliveries: [{ target: "csms", status: "queued" }] },
@@ -193,8 +194,13 @@ describe("ViewerStore untrusted data", () => {
     const odd = trace("b", { metadata: { deliveries: "csms" as unknown as [] } });
     store.apply([add(entry), add(odd)]);
 
-    expect(store.get("a")).toBe(entry);
-    expect(store.get("b")).toBe(odd);
+    expect(store.get("a")).toEqual(entry);
+    expect(store.get("b")).toEqual(odd);
+    expect(store.get("a")?.metadata).toBe(entry.metadata);
+    expect(store.get("b")?.metadata).toBe(odd.metadata);
+    expect(store.get("a")?.kind === "trace" && (store.get("a") as typeof entry).record).toBe(
+      entry.record,
+    );
   });
 
   it("drops and counts an add with a reserved id", () => {

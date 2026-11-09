@@ -67,6 +67,27 @@ describe("estimateBytes", () => {
     expect(bytes).toBeGreaterThan(1000);
     expect(bytes).toBeLessThan(2000);
   });
+
+  it("fails closed when the depth cap cuts the walk short", () => {
+    let deep: Record<string, unknown> = { leaf: "x" };
+    for (let depth = 0; depth < 40; depth++) deep = { deep };
+
+    expect(estimateBytes(deep, LIMIT)).toBeGreaterThan(LIMIT);
+  });
+
+  it("fails closed when the node cap cuts the walk short", () => {
+    const wide = Array.from({ length: 150_000 }, () => 0);
+
+    expect(estimateBytes(wide, 10_000_000)).toBeGreaterThan(10_000_000);
+  });
+
+  it("counts a shared or cyclic object once without failing closed", () => {
+    const shared = { target: "csms", status: "queued" };
+    const cycle: Record<string, unknown> = { list: [shared, shared, shared] };
+    cycle["self"] = cycle;
+
+    expect(estimateBytes(cycle, LIMIT)).toBeLessThan(1000);
+  });
 });
 
 describe("entry weights", () => {
@@ -82,5 +103,12 @@ describe("entry weights", () => {
     expect(metadataWeight(bare, LIMIT)).toBe(0);
     expect(metadataWeight(rich, LIMIT)).toBeGreaterThan(2000);
     expect(coreWeight(rich, LIMIT)).toBe(coreWeight(bare, LIMIT));
+  });
+
+  it("weighs the optional fields of each kind", () => {
+    const long = "x".repeat(10_000);
+    expect(coreWeight({ ...trace("t"), receivedAt: long }, LIMIT)).toBeGreaterThan(20_000);
+    expect(coreWeight({ ...unparsed("u"), timestamp: long }, LIMIT)).toBeGreaterThan(20_000);
+    expect(coreWeight({ ...gap("g"), reason: long }, LIMIT)).toBeGreaterThan(20_000);
   });
 });

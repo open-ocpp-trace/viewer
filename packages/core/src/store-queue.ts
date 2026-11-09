@@ -10,7 +10,7 @@ export interface Slot {
    * entry); -1 while the entry is pending.
    */
   seq: number;
-  /** Cached weight of the record or raw frame, computed once at add. */
+  /** Cached weight of every field but the metadata, computed once at add. */
   readonly coreBytes: number;
   /** Cached weight of the metadata, recomputed when it changes. */
   metadataBytes: number;

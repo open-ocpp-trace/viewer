@@ -2,6 +2,7 @@ import { describe, expect, it } from "vite-plus/test";
 
 import { createViewerStore, STORE_ID_PREFIX, type ViewerStore } from "@open-ocpp-trace/viewer-core";
 
+import { coreWeight } from "../src/store-estimate.ts";
 import { storeInternals } from "../src/store.ts";
 import { add, adds, ids, mirror, unparsed } from "./store-fixtures.ts";
 
@@ -104,6 +105,24 @@ describe("ViewerStore pause", () => {
 
     expect(ids(store)).toEqual([`${STORE_ID_PREFIX}gap:1`, "p2"]);
     expect(store.getStats().listedBytes).toBeLessThanOrEqual(4_200);
+  });
+
+  it("reserves the exact weight of the gap resume lists, missedCount included", () => {
+    const gapId = `${STORE_ID_PREFIX}gap:1`;
+    const gapWeight = coreWeight(
+      { kind: "gap", id: gapId, reason: "dropped", missedCount: 2 },
+      Number.MAX_SAFE_INTEGER,
+    );
+    const entryWeight = coreWeight(unparsed("p1", "x".repeat(1000)), Number.MAX_SAFE_INTEGER);
+    const maxBytes = gapWeight + 2 * entryWeight - 1;
+    const store = createViewerStore({ maxBytes });
+    store.pause();
+    store.apply(bigAdds("p1", "p2", "p3"));
+    store.resume();
+
+    expect(ids(store)).toEqual([gapId, "p3"]);
+    expect(store.get(gapId)).toMatchObject({ missedCount: 2 });
+    expect(store.getStats().listedBytes).toBeLessThanOrEqual(maxBytes);
   });
 
   it("cannot reserve room for the gap with maxEntries 1: the survivor evicts it", () => {

@@ -6,7 +6,7 @@ const SCALAR_BYTES = 8;
 const OBJECT_BYTES = 16;
 /** Bytes counted per object key, besides the key's characters. */
 const KEY_BYTES = 8;
-/** Bytes counted per entry, besides its record or raw frame. */
+/** Bytes counted per entry, besides its id and other fields. */
 const ENTRY_BYTES = 64;
 /** Nesting below this depth is counted as one opaque object. */
 const MAX_DEPTH = 32;
@@ -17,15 +17,18 @@ const MAX_NODES = 100_000;
  * Approximates the bytes retained by an untrusted value: about 2 bytes per
  * string character, {@link SCALAR_BYTES} per scalar, plus per-object and
  * per-key overheads. Never throws and never loops: cycles and shared objects
- * are counted once, getters or proxies that throw count as scalars, and the
- * walk stops past {@link MAX_DEPTH}, {@link MAX_NODES} or once the total
- * exceeds `limit` (the result is then above `limit`, not exact). Never uses
- * `JSON.stringify`.
+ * are counted once, and getters or proxies that throw count as scalars. The
+ * walk stops once the total exceeds `limit`, or when {@link MAX_DEPTH} or
+ * {@link MAX_NODES} cuts it short: it then fails closed, so the result is
+ * above `limit`, not exact, and a value too deep or too wide to weigh counts
+ * as oversized. Never uses `JSON.stringify`.
  */
 export function estimateBytes(value: unknown, limit: number): number {
   const visited = new WeakSet<object>();
   let nodes = 0;
   let total = 0;
+  // Whether a cap cut the walk short, leaving part of the value unweighed.
+  let truncated = false;
 
   const walk = (current: unknown, depth: number): void => {
     nodes++;
@@ -38,7 +41,11 @@ export function estimateBytes(value: unknown, limit: number): number {
       return;
     }
     total += OBJECT_BYTES;
-    if (visited.has(current) || depth >= MAX_DEPTH) return;
+    if (visited.has(current)) return;
+    if (depth >= MAX_DEPTH) {
+      truncated = true;
+      return;
+    }
     visited.add(current);
     try {
       if (Array.isArray(current)) {
@@ -60,30 +67,42 @@ export function estimateBytes(value: unknown, limit: number): number {
       // A proxy trap threw: what was counted so far stands.
     }
   };
-  const exhausted = (): boolean => total > limit || nodes >= MAX_NODES;
+  // Called before each child: a child left unwalked by the node cap truncates.
+  const exhausted = (): boolean => {
+    if (nodes >= MAX_NODES) truncated = true;
+    return truncated || total > limit;
+  };
 
   walk(value, 0);
+  return truncated ? Math.max(total, limit + 1) : total;
+}
+
+/** Fields {@link coreWeight} does not walk: a constant, the id, the metadata. */
+const UNWALKED_FIELDS: ReadonlySet<string> = new Set(["kind", "id", "metadata"]);
+
+/**
+ * Weight of the parts of an entry an update never changes: a constant and
+ * the id, plus every other field but the metadata (the record of a trace,
+ * the raw frame and reason of an unparsed entry, the reason of a gap, and
+ * the optional fields present). The store weighs the copy it keeps, which
+ * holds the contract fields of the entry's kind only. Computed once when the
+ * entry is added.
+ */
+export function coreWeight(entry: ViewerEntry, limit: number): number {
+  let total = ENTRY_BYTES + entry.id.length * 2;
+  for (const key of Object.keys(entry)) {
+    if (total > limit) break;
+    if (UNWALKED_FIELDS.has(key)) continue;
+    total += estimateBytes((entry as unknown as Record<string, unknown>)[key], limit);
+  }
   return total;
 }
 
 /**
- * Weight of the parts of an entry an update never changes: the record of a
- * trace, the raw frame and reason of an unparsed entry, a constant for a gap.
- * Computed once when the entry is added.
+ * Weight of an entry's metadata, recomputed when an update changes it. Like
+ * any estimate it fails closed, so metadata grown past the walk's caps by
+ * repeated updates weighs more than `limit` and the bounds evict.
  */
-export function coreWeight(entry: ViewerEntry, limit: number): number {
-  const base = ENTRY_BYTES + entry.id.length * 2;
-  switch (entry.kind) {
-    case "trace":
-      return base + estimateBytes(entry.record, limit);
-    case "unparsed":
-      return base + estimateBytes(entry.raw, limit) + estimateBytes(entry.reason, limit);
-    default:
-      return base;
-  }
-}
-
-/** Weight of an entry's metadata, recomputed when an update changes it. */
 export function metadataWeight(entry: ViewerEntry, limit: number): number {
   return entry.metadata === undefined ? 0 : estimateBytes(entry.metadata, limit);
 }

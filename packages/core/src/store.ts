@@ -27,10 +27,15 @@ export interface ViewerStoreOptions {
    * Maximum approximate bytes retained by the listed entries. Default
    * {@link DEFAULT_MAX_BYTES}.
    *
-   * An entry weighs its record (trace), raw frame and reason (unparsed) or a
-   * constant (gap), estimated once when it is added, plus its metadata. The
-   * estimate is approximate (about 2 bytes per string character) and never
-   * reads more than it needs to exceed this limit.
+   * An entry weighs a constant, its id and its other contract fields (the
+   * record of a trace, the raw frame and reason of an unparsed entry, the
+   * reason of a gap, and the optional fields present), estimated once when
+   * it is added, plus its metadata, re-estimated on each update. The store
+   * keeps a copy holding only the contract fields of the entry's kind, so
+   * nothing it does not weigh is retained. The estimate is approximate
+   * (about 2 bytes per string character) and never reads more than it needs
+   * to exceed this limit. It fails closed: a value nested too deep or too
+   * wide to be walked counts as heavier than this limit, so it is oversized.
    *
    * After each add, the oldest listed entries are evicted while the list
    * holds more than `maxEntries` entries or more than `maxBytes` bytes with
@@ -73,7 +78,9 @@ export interface ViewerStoreStats {
 
 /**
  * Holds the viewer's entries in arrival order, within the configured bounds.
- * It never mutates an entry or its record.
+ * It keeps a shallow copy of each added entry, limited to the contract fields
+ * of its kind and sharing its record, and never mutates an entry or its
+ * record.
  */
 export interface ViewerStore {
   /**
@@ -246,8 +253,11 @@ export function createViewerStore(options: ViewerStoreOptions = {}): ViewerStore
     id: `${STORE_ID_PREFIX}gap:${gaps + 1}`,
     reason,
   });
+  // The weight of the gap resume lists: a number weighs the same at any value.
+  const pendingBytesBudget = (): number =>
+    maxBytes - coreWeight({ ...nextGap("dropped"), missedCount: 0 }, maxBytes);
   const maxPending = Math.max(1, maxEntries - 1);
-  let maxPendingBytes = maxBytes - coreWeight(nextGap("dropped"), maxBytes);
+  let maxPendingBytes = pendingBytesBudget();
   let counters = zeroCounters();
   const listeners = createListeners<ViewerStoreChange>();
   let version = 0;
@@ -301,7 +311,7 @@ export function createViewerStore(options: ViewerStoreOptions = {}): ViewerStore
   /** Holds a store gap under the next gap number. */
   const admitGap = (gap: GapEntry): void => {
     gaps++;
-    maxPendingBytes = maxBytes - coreWeight(nextGap("dropped"), maxBytes);
+    maxPendingBytes = pendingBytesBudget();
     admit(gap);
   };
 

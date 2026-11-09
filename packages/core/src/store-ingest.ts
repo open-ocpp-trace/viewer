@@ -127,16 +127,39 @@ export function mergeMetadata(base: unknown, patch: EntryMetadataPatch): EntryMe
   return { ...current, ...defined };
 }
 
+const BASE_FIELDS = ["kind", "id", "receivedAt", "metadata"] as const;
+
+/** The contract fields of each entry kind (see `entry.ts`): all a copy keeps. */
+const CONTRACT_FIELDS: Readonly<Record<ViewerEntry["kind"], readonly string[]>> = {
+  trace: [...BASE_FIELDS, "record"],
+  unparsed: [...BASE_FIELDS, "raw", "reason", "timestamp", "direction", "transport"],
+  gap: [...BASE_FIELDS, "reason", "timestamp", "missedCount"],
+};
+
 /**
- * Returns the entry to store for an `add`: the entry itself, or a copy whose
- * deliveries keep the last delivery of a duplicate target (rule 5). The copy
- * keeps the same `record` reference; the input is never mutated.
+ * Returns the entry to store for an `add`: a copy holding only the contract
+ * fields of its kind that are defined, so no field the byte accounting does
+ * not weigh is retained, and whose deliveries keep the last delivery of a
+ * duplicate target (rule 5). The copy keeps the same `record` and `metadata`
+ * references unless deliveries were merged; the input is never mutated. A
+ * field whose getter throws is left out.
  */
 export function normalizeAddedEntry(entry: ViewerEntry): ViewerEntry {
-  const metadata: unknown = entry.metadata;
-  if (!isObject(metadata) || !Array.isArray(metadata["deliveries"])) return entry;
-  const deliveries = metadata["deliveries"] as readonly EntryDelivery[];
-  const merged = mergeDeliveries([], deliveries);
-  if (merged.length === deliveries.length) return entry;
-  return { ...entry, metadata: { ...entry.metadata, deliveries: merged } };
+  const copy: Record<string, unknown> = {};
+  for (const field of CONTRACT_FIELDS[entry.kind]) {
+    let value: unknown;
+    try {
+      value = (entry as unknown as Record<string, unknown>)[field];
+    } catch {
+      continue;
+    }
+    if (value !== undefined) copy[field] = value;
+  }
+  const metadata = copy["metadata"];
+  if (isObject(metadata) && Array.isArray(metadata["deliveries"])) {
+    const deliveries = metadata["deliveries"] as readonly EntryDelivery[];
+    const merged = mergeDeliveries([], deliveries);
+    if (merged.length !== deliveries.length) copy["metadata"] = { ...metadata, deliveries: merged };
+  }
+  return copy as unknown as ViewerEntry;
 }

@@ -1,10 +1,14 @@
 import { describe, expect, it } from "vite-plus/test";
 
-import { createViewerStore, type ViewerStore } from "@open-ocpp-trace/viewer-core";
+import {
+  createViewerStore,
+  type ViewerEntry,
+  type ViewerStore,
+} from "@open-ocpp-trace/viewer-core";
 
 import { coreWeight, metadataWeight } from "../src/store-estimate.ts";
 import { storeInternals } from "../src/store.ts";
-import { add, adds, ids, trace, traceRecord, unparsed } from "./store-fixtures.ts";
+import { add, adds, gap, ids, trace, traceRecord, unparsed } from "./store-fixtures.ts";
 
 const NO_LIMIT = Number.MAX_SAFE_INTEGER;
 
@@ -132,6 +136,70 @@ describe("ViewerStore capacity by bytes", () => {
       store.apply([add({ kind: "trace", id: "a", record } as unknown as ReturnType<typeof trace>)]),
     ).not.toThrow();
     expect(store.size).toBe(1);
+  });
+});
+
+describe("ViewerStore byte accounting of untrusted data", () => {
+  const large = "x".repeat(200_000);
+
+  it.each([
+    ["trace", { ...trace("b"), extra: large }],
+    ["unparsed", { ...unparsed("b"), extra: large }],
+    ["gap", { ...gap("b"), extra: large }],
+  ])("does not retain an unweighed extra field on a %s entry", (_kind, extra) => {
+    const store = createViewerStore({ maxBytes: 100_000 });
+    store.apply([add(trace("a")), add(extra as unknown as ViewerEntry)]);
+
+    expect(store.get("b")).not.toHaveProperty("extra");
+    expect(store.get("b")?.kind).toBe(extra.kind);
+    expect(ids(store)).toEqual(["a", "b"]);
+    expect(store.getStats().listedBytes).toBe(retainedBytes(store));
+  });
+
+  it("weighs a large optional field of an entry", () => {
+    const store = createViewerStore({ maxBytes: 100_000 });
+    store.apply([add(trace("a")), add({ ...gap("b"), reason: large })]);
+
+    expect(ids(store)).toEqual(["b"]);
+    expect(store.getStats().evicted).toBe(1);
+  });
+
+  /** Patches adding `count` custom keys numbered from `from`. */
+  const customKeys = (from: number, count: number): Record<string, number> => {
+    const custom: Record<string, number> = {};
+    for (let key = from; key < from + count; key++) custom[`k${key}`] = 0;
+    return custom;
+  };
+
+  it("evicts once repeated metadata updates grow a listed entry past maxBytes", () => {
+    const maxBytes = 4 * 1024 * 1024;
+    const store = createViewerStore({ maxBytes });
+    store.apply(adds("a", "b"));
+    for (let round = 0; round < 10; round++) {
+      store.apply([
+        { type: "update", id: "b", metadata: { custom: customKeys(round * 20_000, 20_000) } },
+      ]);
+    }
+
+    expect(ids(store)).toEqual(["b"]);
+    expect(store.getStats().evicted).toBe(1);
+    expect(store.getStats().listedBytes).toBeGreaterThan(maxBytes);
+  });
+
+  it("drops pending entries once repeated delivery updates grow one past the budget", () => {
+    const store = createViewerStore({ maxBytes: 4 * 1024 * 1024 });
+    store.pause();
+    store.apply(adds("a", "b"));
+    for (let round = 0; round < 10; round++) {
+      const deliveries = Array.from({ length: 10_000 }, (_, index) => ({
+        target: `t${round * 10_000 + index}`,
+        status: "queued",
+      }));
+      store.apply([{ type: "update", id: "b", metadata: { deliveries } }]);
+    }
+
+    expect(store.getStats()).toMatchObject({ pending: 1, droppedPending: 1 });
+    expect(store.isPending("b")).toBe(true);
   });
 });
 
