@@ -3,6 +3,7 @@ import { Profiler, StrictMode, useState, type ReactElement } from "react";
 import { describe, expect, it, vi } from "vite-plus/test";
 
 import {
+  createCorrelator,
   createViewerStore,
   type ViewerEntry,
   type ViewerSelection,
@@ -312,6 +313,150 @@ describe("<TraceViewer>", () => {
       expect(selectedIds()).toEqual(["c"]);
       fireEvent.click(row("a"));
       expect(selectedIds()).toEqual(["a"]);
+    });
+  });
+
+  describe("detail panel", () => {
+    const CALL = sdkEntry("call", { action: "Authorize", payload: { idTag: "secret-tag" } });
+    const RESULT = sdkEntry("result", {
+      messageType: "CALLRESULT",
+      direction: "csms-to-cp",
+      messageId: "m-call",
+      action: undefined,
+      payload: { status: "Accepted" },
+    });
+    const PAIR = [CALL, RESULT, sdkEntry("later")];
+
+    function paired(entries: ViewerEntry[] = PAIR, maxEntries?: number) {
+      const store = storeWith([], maxEntries);
+      const correlator = createCorrelator();
+      correlator.connect(store);
+      store.load(entries);
+      return { store, correlator };
+    }
+
+    function panel(): HTMLElement {
+      return screen.getByRole("region", { name: "Entry details" });
+    }
+
+    function payload(): string | null {
+      return within(panel()).queryByLabelText("Payload", { selector: "pre" })?.textContent ?? null;
+    }
+
+    it("sits in the detail panel and details the selected row", () => {
+      const { container } = render(<TraceViewer {...paired()} />);
+      expect(container.querySelector(".oot-viewer__detail")?.contains(panel())).toBe(true);
+      expect(within(panel()).getByText("No entry selected")).toBeTruthy();
+      fireEvent.click(row("result"));
+      expect(payload()).toContain('"Accepted"');
+    });
+
+    it("forwards onCopy, renderPayload and the sensitive field props", () => {
+      const onCopy = vi.fn();
+      const state = paired();
+      const { rerender } = render(
+        <TraceViewer
+          {...state}
+          defaultSelection={{ entryId: "call" }}
+          onCopy={onCopy}
+          renderPayload={(text) => <span data-testid="hl">{text}</span>}
+        />,
+      );
+      expect(screen.getByTestId("hl").textContent).toContain('"[redacted]"');
+      fireEvent.click(within(panel()).getByRole("button", { name: "Copy Payload" }));
+      expect(onCopy).toHaveBeenCalledWith(expect.stringContaining("[redacted]"), "payload");
+
+      rerender(<TraceViewer {...state} defaultSelection={{ entryId: "call" }} revealSensitive />);
+      expect(payload()).toContain("secret-tag");
+      rerender(
+        <TraceViewer {...state} defaultSelection={{ entryId: "call" }} sensitiveKeys={[]} />,
+      );
+      expect(payload()).toContain("secret-tag");
+    });
+
+    it("moves the selection along paired links like a row click", () => {
+      const onSelectionChange = vi.fn();
+      render(
+        <TraceViewer
+          {...paired()}
+          defaultSelection={{ entryId: "call" }}
+          onSelectionChange={onSelectionChange}
+        />,
+      );
+      const follow = screen.getByRole("button", { name: "Follow latest" });
+      expect(follow.getAttribute("aria-pressed")).toBe("true");
+      fireEvent.click(within(panel()).getByRole("button", { name: "Go to response" }));
+      expect(selectedIds()).toEqual(["result"]);
+      expect(row("result").getAttribute("aria-selected")).toBe("true");
+      expect(onSelectionChange).toHaveBeenLastCalledWith({ entryId: "result" });
+      expect(payload()).toContain('"Accepted"');
+      expect(follow.getAttribute("aria-pressed")).toBe("false");
+
+      fireEvent.click(within(panel()).getByRole("button", { name: "Go to CALL" }));
+      expect(selectedIds()).toEqual(["call"]);
+      expect(onSelectionChange).toHaveBeenLastCalledWith({ entryId: "call" });
+      expect(onSelectionChange).toHaveBeenCalledTimes(2);
+    });
+
+    it("keeps following when a link targets the newest row", () => {
+      render(<TraceViewer {...paired([CALL, RESULT])} defaultSelection={{ entryId: "call" }} />);
+      fireEvent.click(within(panel()).getByRole("button", { name: "Go to response" }));
+      expect(selectedIds()).toEqual(["result"]);
+      const follow = screen.getByRole("button", { name: "Follow latest" });
+      expect(follow.getAttribute("aria-pressed")).toBe("true");
+    });
+
+    it("only calls back in controlled mode", () => {
+      const onSelectionChange = vi.fn();
+      render(
+        <TraceViewer
+          {...paired()}
+          selection={{ entryId: "call" }}
+          onSelectionChange={onSelectionChange}
+        />,
+      );
+      fireEvent.click(within(panel()).getByRole("button", { name: "Go to response" }));
+      expect(onSelectionChange).toHaveBeenCalledExactlyOnceWith({ entryId: "result" });
+      expect(selectedIds()).toEqual(["call"]);
+      expect(within(panel()).getByRole("button", { name: "Go to response" })).toBeTruthy();
+    });
+
+    it("selects and inspects a target the filter hides", () => {
+      render(
+        <TraceViewer
+          {...paired()}
+          defaultFilter={{ messageTypes: ["CALL"] }}
+          defaultSelection={{ entryId: "call" }}
+        />,
+      );
+      expect(listedIds()).toEqual(["call", "later"]);
+      fireEvent.click(within(panel()).getByRole("button", { name: "Go to response" }));
+      expect(selectedIds()).toEqual([]);
+      expect(listedIds()).toEqual(["call", "later"]);
+      expect(payload()).toContain('"Accepted"');
+    });
+
+    it("clears the panel when the selected entry is evicted", () => {
+      const state = paired(PAIR.slice(0, 2), 2);
+      render(<TraceViewer {...state} defaultSelection={{ entryId: "call" }} />);
+      expect(payload()).toContain("[redacted]");
+      act(() => state.store.apply([add(sdkEntry("later"))]));
+      expect(within(panel()).getByText("No entry selected")).toBeTruthy();
+      expect(payload()).toBeNull();
+    });
+
+    it("navigates under StrictMode", () => {
+      const onSelectionChange = vi.fn();
+      render(
+        <StrictMode>
+          <TraceViewer {...paired()} onSelectionChange={onSelectionChange} />
+        </StrictMode>,
+      );
+      fireEvent.click(row("call"));
+      fireEvent.click(within(panel()).getByRole("button", { name: "Go to response" }));
+      expect(selectedIds()).toEqual(["result"]);
+      expect(payload()).toContain('"Accepted"');
+      expect(onSelectionChange).toHaveBeenCalledTimes(2);
     });
   });
 

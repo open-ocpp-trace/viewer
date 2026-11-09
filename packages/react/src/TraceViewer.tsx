@@ -1,5 +1,6 @@
 import {
   type ReactElement,
+  type ReactNode,
   useCallback,
   useEffect,
   useRef,
@@ -14,9 +15,11 @@ import type {
   FilterFieldDefinition,
   TraceFilter,
   ViewerSelection,
+  TraceEntry,
   ViewerStore,
 } from "@open-ocpp-trace/viewer-core";
 
+import { EntryInspector, type InspectorPart } from "./EntryInspector.tsx";
 import { FilterPanel } from "./FilterPanel.tsx";
 import { useFilterEngine } from "./hooks.ts";
 import { defaultStrings } from "./strings.ts";
@@ -62,6 +65,17 @@ export interface TraceViewerProps {
   loading?: boolean;
   /** A host error message, announced as an alert. */
   error?: string | null;
+  /** Copy handler of the detail panel, as `EntryInspectorProps.onCopy`. */
+  onCopy?: (text: string, part: InspectorPart) => void;
+  /** Payload rendering of the detail panel, as `EntryInspectorProps.renderPayload`. */
+  renderPayload?: (text: string, entry: TraceEntry) => ReactNode;
+  /**
+   * Shows sensitive fields in the detail panel, as
+   * `EntryInspectorProps.revealSensitive` (raw frames fail closed without it).
+   */
+  revealSensitive?: boolean;
+  /** Property names the detail panel redacts, as `EntryInspectorProps.sensitiveKeys`. */
+  sensitiveKeys?: readonly string[];
   className?: string;
 }
 
@@ -83,9 +97,10 @@ function useStoreVersion(store: ViewerStore): number {
 }
 
 /**
- * The whole viewer: a toolbar (pause, follow), a {@link FilterPanel} and a
- * {@link TraceList} over the host's store. React only renders: the store
- * bounds the entries and the engine filters them.
+ * The whole viewer: a toolbar (pause, follow), a {@link FilterPanel}, a
+ * {@link TraceList} over the host's store and an {@link EntryInspector}
+ * detailing the selection. React only renders: the store bounds the entries
+ * and the engine filters them.
  */
 export function TraceViewer(props: TraceViewerProps): ReactElement {
   const { store, correlator, fields, payloadSearch, selection, onSelectionChange } = props;
@@ -107,6 +122,13 @@ export function TraceViewer(props: TraceViewerProps): ReactElement {
   const select = (entryId: EntryId | null): void => {
     if (!controlled) setOwnSelection(entryId);
     onSelectionChange?.({ entryId });
+  };
+  // A paired link of the detail panel selects like a row click; like a
+  // click on an older row, a target other than the newest one (or one the
+  // filter hides) stops following.
+  const navigate = (entryId: EntryId): void => {
+    if (follow && engine.at(engine.size - 1)?.id !== entryId) setFollow(false);
+    select(entryId);
   };
 
   // The store listener reads the latest props through this ref; `announced`
@@ -190,6 +212,18 @@ export function TraceViewer(props: TraceViewerProps): ReactElement {
             onSelectedIdChange={select}
             follow={follow}
             onFollowChange={setFollow}
+          />
+        </div>
+        <div className="oot-viewer__detail">
+          <EntryInspector
+            store={store}
+            entryId={selectedId}
+            {...(correlator !== undefined && { correlator })}
+            onNavigate={navigate}
+            {...(props.onCopy !== undefined && { onCopy: props.onCopy })}
+            {...(props.renderPayload !== undefined && { renderPayload: props.renderPayload })}
+            {...(props.revealSensitive !== undefined && { revealSensitive: props.revealSensitive })}
+            {...(props.sensitiveKeys !== undefined && { sensitiveKeys: props.sensitiveKeys })}
           />
         </div>
       </div>

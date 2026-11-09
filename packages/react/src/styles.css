@@ -112,6 +112,17 @@
   border-right: 1px solid var(--oot-border-color, rgb(128 128 128 / 30%));
 }
 
+.oot-viewer__detail {
+  display: flex;
+  flex: 0 0 var(--oot-detail-width, 28em);
+  min-width: 0;
+  border-left: 1px solid var(--oot-border-color, rgb(128 128 128 / 30%));
+}
+
+.oot-viewer__detail > .oot-inspector {
+  flex: 1 1 auto;
+}
+
 .oot-filter {
   display: flex;
   flex-direction: column;

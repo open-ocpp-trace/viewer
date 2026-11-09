@@ -143,6 +143,39 @@ describe("<EntryInspector> with large payloads", () => {
     expect(root.textContent!.length).toBeLessThan(5000);
   });
 
+  it("renders a hostile entry as text through the whole trace viewer", () => {
+    const store = createViewerStore();
+    const correlator = createCorrelator();
+    correlator.connect(store);
+    const entry = hostileEntry("x", {
+      chargePointId: HOSTILE[0],
+      action: HOSTILE[1],
+      payload: { html: ALL, [HOSTILE[0]]: HOSTILE[2] },
+      raw: ALL,
+      meta: { html: ALL },
+    });
+    store.load([
+      { ...entry, metadata: { tenant: HOSTILE[4], source: { id: "s", label: HOSTILE[5] } } },
+    ]);
+    const { container } = render(
+      <TraceViewer
+        store={store}
+        correlator={correlator}
+        payloadSearch
+        defaultSelection={{ entryId: "x" }}
+        onCopy={() => {}}
+        revealSensitive
+      />,
+    );
+    const root = screen.getByRole("region", { name: "Entry details" });
+    expect(root.textContent).toContain(HOSTILE[2]);
+    expect(screen.getByLabelText("Raw frame", { selector: "pre" }).textContent).toBe(ALL);
+    expectInert(root);
+    // The list lays its rows out with inline styles: only elements are checked there.
+    expect(container.querySelectorAll("img, script, a, iframe, object, embed").length).toBe(0);
+    expect(container.querySelectorAll("[href], [src], [onerror], [srcset]").length).toBe(0);
+  });
+
   it("lists and searches hostile payloads in the trace viewer", () => {
     const wide: Record<string, string> = {};
     for (let i = 0; i < 1_000_000; i++) wide[`k${i}`] = "hay";
