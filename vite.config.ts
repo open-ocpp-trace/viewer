@@ -20,11 +20,22 @@ const REACT_18 = fileURLToPath(
   new URL("packages/react/test/react-18/node_modules", import.meta.url),
 );
 
+// The stylesheet export of viewer-react points at `dist`, which only exists
+// once the package is packed; the standalone tests read the source file (as
+// apps/playground does), keeping the `?inline` query that makes it a string.
+const VIEWER_STYLES = fileURLToPath(new URL("packages/react/src/styles.css", import.meta.url));
+
 export default defineConfig({
   // The React tests run in a DOM environment, which resolves imports like a
   // browser (client conditions) rather than like a server.
   resolve: {
     conditions: [SOURCE_CONDITION, ...defaultClientConditions],
+    alias: [
+      {
+        find: /^@open-ocpp-trace\/viewer-react\/styles\.css(\?inline)?$/,
+        replacement: `${VIEWER_STYLES}$1`,
+      },
+    ],
   },
   ssr: {
     resolve: {
@@ -54,7 +65,20 @@ export default defineConfig({
         test: {
           name: "node",
           include: ["packages/*/test/**/*.test.ts"],
-          exclude: [...configDefaults.exclude, "packages/react/test/**"],
+          exclude: [
+            ...configDefaults.exclude,
+            "packages/react/test/**",
+            "packages/standalone/test/**/*.dom.test.ts",
+          ],
+        },
+      },
+      {
+        test: {
+          name: "standalone",
+          include: ["packages/standalone/test/**/*.dom.test.ts"],
+          environment: "happy-dom",
+          // Return the stylesheet the package inlines, not an empty string.
+          css: { include: [/styles\.css/] },
         },
       },
       {

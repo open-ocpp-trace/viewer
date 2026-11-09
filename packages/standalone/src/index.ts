@@ -7,3 +7,6 @@ export const VIEWER_STANDALONE_VERSION: string = "0.0.0";
 export function bundledReactVersion(): string {
   return hostReactVersion();
 }
+
+export { mount } from "./mount.ts";
+export type { MountOnlyOptions, MountOptions, ViewerInstance } from "./mount.ts";

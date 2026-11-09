@@ -3,9 +3,11 @@
 // it: a bare import specifier left in the asset fails to resolve.
 //
 // A browser has no `process`, `require` or `node:` modules. The asset text
-// must not mention them, and `process` is removed from the global scope
-// before the import, so a missing `process.env.NODE_ENV` define fails here
-// instead of passing under Node.js.
+// must not read `process.env`, call `require` or name a `node:` module, and
+// `process` is removed from the global scope before the import, so a missing
+// `process.env.NODE_ENV` define fails here instead of passing under Node.js.
+// React DOM's error reporting keeps a `typeof process` guarded fallback,
+// which a browser never reaches, so a bare `process.` is allowed.
 //
 // Usage: node standalone.mjs <path to the copied dist/index.js>
 
@@ -17,7 +19,7 @@ const asset = process.argv[2];
 assert.ok(asset, "usage: node standalone.mjs <asset>");
 
 const text = readFileSync(asset, "utf8");
-for (const nodeOnly of ["process.", "require(", "node:"]) {
+for (const nodeOnly of ["process.env", "require(", "node:"]) {
   assert.ok(!text.includes(nodeOnly), `the asset references \`${nodeOnly}\``);
 }
 
