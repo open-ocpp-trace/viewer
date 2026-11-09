@@ -166,6 +166,9 @@ function rejectUnknown(options: object, caller: string): void {
 // container from outside, as its rules beat `:host`.
 const LAYOUT_CSS = ":host{display:block;height:100%}.oot-standalone-root{height:100%}";
 
+// One string for every mount, so the stylesheet cache of styles.ts hits it.
+const STYLES = viewerCss + LAYOUT_CSS;
+
 function isElement(value: unknown): value is Element {
   return typeof value === "object" && value !== null && (value as Node).nodeType === 1;
 }
@@ -175,10 +178,12 @@ function isElement(value: unknown): value is Element {
  * it appends there, and renders it before returning.
  */
 export function mount(element: Element, options: MountOptions = {}): ViewerInstance {
+  // Destructured first, so null options keep throwing the destructuring
+  // TypeError before the element check.
   const { maxEntries, maxBytes, correlation, adapter, entries, nonce, ...initial } = options;
-  let live: LiveOptions = initial;
   if (!isElement(element)) throw new TypeError("mount() needs an Element to mount into");
   rejectUnknown(options, "mount()");
+  let live: LiveOptions = initial;
   for (const child of Array.from(element.children)) {
     if (child.hasAttribute(CONTAINER_ATTRIBUTE)) {
       throw new Error("A viewer is already mounted in this element: unmount it first");
@@ -188,7 +193,7 @@ export function mount(element: Element, options: MountOptions = {}): ViewerInsta
   const container = document.createElement("div");
   container.setAttribute(CONTAINER_ATTRIBUTE, "");
   const shadow = container.attachShadow({ mode: "open" });
-  attachStyles(shadow, viewerCss + LAYOUT_CSS, nonce);
+  attachStyles(shadow, STYLES, nonce);
   const node = document.createElement("div");
   node.className = "oot-standalone-root";
   shadow.append(node);
@@ -214,8 +219,8 @@ export function mount(element: Element, options: MountOptions = {}): ViewerInsta
     if (entries !== undefined) store.load(entries);
     element.append(container);
     if (adapter !== undefined) stops.push(store.connect(adapter));
-    root = createRoot(node);
-    const created = root;
+    const created = createRoot(node);
+    root = created;
     flushSync(() => created.render(viewer(store, correlator, live)));
   } catch (error) {
     teardown();
@@ -244,7 +249,7 @@ export function mount(element: Element, options: MountOptions = {}): ViewerInsta
       }
       rejectUnknown(changes, "setOptions()");
       live = { ...live, ...changes };
-      flushSync(() => root?.render(viewer(store, correlator, live)));
+      flushSync(() => root.render(viewer(store, correlator, live)));
     },
     unmount() {
       if (!mounted) return;

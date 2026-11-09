@@ -32,6 +32,17 @@ describe("mount", () => {
     expect(() => mount(document.createTextNode("x") as unknown as Element)).toThrow(TypeError);
   });
 
+  it("rejects null options with a TypeError, before the element check, and leaves the element empty", () => {
+    const element = host();
+    const options = null as unknown as MountOptions;
+
+    expect(() => mount(element, options)).toThrow(TypeError);
+    expect(() => mount(element, options)).toThrow(/Cannot destructure/);
+    expect(() => mount(null as unknown as Element, options)).toThrow(/Cannot destructure/);
+    expect(element.childNodes).toHaveLength(0);
+    track(mount(element));
+  });
+
   it.each([
     "store",
     "correlator",
