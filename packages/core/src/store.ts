@@ -84,6 +84,15 @@ export interface ViewerStoreStats {
  * It keeps a shallow copy of each added entry, limited to the contract fields
  * of its kind and sharing its record, and never mutates an entry or its
  * record.
+ *
+ * Changes are serialized. A call to {@link apply}, {@link load},
+ * {@link pause}, {@link resume} or {@link clear} made while a change runs or
+ * notifies (from a listener, or from a getter of a batch item) is queued and
+ * returns before it has applied: it runs after the current change has
+ * notified, in call order, as its own change with its own notification. Its
+ * effects, its no-op checks and its reading of the batch happen when it runs.
+ * An error it raises is rethrown from the outermost call, after the queue
+ * has run, unless that call already has one.
  */
 export interface ViewerStore {
   /**
@@ -93,10 +102,14 @@ export interface ViewerStore {
    * all. An `add` for an id already held is ignored and counted (rule 6); an
    * `add` for an evicted id is a new entry. If iterating the batch itself
    * throws, what was applied before is kept and notified, then the error is
-   * rethrown.
+   * rethrown. A nested call is queued and returns before it has applied (see
+   * {@link ViewerStore}).
    */
   apply(batch: readonly EntryUpdate[]): void;
-  /** Applies a snapshot: each entry as an `add`, in one batch. */
+  /**
+   * Applies a snapshot: each entry as an `add`, in one batch. A nested call is
+   * queued and returns before it has applied (see {@link ViewerStore}).
+   */
   load(entries: readonly ViewerEntry[]): void;
   /** Number of listed entries. */
   readonly size: number;
@@ -136,7 +149,8 @@ export interface ViewerStore {
    * oldest pending entries are dropped and counted in
    * {@link ViewerStoreStats.droppedPending}. A dropped entry is gone: a later
    * update for it is unknown, a later add for it is a new entry. No effect
-   * when already paused.
+   * when already paused. A nested call is queued and returns before it has
+   * applied (see {@link ViewerStore}).
    */
   pause(): void;
   /**
@@ -147,7 +161,8 @@ export interface ViewerStore {
    * it, the gap and the survivors fit and only older entries are evicted,
    * except when no room can be kept: with `maxEntries` 1, or when the
    * survivor is oversized, the survivor evicts the gap in the same change.
-   * One notification. No effect when not paused.
+   * One notification. No effect when not paused. A nested call is queued and
+   * returns before it has applied (see {@link ViewerStore}).
    */
   resume(): void;
   /** Whether adds currently go to the pending queue. */
@@ -158,7 +173,8 @@ export interface ViewerStore {
    * Removes every listed and pending entry and resets every counter to 0,
    * keeping {@link paused} and the gap numbering. Notifies `cleared: true`
    * with no `evicted`. Afterwards an update for an old id is unknown and an
-   * add for it is a new entry.
+   * add for it is a new entry. A nested call is queued and returns before it
+   * has applied (see {@link ViewerStore}).
    */
   clear(): void;
   /**
@@ -189,6 +205,11 @@ export interface ViewerStore {
    * the connection is then unsubscribed and the first error rethrown, the
    * store keeping what it applied; for a promised one, the error is not
    * reported and the connection keeps forwarding.
+   *
+   * Called while a change runs or notifies, the synchronous snapshot, gap
+   * and replay are queued as nested calls (see {@link ViewerStore}): they
+   * apply after `connect` returns, and their listener errors are rethrown
+   * from the outermost call.
    */
   connect(adapter: ViewerAdapter): Unsubscribe;
 }
@@ -400,9 +421,10 @@ export function createViewerStore(options: ViewerStoreOptions = {}): ViewerStore
   /**
    * Runs `body` as one change, then notifies its net delta, if anything
    * changed. When `body` throws (a throwing batch iterator), what it applied
-   * is still notified, then its error is rethrown.
+   * is still notified. Returns the first error, the body's before a
+   * listener's.
    */
-  const transact = (body: () => void): void => {
+  const runChange = (body: () => void): { readonly error: unknown } | undefined => {
     changed = false;
     cleared = false;
     batchSeq = nextSeq;
@@ -417,7 +439,39 @@ export function createViewerStore(options: ViewerStoreOptions = {}): ViewerStore
     try {
       notify();
     } catch (error) {
-      if (failure === undefined) throw error;
+      failure ??= { error };
+    }
+    return failure;
+  };
+
+  // Changes requested while another one runs or notifies, in call order.
+  const queued: (() => void)[] = [];
+  let running = false;
+
+  /**
+   * Runs `body` as one change. Changes are serialized: a call made while a
+   * change runs or notifies (from a listener, or from a getter read by a
+   * batch) is queued and returns at once; it runs after the current change
+   * has notified, as its own change. The outermost call runs the queue to
+   * the end, then rethrows the first error raised: its own change's, else
+   * one from a queued change.
+   */
+  const transact = (body: () => void): void => {
+    if (running) {
+      queued.push(body);
+      return;
+    }
+    running = true;
+    let failure: { readonly error: unknown } | undefined;
+    try {
+      failure = runChange(body);
+      for (let next = queued.shift(); next !== undefined; next = queued.shift()) {
+        // Every queued change runs, even after an error.
+        const error = runChange(next);
+        failure ??= error;
+      }
+    } finally {
+      running = false;
     }
     if (failure !== undefined) throw failure.error;
   };
@@ -464,7 +518,9 @@ export function createViewerStore(options: ViewerStoreOptions = {}): ViewerStore
       runBatch(batch);
     },
     load(entries) {
-      runBatch(entries.map((entry) => ({ type: "add", entry })));
+      transact(() => {
+        for (const entry of entries) ingest({ type: "add", entry });
+      });
     },
     get size() {
       return listed.length;
@@ -505,16 +561,16 @@ export function createViewerStore(options: ViewerStoreOptions = {}): ViewerStore
       return listeners.subscribe(listener);
     },
     pause() {
-      if (paused) return;
       transact(() => {
+        if (paused) return;
         paused = true;
         droppedThisPause = 0;
         changed = true;
       });
     },
     resume() {
-      if (!paused) return;
       transact(() => {
+        if (!paused) return;
         paused = false;
         changed = true;
         if (droppedThisPause > 0) {
