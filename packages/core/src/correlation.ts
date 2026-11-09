@@ -127,7 +127,9 @@ export interface Correlator {
    * every index (a response keeps its `callId` and `action`), `added` entries
    * are correlated in order, `updated` entries are not re-correlated. One
    * store at a time: a second connect throws. If reading the store throws
-   * while seeding, connect rethrows and stays disconnected. The returned
+   * while seeding, connect rethrows and stays disconnected; if subscribing
+   * to it throws, connect also releases the seed (emitting `cleared: true`
+   * if anything was correlated) before rethrowing. The returned
    * {@link Unsubscribe} stops following, resets the state (emitting
    * `cleared: true` if anything was correlated) and allows a new connect.
    */
@@ -413,7 +415,24 @@ export function createCorrelatorWith(
         }
       }
 
-      const unsubscribeStore = store.subscribe((change) => {
+      /** Resets the state, emitting `cleared` if anything was correlated. */
+      function release(): void {
+        const had = results.size > 0;
+        reset();
+        emit([], [], had);
+      }
+
+      let unsubscribeStore: Unsubscribe;
+      try {
+        unsubscribeStore = store.subscribe(listener);
+      } catch (error) {
+        // The seed was emitted: release it as an unsubscribe would.
+        connected = undefined;
+        release();
+        throw error;
+      }
+
+      function listener(change: ViewerStoreChange): void {
         if (connected !== connection) return;
         const removed: EntryId[] = [];
         const changed = new Set<EntryId>();
@@ -427,14 +446,12 @@ export function createCorrelatorWith(
         }
         emit([...changed], removed, change.cleared);
         if (failure !== undefined) report(failure.error);
-      });
+      }
       return () => {
         if (connected !== connection) return;
         connected = undefined;
         unsubscribeStore();
-        const had = results.size > 0;
-        reset();
-        emit([], [], had);
+        release();
       };
     },
     get(id) {
