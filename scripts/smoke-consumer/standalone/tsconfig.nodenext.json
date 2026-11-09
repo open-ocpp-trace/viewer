@@ -1,0 +1,7 @@
+{
+  "extends": "../tsconfig.nodenext.json",
+  "compilerOptions": {
+    "lib": ["ES2022", "DOM"]
+  },
+  "files": ["consumer.ts"]
+}

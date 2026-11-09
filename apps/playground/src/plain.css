@@ -1,0 +1,42 @@
+/* Host styles of the plain example: every rule is scoped to .plain-host. */
+
+.plain-host {
+  padding: 1rem;
+  background: #fafafa;
+  color: #222;
+}
+
+.plain-host * {
+  font-family: Georgia, "Times New Roman", serif;
+  line-height: 1.4;
+}
+
+.plain-host h2 {
+  margin: 0 0 0.5rem;
+  border-bottom: 3px double #444;
+}
+
+.plain-host button {
+  padding: 0.25rem 0.75rem;
+  border: 2px solid #333;
+  border-radius: 0;
+  background: #ffd54f;
+  color: #222;
+  text-transform: uppercase;
+}
+
+.plain-host table {
+  margin: 0.5rem 0 1rem;
+  border-collapse: collapse;
+}
+
+.plain-host th,
+.plain-host td {
+  padding: 0.25rem 0.75rem;
+  border: 1px solid #999;
+}
+
+.plain-host__viewer {
+  height: 480px;
+  border: 1px solid #ccc;
+}

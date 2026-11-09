@@ -1,0 +1,16 @@
+{
+  "name": "@open-ocpp-trace/viewer-example-standalone",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Vanilla HTML and TypeScript page that mounts the built viewer-standalone asset.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vp dev",
+    "build": "vp build",
+    "preview": "vp preview"
+  },
+  "dependencies": {
+    "@open-ocpp-trace/viewer-standalone": "workspace:*"
+  }
+}

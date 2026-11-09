@@ -1,0 +1,38 @@
+/* The host page only. The viewers style themselves inside their shadow
+   roots: these rules do not reach them, and theirs do not leak here. */
+body {
+  margin: 0;
+  font-family: system-ui, sans-serif;
+}
+
+.page {
+  display: grid;
+  gap: 1rem;
+  padding: 1rem;
+}
+
+.page__controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.page__viewers {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(28rem, 1fr));
+  gap: 1rem;
+}
+
+/* The viewer fills its host element: give the element a height. */
+.page__viewer {
+  height: 32rem;
+  border: 1px solid #ccc;
+}
+
+.page__events {
+  max-height: 10rem;
+  overflow: auto;
+  font-family: ui-monospace, monospace;
+  font-size: 0.85rem;
+}

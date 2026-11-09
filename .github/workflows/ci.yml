@@ -1,0 +1,203 @@
+name: CI
+
+# Modeled on the TypeScript workflow of open-ocpp-trace/sdk. Branch
+# protection requires only `ci-result`. It always reports, so a pull
+# request that touches none of the paths below still gets a green
+# required check. Nothing is published from this workflow.
+on:
+  # No `branches` filter: stacked pull requests target other branches.
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  # A new push to a pull request supersedes the previous run; runs on main
+  # are kept so every merged commit is checked.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  changes:
+    name: Detect changes
+    runs-on: ubuntu-latest
+    outputs:
+      code: ${{ steps.filter.outputs.code }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # The merge base with the pull request's base branch must be
+          # reachable for the three-dot diff below.
+          fetch-depth: 0
+          persist-credentials: false
+      - id: filter
+        name: Filter changed paths
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          code=false
+          if [ "$EVENT_NAME" != pull_request ]; then
+            # Pushes to main run everything.
+            code=true
+          else
+            changed="$(git diff --name-only "$BASE_SHA...$HEAD_SHA")"
+            printf 'Changed files:\n%s\n' "$changed"
+            while IFS= read -r path; do
+              case "$path" in
+                packages/* | apps/* | examples/* | scripts/*) code=true ;;
+                package.json | bun.lock | .npmrc | tsconfig.base.json | vite.config.ts) code=true ;;
+                .github/workflows/ci.yml) code=true ;;
+              esac
+            done <<EOF
+          $changed
+          EOF
+          fi
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+          echo "code=$code"
+
+  shellcheck:
+    name: Shellcheck shell scripts
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - run: shellcheck --version && shellcheck scripts/*.sh
+
+  checks:
+    name: Check, test and build (Node.js ${{ matrix.node }})
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      # The SDK packages (@open-ocpp-trace/core, @open-ocpp-trace/jsonl)
+      # are installed from GitHub Packages with the workflow token. Their
+      # package settings must grant this repository read access.
+      packages: read
+    strategy:
+      fail-fast: false
+      matrix:
+        # 22 is the lowest Node.js line the workspace supports.
+        node: ["22", "24"]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # Bun comes from `packageManager` in package.json.
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version-file: package.json
+      - uses: voidzero-dev/setup-vp@cab1ab9eaff52d4857875f4f2c016e36af8f2c76 # v1.22.0
+        with:
+          node-version: ${{ matrix.node }}
+          # Use the Bun installed above, not a Vite+-managed one.
+          package-manager: |
+            bun: false
+          # The install below is explicitly frozen.
+          run-install: false
+          cache: true
+          cache-dependency-path: bun.lock
+      - name: Check the Bun and Node.js versions
+        env:
+          NODE_MAJOR: ${{ matrix.node }}
+        run: |
+          expected="$(node -p 'require("./package.json").packageManager')"
+          actual="bun@$(bun --version)"
+          echo "packageManager=$expected bun=$actual node=$(node --version)"
+          [ "$actual" = "$expected" ]
+          [ "$(node -p 'process.versions.node.split(".")[0]')" = "$NODE_MAJOR" ]
+      - run: bun install --frozen-lockfile
+        env:
+          # Read by .npmrc for the @open-ocpp-trace scope.
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - run: vp check
+      - run: vp test
+      - run: vp run -r pack
+      - name: Build the playground
+        run: vp run @open-ocpp-trace/viewer-playground#build
+      # Imports the packed viewer-standalone dist/, so it runs after the pack.
+      - name: Build the standalone example
+        run: vp run @open-ocpp-trace/viewer-example-standalone#build
+
+  smoke:
+    name: Clean-consumer smoke test (React 18 and 19)
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      # Installs the SDK packages from GitHub Packages, like `checks`.
+      packages: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # Bun comes from `packageManager` in package.json.
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version-file: package.json
+      - uses: voidzero-dev/setup-vp@cab1ab9eaff52d4857875f4f2c016e36af8f2c76 # v1.22.0
+        with:
+          # The lowest Node.js line the workspace supports.
+          node-version: "22"
+          package-manager: |
+            bun: false
+          run-install: false
+          cache: true
+          cache-dependency-path: bun.lock
+      - name: Check the Bun and Node.js versions
+        run: |
+          expected="$(node -p 'require("./package.json").packageManager')"
+          actual="bun@$(bun --version)"
+          echo "packageManager=$expected bun=$actual node=$(node --version)"
+          [ "$actual" = "$expected" ]
+          [ "$(node -p 'process.versions.node.split(".")[0]')" = 22 ]
+      - run: bun install --frozen-lockfile
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      # Packs the three packages, checks the tarballs with publint and
+      # attw, installs them with npm into projects outside the workspace,
+      # one with React 18 and one with React 19, imports viewer-core under
+      # Node.js and Bun, checks that viewer-react uses the consumer's single
+      # React copy and type-checks a TypeScript consumer. Then it installs
+      # the standalone tarball alone into a project without React, checks
+      # that no React package came with it, type-checks a React-free
+      # consumer, loads the asset without bare specifiers, Node.js globals
+      # or eval, and mounts and unmounts two viewers in a happy-dom page.
+      # This is `vp run smoke`, called directly so that the consumer runs on
+      # the `node` checked above rather than on a Node.js that `vp run` may
+      # manage itself.
+      - run: sh scripts/smoke-consumer.sh
+        env:
+          # The consumers install the SDK packages from GitHub Packages.
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  ci-result:
+    name: ci-result
+    needs: [changes, shellcheck, checks, smoke]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      # A job skipped by the path filter is fine; a failed or cancelled
+      # one is not.
+      - name: Check needed jobs
+        env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          echo "needs results: $RESULTS"
+          for result in $RESULTS; do
+            case "$result" in
+              success | skipped) ;;
+              *)
+                echo "::error::a needed job ended with '$result'"
+                exit 1
+                ;;
+            esac
+          done
