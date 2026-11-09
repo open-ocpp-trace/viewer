@@ -51,6 +51,10 @@ let left: ViewerInstance | undefined;
 let right: ViewerInstance | undefined;
 let added = 0;
 
+function scheme(): "dark" | "light" {
+  return darkCheckbox.checked ? "dark" : "light";
+}
+
 function mountBoth(): void {
   // Entries added since the page loaded, so a remounted viewer starts from
   // the same state the producer is in.
@@ -58,7 +62,7 @@ function mountBoth(): void {
   left = mount(leftHost, {
     ...callbacks("left"),
     entries: [...SNAPSHOT, ...later],
-    theme: { colorScheme: darkCheckbox.checked ? "dark" : "light" },
+    theme: { colorScheme: scheme() },
   });
   right = mount(rightHost, {
     ...callbacks("right"),
@@ -100,7 +104,7 @@ updateButton.addEventListener("click", () => {
 });
 
 darkCheckbox.addEventListener("change", () => {
-  left?.setOptions({ theme: { colorScheme: darkCheckbox.checked ? "dark" : "light" } });
+  left?.setOptions({ theme: { colorScheme: scheme() } });
 });
 
 toggleButton.addEventListener("click", () => {
@@ -113,8 +117,9 @@ toggleButton.addEventListener("click", () => {
     toggleButton.textContent = "Mount";
     report("host", `unmounted both viewers (adapter connected: ${adapter.connected})`);
   }
-  addButton.disabled = left === undefined;
-  updateButton.disabled = left === undefined;
+  const on = left !== undefined;
+  addButton.disabled = !on;
+  updateButton.disabled = !on;
 });
 
 mountBoth();
