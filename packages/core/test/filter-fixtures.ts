@@ -122,7 +122,8 @@ export function select(
   filter: TraceFilter,
   entries: readonly ViewerEntry[] = all,
   ctx: MatchContext = context(),
+  payloadSearch = false,
 ): string[] {
-  const compiled = compileFilter(filter, ctx.fields);
+  const compiled = compileFilter(filter, ctx.fields, payloadSearch);
   return entries.filter((entry) => matchesFilter(entry, compiled, ctx)).map((entry) => entry.id);
 }

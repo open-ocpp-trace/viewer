@@ -65,6 +65,25 @@ export interface TraceFilter {
     readonly id: string;
     readonly values: readonly (string | null)[];
   }[];
+  /**
+   * Trimmed, case-insensitive substring searched in metadata only: entry
+   * id, message id, effective action and charge point, OCPP version,
+   * message type, direction, CALLERROR `error.code`, session, tenant,
+   * conversation, source id and label, delivery targets and statuses, the
+   * unparsed `reason` and the values of declared producer fields. Payloads,
+   * raw frames, `record.meta`, `metadata.custom` and the error description
+   * and details are never read by default, as they may hold secrets. Blank
+   * text constrains nothing; gaps are kept whatever the text.
+   */
+  readonly text?: string;
+  /**
+   * Also searches `record.payload`, `record.raw`, the unparsed `raw` and
+   * the error description and details. Allowed only on an engine created
+   * with `payloadSearch: true`, else `setFilter` throws a `RangeError`. The
+   * scan is capped per entry (64 Ki characters, depth 32): matches beyond
+   * the cap are missed. `record.meta` and `metadata.custom` stay excluded.
+   */
+  readonly searchPayloads?: boolean;
 }
 
 /** Properties holding single string values, read by `filter-match.ts`. */
@@ -98,6 +117,8 @@ const KNOWN_PROPERTIES: ReadonlySet<string> = new Set([
   "connectorIds",
   "deliveryStatuses",
   "fields",
+  "text",
+  "searchPayloads",
 ]);
 
 const KINDS: ReadonlySet<string> = new Set(["trace", "unparsed", "gap"]);
@@ -123,6 +144,10 @@ export interface CompiledFilter {
     readonly definition: FilterFieldDefinition;
     readonly values: Selection<string>;
   }[];
+  /** Trimmed and lower-cased; undefined when blank. */
+  readonly text: string | undefined;
+  /** The text is also searched in payloads. */
+  readonly payloads: boolean;
 }
 
 function fail(message: string): never {
@@ -157,10 +182,13 @@ function bound(value: unknown, name: string): number | undefined {
 /**
  * Validates `filter` against the declared producer fields and compiles it.
  * Throws a `RangeError` on malformed input, leaving no state behind.
+ * `payloadSearch` is the engine's capability: without it, a filter asking
+ * for `searchPayloads` is rejected.
  */
 export function compileFilter(
   filter: TraceFilter,
   fields: ReadonlyMap<string, FilterFieldDefinition>,
+  payloadSearch = false,
 ): CompiledFilter {
   if (!isRecord(filter)) fail("not an object");
   const input = filter as Readonly<Record<string, unknown>>;
@@ -233,6 +261,21 @@ export function compileFilter(
     copy["fields"] = Object.freeze(copies);
   }
 
+  let text: string | undefined;
+  if (input["text"] !== undefined) {
+    if (typeof input["text"] !== "string") fail("text is not a string");
+    const trimmed = input["text"].trim().toLowerCase();
+    if (trimmed !== "") text = trimmed;
+    copy["text"] = input["text"];
+  }
+
+  const payloads = input["searchPayloads"];
+  if (payloads !== undefined) {
+    if (typeof payloads !== "boolean") fail("searchPayloads is not a boolean");
+    if (payloads && !payloadSearch) fail("payload search is not enabled on this engine");
+    copy["searchPayloads"] = payloads;
+  }
+
   return {
     filter: Object.freeze(copy) as TraceFilter,
     kinds,
@@ -242,5 +285,7 @@ export function compileFilter(
     connectorIds,
     deliveryStatuses,
     fields: compiledFields,
+    text,
+    payloads: payloads === true,
   };
 }
