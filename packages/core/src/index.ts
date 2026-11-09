@@ -39,6 +39,8 @@ export type {
 export type { TraceFilter } from "./filter-model.ts";
 export { computeStats } from "./filter-stats.ts";
 export type { TraceStats } from "./filter-stats.ts";
+export { reportViewerError } from "./report-error.ts";
+export type { ViewerErrorContext, ViewerErrorHandler } from "./report-error.ts";
 export {
   createViewerStore,
   DEFAULT_MAX_BYTES,

@@ -19,6 +19,7 @@ describe("@open-ocpp-trace/viewer-core", () => {
       "createFilterEngine",
       "createViewerStore",
       "readEntryFields",
+      "reportViewerError",
     ]);
     expect(viewerCore.STORE_ID_PREFIX).toBe("viewer-store:");
   });
