@@ -58,6 +58,23 @@ describe("the DebugKit example", () => {
     expect(timelineItems()).toHaveLength(analysis.events.length);
     expect(screen.getByText(`Failures (${analysis.failures.length})`)).toBeDefined();
     expect(highlighted()).toEqual([]);
+    const status = screen.getByRole("region", { name: "DebugKit analysis" });
+    expect(within(status).getAllByRole("listitem")).toHaveLength(analysis.warnings.length);
+  });
+
+  it("flags the analysis as stale until the next refresh", async () => {
+    const { store } = await renderExample();
+    const status = (): string =>
+      screen.getByRole("region", { name: "DebugKit analysis" }).textContent ?? "";
+    expect(status()).not.toContain("changed since");
+
+    act(() => {
+      store.clear();
+    });
+    expect(status()).toContain("changed since");
+
+    fireEvent.click(screen.getByRole("button", { name: "Analyze now" }));
+    expect(status()).not.toContain("changed since");
   });
 
   it("selects the mapped event when a row is selected", async () => {

@@ -4,6 +4,7 @@ import { TraceViewer, type DetailPanel, type ToolbarAction } from "@open-ocpp-tr
 import { useEffect, useMemo, useRef, useState, type ReactElement } from "react";
 
 import { analyzeSnapshot, type Analysis } from "./analysis.ts";
+import { AnalysisStatus } from "./AnalysisStatus.tsx";
 import { entryStatus, type NotAnalyzedReason } from "./entry-status.ts";
 import { createAnalysisScheduler, type AnalysisScheduler } from "./scheduler.ts";
 import { buildSnapshot } from "./snapshot.ts";
@@ -32,19 +33,24 @@ export interface AppProps {
 export function App({ store }: AppProps): ReactElement {
   const [analysis, setAnalysis] = useState<Analysis>();
   const [selection, setSelection] = useState<ViewerSelection>({ entryId: null });
+  const [stale, setStale] = useState(false);
   const [timelineNote, setTimelineNote] = useState<string | null>(null);
   const scheduler = useRef<AnalysisScheduler>(null);
 
   useEffect(() => {
     const created = createAnalysisScheduler({
       run: () => {
+        setStale(false);
         setAnalysis(analyzeSnapshot(buildSnapshot(store.toArray())));
         // Event ids are only valid for the analysis that produced them.
         setTimelineNote(null);
       },
     });
     scheduler.current = created;
-    const unsubscribe = store.subscribe(() => created.markStale());
+    const unsubscribe = store.subscribe(() => {
+      setStale(true);
+      created.markStale();
+    });
     // The fixtures were loaded before this subscription: analyze them now.
     created.runNow();
     return () => {
@@ -131,6 +137,7 @@ export function App({ store }: AppProps): ReactElement {
         <section aria-label="DebugKit failures">
           <FailureSummary failures={[...(analysis?.failures ?? [])]} />
         </section>
+        <AnalysisStatus analysis={analysis} stale={stale} />
       </aside>
     </main>
   );
