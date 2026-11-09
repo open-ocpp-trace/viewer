@@ -137,6 +137,10 @@ The strings are resolved again only when the identity of `strings` or `translate
 object or function on every render resolves every string on every render). A `translate` that throws is
 reported (`reportError`, else `console.error`) and the leaf falls back; the viewer stays mounted.
 
+A standalone component's own `strings` or `translate` replace those of the enclosing `<TraceViewer>` instead of
+merging with them: an `<EntryInspector strings={…}>` rendered inside a detail panel no longer sees the viewer's
+`translate`, so pass it both props.
+
 Function leaves and their named parameters:
 
 | Key                   | Parameters                                                                                         |
@@ -170,6 +174,9 @@ Four props of `<TraceViewer>` add host UI without forking the viewer. Each slot 
 prop: elements are keyed by it, and a duplicate id is ignored with one `console.warn`. Labels and titles are
 host strings, shown as given (`translate` does not apply to them). Slot functions are read at call time, so a new
 array per render neither remounts the slots nor re-runs anything; memoize the arrays anyway.
+
+Slots get the untouched store entries, sensitive fields included: `sensitiveKeys` and `revealSensitive` apply only
+to the inspector. A column, an action or a panel that shows payload values must hide those fields itself.
 
 - `columns: ColumnDefinition[]`: columns appended after the built-in ones, rendered from `value(entry)`.
 

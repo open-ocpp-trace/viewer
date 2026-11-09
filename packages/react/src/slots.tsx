@@ -16,9 +16,16 @@ import type {
 export interface ViewerActionContext {
   readonly store: ViewerStore;
   readonly selection: ViewerSelection;
-  /** The selected entry, when it is in the store. */
+  /**
+   * The selected entry, when it is in the store. It is the untouched store
+   * entry, sensitive fields included: `sensitiveKeys` and `revealSensitive`
+   * apply only to the inspector.
+   */
   readonly selectedEntry: ViewerEntry | undefined;
-  /** The entries the filter lists, in order (a fresh array per call). */
+  /**
+   * The entries the filter lists, in order (a fresh array per call). They
+   * are the untouched store entries, sensitive fields included.
+   */
   listed(): ViewerEntry[];
   /** Selects like a row click: `onSelectionChange` is called. */
   select(entryId: EntryId | null): void;
@@ -64,7 +71,12 @@ export interface FilterControl {
 
 /** What a {@link DetailPanel} renders. */
 export interface DetailPanelContext {
-  /** The selected entry, present in the store. */
+  /**
+   * The selected entry, present in the store. It is the untouched store
+   * entry, sensitive fields included: `sensitiveKeys` and `revealSensitive`
+   * apply only to the inspector, so a panel that shows the payload must
+   * hide those fields itself.
+   */
   readonly entry: ViewerEntry;
   readonly store: ViewerStore;
   readonly correlator: Correlator | undefined;
