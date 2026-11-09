@@ -1,4 +1,5 @@
-import type { Unsubscribe } from "./adapter.ts";
+import type { Unsubscribe, ViewerAdapter } from "./adapter.ts";
+import { connectAdapter } from "./store-connect.ts";
 import type { EntryId, GapEntry, ViewerEntry } from "./entry.ts";
 import { coreWeight, metadataWeight } from "./store-estimate.ts";
 import { checkItem, mergeMetadata, normalizeAddedEntry, STORE_ID_PREFIX } from "./store-ingest.ts";
@@ -147,6 +148,22 @@ export interface ViewerStore {
    * add for it is a new entry.
    */
   clear(): void;
+  /**
+   * Feeds the store from `adapter`: subscribes first and buffers the batches
+   * received, applies the snapshot as {@link load} (before returning when it
+   * is synchronous, when it resolves otherwise), replays the buffer in order,
+   * then applies each batch as it arrives. A snapshot that rejects or is not
+   * an array lists a store gap (`reason: "unknown"`, id
+   * {@link STORE_ID_PREFIX}`gap:<n>` shared with {@link resume}) before the
+   * replay. Reconnecting is a new `connect`: its overlap with what is held
+   * counts as duplicates (rule 6). If `subscribe` or `snapshot` throws, what
+   * was subscribed is unsubscribed and the error rethrown. The returned
+   * {@link Unsubscribe} is idempotent and stops everything, a pending
+   * snapshot included: nothing from it is applied, and its rejection is
+   * still handled. An error thrown by a store listener while a promised
+   * snapshot applies rejects an internal promise nobody awaits.
+   */
+  connect(adapter: ViewerAdapter): Unsubscribe;
 }
 
 /**
@@ -439,6 +456,20 @@ export function createViewerStore(options: ViewerStoreOptions = {}): ViewerStore
     },
     isPending(id) {
       return index.get(id)?.seq === -1;
+    },
+    connect(adapter) {
+      return connectAdapter(
+        {
+          apply: (batch) => store.apply(batch),
+          load: (entries) => store.load(entries),
+          snapshotFailed: () =>
+            transact(() => {
+              admitGap(nextGap("unknown"));
+              changed = true;
+            }),
+        },
+        adapter,
+      );
     },
     clear() {
       transact(() => {
