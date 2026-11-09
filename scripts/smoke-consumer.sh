@@ -7,7 +7,7 @@
 # attw --profile esm-only (the packages are ESM only, so CommonJS
 # resolutions are not required). Then, for React 18 and React 19, installs
 # the three tarballs with npm into a throwaway project outside the
-# workspace, next to that React version, and:
+# workspace, next to that React version and its @types packages, and:
 #   1. imports viewer-core under Node.js and under Bun (no React, no DOM);
 #   2. imports viewer-react and checks that it uses the consumer's React
 #      and that the project holds a single React copy;
@@ -81,6 +81,13 @@ done
 for react_version in $react_versions; do
   major=${react_version%%.*}
   consumer="$tmp/consumer-react-$major"
+  # The viewer-react declarations reference React's types: a TypeScript
+  # consumer installs the @types packages of its React major.
+  case $major in
+    18) types_versions="@types/react@18.3.31 @types/react-dom@18.3.7" ;;
+    19) types_versions="@types/react@19.3.0 @types/react-dom@19.3.0" ;;
+    *) echo "smoke: no @types versions for React $major" >&2; exit 1 ;;
+  esac
 
   step "install the tarballs with React $react_version into a project outside the workspace"
   mkdir "$consumer"
@@ -97,7 +104,7 @@ EOF
   # One install for every tarball: viewer-react depends on the exact
   # viewer-core version, which only the local tarball provides.
   (cd "$consumer" && npm install --no-audit --no-fund --ignore-scripts \
-    "react@$react_version" "react-dom@$react_version" \
+    "react@$react_version" "react-dom@$react_version" $types_versions \
     "$tmp"/tarballs/open-ocpp-trace-viewer-core-*.tgz \
     "$tmp"/tarballs/open-ocpp-trace-viewer-react-*.tgz \
     "$tmp"/tarballs/open-ocpp-trace-viewer-standalone-*.tgz)

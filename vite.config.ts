@@ -1,4 +1,9 @@
-import { defaultServerConditions, defineConfig } from "vite-plus";
+import {
+  configDefaults,
+  defaultClientConditions,
+  defaultServerConditions,
+  defineConfig,
+} from "vite-plus";
 
 // Workspace packages export their TypeScript sources under this condition so
 // that a package can be type-checked and tested against a sibling without
@@ -9,6 +14,11 @@ import { defaultServerConditions, defineConfig } from "vite-plus";
 const SOURCE_CONDITION = "@open-ocpp-trace/viewer-source";
 
 export default defineConfig({
+  // The React tests run in a DOM environment, which resolves imports like a
+  // browser (client conditions) rather than like a server.
+  resolve: {
+    conditions: [SOURCE_CONDITION, ...defaultClientConditions],
+  },
   ssr: {
     resolve: {
       conditions: [SOURCE_CONDITION, ...defaultServerConditions],
@@ -32,6 +42,22 @@ export default defineConfig({
     ],
   },
   test: {
-    include: ["packages/*/test/**/*.test.ts"],
+    projects: [
+      {
+        test: {
+          name: "node",
+          include: ["packages/*/test/**/*.test.ts"],
+          exclude: [...configDefaults.exclude, "packages/react/test/**"],
+        },
+      },
+      {
+        test: {
+          name: "react",
+          include: ["packages/react/test/**/*.test.{ts,tsx}"],
+          environment: "happy-dom",
+          setupFiles: ["packages/react/test/setup.ts"],
+        },
+      },
+    ],
   },
 });
