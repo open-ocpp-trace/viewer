@@ -213,6 +213,37 @@ describe("Correlator and eviction", () => {
       expect(correlator.orphanResponses().length).toBeLessThanOrEqual(store.size);
     }
   });
+
+  it("keeps matching after evictions compact the CALLs of one messageId", () => {
+    const store = createViewerStore({ maxEntries: 100 });
+    const { correlator } = connected(store);
+    const ids = (from: number, to: number): string[] =>
+      Array.from({ length: to - from }, (_, i) => `c${String(from + i)}`);
+
+    for (let i = 0; i < 350; i += 1) {
+      store.apply(addAll(call(`c${String(i)}`, "m")));
+      const sizes = correlatorInternals(correlator).indexSizes();
+      expect(sizes).toEqual({ tracked: store.size, calls: store.size, unanswered: store.size });
+    }
+    expect(correlator.unansweredCalls()).toEqual(ids(250, 350));
+
+    store.apply(addAll(result("r1", "m")));
+    store.apply(addAll(result("r2", "m")));
+
+    expect(correlator.get("r1")).toMatchObject({
+      role: "response",
+      callId: "c349",
+      candidates: ids(341, 349).reverse(),
+      candidatesTruncated: true,
+    });
+    expect(correlator.get("r2")).toMatchObject({ role: "response", callId: "c348" });
+    expect(correlator.unansweredCalls()).toEqual(ids(252, 348));
+    expect(correlatorInternals(correlator).indexSizes()).toEqual({
+      tracked: 100,
+      calls: 98,
+      unanswered: 96,
+    });
+  });
 });
 
 describe("Correlator and store clear, pause and listeners", () => {
