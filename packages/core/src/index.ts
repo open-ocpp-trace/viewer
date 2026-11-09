@@ -28,8 +28,15 @@ export type {
 } from "./entry.ts";
 export type { ColumnDefinition, FilterFieldDefinition, ViewerSelection } from "./extension.ts";
 export { createFilterEngine } from "./filter-engine.ts";
-export type { FilterChange, FilterEngine, FilterEngineOptions } from "./filter-engine.ts";
+export type {
+  FilterChange,
+  FilterEngine,
+  FilterEngineOptions,
+  FilterEngineStats,
+} from "./filter-engine.ts";
 export type { TraceFilter } from "./filter-model.ts";
+export { computeStats } from "./filter-stats.ts";
+export type { TraceStats } from "./filter-stats.ts";
 export {
   createViewerStore,
   DEFAULT_MAX_BYTES,

@@ -7,7 +7,7 @@ import type {
   ViewerEntry,
 } from "@open-ocpp-trace/viewer-core";
 
-import { computeStats } from "../src/filter-stats.ts";
+import { computeStats } from "@open-ocpp-trace/viewer-core";
 import { all, gateway, record, simulator } from "./filter-fixtures.ts";
 
 const derived: Pick<Correlator, "get"> = {

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vite-plus/test";
 
 import {
+  computeStats,
   createCorrelator,
   createViewerStore,
   type EntryDelivery,
@@ -13,7 +14,6 @@ import {
 } from "@open-ocpp-trace/viewer-core";
 
 import { cachedSize, createFilterEngineWith } from "../src/filter-engine.ts";
-import { computeStats } from "../src/filter-stats.ts";
 import { frame } from "./correlation-fixtures.ts";
 import { context, select } from "./filter-fixtures.ts";
 
