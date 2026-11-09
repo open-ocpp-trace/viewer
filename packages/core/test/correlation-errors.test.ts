@@ -85,6 +85,30 @@ describe("Correlator error reporting", () => {
     ]);
   });
 
+  it("reports a listener error on the seed change of connect and stays connected", () => {
+    const onError = vi.fn<ViewerErrorHandler>();
+    const correlator = createCorrelator({ onError });
+    const failure = new Error("seed");
+    const versions: number[] = [];
+    correlator.subscribe((change) => {
+      versions.push(change.version);
+      if (change.version === 1) throw failure;
+    });
+    const store = createViewerStore();
+    store.apply([add(call("c1", "m1"))]);
+
+    let unsubscribe: (() => void) | undefined;
+    expect(() => {
+      unsubscribe = correlator.connect(store);
+    }).not.toThrow();
+    expect(typeof unsubscribe).toBe("function");
+    expect(onError.mock.calls).toEqual([[failure, listenerContext]]);
+
+    store.apply([add(call("c2", "m2"))]);
+    expect(versions).toEqual([1, 2]);
+    expect(correlator.get("c2")).toBeDefined();
+  });
+
   it("reports an error while following the store as follow", () => {
     const onError = vi.fn<ViewerErrorHandler>();
     const correlator = createCorrelator({ onError });

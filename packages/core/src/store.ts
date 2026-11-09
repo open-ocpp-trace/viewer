@@ -47,7 +47,8 @@ export interface ViewerStoreOptions {
   readonly maxBytes?: number;
   /**
    * Receives the errors no caller is left to receive, synchronously: each
-   * listener error (`{ component: "store", callback: "listener" }`) and an
+   * listener error (`{ component: "store", callback: "listener" }`), an
+   * error raised by a queued nested call (`callback: "queued"`) and an
    * error raised while a promised snapshot settles (`callback:
    * "snapshot"`). Without it, they go to the default reporter of
    * {@link reportViewerError}: `globalThis.reportError`, else
@@ -101,9 +102,11 @@ export interface ViewerStoreStats {
  * returns before it has applied: it runs after the current change has
  * notified, in call order, as its own change with its own notification. Its
  * effects, its no-op checks and its reading of the batch happen when it runs.
- * An error its own body raises (a throwing batch iterator) is rethrown from
- * the outermost call, after the queue has run, unless that call already has
- * one. Listener errors are never rethrown: each one goes to
+ * An error its own body raises (a throwing batch iterator) goes to
+ * {@link ViewerStoreOptions.onError} (`callback: "queued"`) and is never
+ * rethrown: the call that queued it has already returned. The outermost
+ * call rethrows only its own body's error, after the queue has run.
+ * Listener errors are never rethrown either: each one goes to
  * {@link ViewerStoreOptions.onError}.
  */
 export interface ViewerStore {
@@ -223,8 +226,8 @@ export interface ViewerStore {
    *
    * Called while a change runs or notifies, the synchronous snapshot, gap
    * and replay are queued as nested calls (see {@link ViewerStore}): they
-   * apply after `connect` returns, their listener errors are reported, and
-   * an error reading them is rethrown from the outermost call.
+   * apply after `connect` returns, and their listener errors and any error
+   * reading them are reported (`callback: "queued"` for the latter).
    */
   connect(adapter: ViewerAdapter): Unsubscribe;
 }
@@ -461,8 +464,9 @@ export function createViewerStore(options: ViewerStoreOptions = {}): ViewerStore
    * change runs or notifies (from a listener, or from a getter read by a
    * batch) is queued and returns at once; it runs after the current change
    * has notified, as its own change. The outermost call runs the queue to
-   * the end, then rethrows the first error a body raised: its own change's,
-   * else one from a queued change.
+   * the end, then rethrows the error its own body raised. A queued body's
+   * error is reported (`callback: "queued"`), never rethrown: its caller,
+   * a host callback, has already returned.
    */
   const transact = (body: () => void): void => {
     if (running) {
@@ -475,7 +479,12 @@ export function createViewerStore(options: ViewerStoreOptions = {}): ViewerStore
       runChange(body, errors);
       // Every queued change runs, even after an error.
       for (let next = queued.shift(); next !== undefined; next = queued.shift()) {
-        runChange(next, errors);
+        const queuedErrors = firstError();
+        runChange(next, queuedErrors);
+        const failure = queuedErrors.failure;
+        if (failure !== undefined) {
+          reportViewerError(onError, failure.error, { component: "store", callback: "queued" });
+        }
       }
     } finally {
       running = false;

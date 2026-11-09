@@ -170,8 +170,11 @@ describe("ViewerStore reentrancy", () => {
     expect(ids(store)).toEqual(["a", "r"]);
   });
 
-  it("rethrows from the outer call the batch error of a queued change", () => {
-    const store = createViewerStore();
+  it("reports the batch error of a queued change and runs the rest of the queue", () => {
+    const reported: [unknown, unknown][] = [];
+    const store = createViewerStore({
+      onError: (error, context) => reported.push([error, context]),
+    });
     const failure = new Error("iteration");
     const hostile = new Proxy(adds("r", "s"), {
       get(target, key, receiver) {
@@ -180,10 +183,35 @@ describe("ViewerStore reentrancy", () => {
       },
     });
     store.subscribe((change) => {
-      if (change.version === 1) store.apply(hostile);
+      if (change.version === 1) {
+        store.apply(hostile);
+        store.apply(adds("t"));
+      }
     });
 
-    expect(() => store.apply(adds("a"))).toThrow(failure);
+    expect(() => store.apply(adds("a"))).not.toThrow();
+    expect(reported).toEqual([[failure, { component: "store", callback: "queued" }]]);
+    expect(ids(store)).toEqual(["a", "r", "t"]);
+  });
+
+  it("rethrows the outer call's own batch error and reports the queued one", () => {
+    const reported: unknown[] = [];
+    const store = createViewerStore({ onError: (error) => reported.push(error) });
+    const outer = new Error("outer");
+    const inner = new Error("inner");
+    const failing = (id: string, failure: Error): EntryUpdate[] =>
+      new Proxy(adds(id, `${id}2`), {
+        get(target, key, receiver) {
+          if (key === "1") throw failure;
+          return Reflect.get(target, key, receiver);
+        },
+      });
+    store.subscribe((change) => {
+      if (change.version === 1) store.apply(failing("r", inner));
+    });
+
+    expect(() => store.apply(failing("a", outer))).toThrow(outer);
+    expect(reported).toEqual([inner]);
     expect(ids(store)).toEqual(["a", "r"]);
   });
 });

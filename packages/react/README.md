@@ -294,7 +294,8 @@ Without `onError`, an error goes to `globalThis.reportError` when it is a functi
 
 The store and the correlator belong to the host: give them their own handler, which can be the same function.
 `createViewerStore({ onError })` reports `{ component: "store" }` errors (`"listener"`, never rethrown to the
-caller of `apply` or `load`, and `"snapshot"` for a promised adapter snapshot, or a batch buffered before it, that
+caller of `apply` or `load`, `"queued"` for a change a listener requested, such as a batch whose iterator throws,
+and `"snapshot"` for a promised adapter snapshot, or a batch buffered before it, that
 fails to apply); `createCorrelator({ onError })` reports `{ component:
 "correlator" }` errors (`"listener"`, `"follow"`). Core's `reportViewerError(onError, error, context)` applies the
 same rules for a host's own components.
