@@ -17,11 +17,12 @@ const MAX_NODES = 100_000;
  * Approximates the bytes retained by an untrusted value: about 2 bytes per
  * string character, {@link SCALAR_BYTES} per scalar, plus per-object and
  * per-key overheads. Never throws and never loops: cycles and shared objects
- * are counted once, and getters or proxies that throw count as scalars. The
- * walk stops once the total exceeds `limit`, or when {@link MAX_DEPTH} or
- * {@link MAX_NODES} cuts it short: it then fails closed, so the result is
- * above `limit`, not exact, and a value too deep or too wide to weigh counts
- * as oversized. Never uses `JSON.stringify`.
+ * are counted once, and a property getter that throws counts as `undefined`.
+ * The walk stops once the total exceeds `limit`, or when {@link MAX_DEPTH} or
+ * {@link MAX_NODES} cuts it short, or when enumerating a value throws (an
+ * `ownKeys` or `length` trap, a revoked proxy): it then fails closed, so the
+ * result is above `limit`, not exact, and a value too deep, too wide or
+ * impossible to enumerate counts as oversized. Never uses `JSON.stringify`.
  */
 export function estimateBytes(value: unknown, limit: number): number {
   const visited = new WeakSet<object>();
@@ -64,7 +65,9 @@ export function estimateBytes(value: unknown, limit: number): number {
         walk(child, depth + 1);
       }
     } catch {
-      // A proxy trap threw: what was counted so far stands.
+      // A proxy trap threw while enumerating (ownKeys, length, a revoked
+      // proxy): the rest of the value is unweighed, so fail closed.
+      truncated = true;
     }
   };
   // Called before each child: a child left unwalked by the node cap truncates.

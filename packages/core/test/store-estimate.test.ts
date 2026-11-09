@@ -81,6 +81,30 @@ describe("estimateBytes", () => {
     expect(estimateBytes(wide, 10_000_000)).toBeGreaterThan(10_000_000);
   });
 
+  it("fails closed when enumerating the keys of a value throws", () => {
+    const hostileKeys = new Proxy(
+      {},
+      {
+        ownKeys() {
+          throw new Error("ownKeys");
+        },
+      },
+    );
+    const revoked = Proxy.revocable({}, {});
+    revoked.revoke();
+    const hostileLength = new Proxy([], {
+      get(target, key, receiver) {
+        if (key === "length") throw new Error("length");
+        return Reflect.get(target, key, receiver);
+      },
+    });
+
+    expect(estimateBytes(hostileKeys, LIMIT)).toBeGreaterThan(LIMIT);
+    expect(estimateBytes({ nested: hostileKeys }, LIMIT)).toBeGreaterThan(LIMIT);
+    expect(estimateBytes(revoked.proxy, LIMIT)).toBeGreaterThan(LIMIT);
+    expect(estimateBytes(hostileLength, LIMIT)).toBeGreaterThan(LIMIT);
+  });
+
   it("counts a shared or cyclic object once without failing closed", () => {
     const shared = { target: "csms", status: "queued" };
     const cycle: Record<string, unknown> = { list: [shared, shared, shared] };
