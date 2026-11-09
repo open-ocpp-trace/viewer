@@ -10,6 +10,8 @@ export function hostReactVersion(): string {
 
 export { EntryInspector } from "./EntryInspector.tsx";
 export type { EntryInspectorProps, InspectorPart } from "./EntryInspector.tsx";
+export { exportJsonl } from "./export-jsonl.ts";
+export type { JsonlExport } from "./export-jsonl.ts";
 export { FilterPanel } from "./FilterPanel.tsx";
 export type { FilterPanelProps } from "./FilterPanel.tsx";
 export { useFilterEngine } from "./hooks.ts";
