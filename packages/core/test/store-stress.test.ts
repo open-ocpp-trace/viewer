@@ -1,0 +1,150 @@
+import { describe, expect, it } from "vite-plus/test";
+
+import type { TraceRecord } from "@open-ocpp-trace/core";
+import {
+  createViewerStore,
+  STORE_ID_PREFIX,
+  type EntryUpdate,
+  type ViewerStore,
+} from "@open-ocpp-trace/viewer-core";
+
+import { storeInternals } from "../src/store.ts";
+import { add, ids, mirror, trace, traceRecord, unparsed } from "./store-fixtures.ts";
+
+/** The compaction rule of the slot queues bounds their backing arrays by this. */
+const backingBound = (limit: number): number => Math.max(1024, limit) + limit + 1;
+
+/** The invariants every run must leave, whatever the load. */
+function expectBounded(store: ViewerStore, maxEntries: number, maxBytes: number): void {
+  const stats = store.getStats();
+  const internals = storeInternals(store);
+  expect(stats.listed).toBe(store.size);
+  expect(store.size).toBeLessThanOrEqual(maxEntries);
+  if (store.size > 1) expect(stats.listedBytes).toBeLessThanOrEqual(maxBytes);
+  expect(stats.pending).toBeLessThanOrEqual(Math.max(1, maxEntries - 1));
+  if (stats.pending > 1) expect(stats.pendingBytes).toBeLessThanOrEqual(maxBytes);
+  expect(internals.indexSize()).toBe(stats.listed + stats.pending);
+  expect(internals.backingLength()).toBeLessThanOrEqual(backingBound(maxEntries));
+  expect(internals.pendingBackingLength()).toBeLessThanOrEqual(backingBound(maxEntries));
+}
+
+/** `count` adds of small entries named `<prefix><n>`, in batches of `size`. */
+function* batches(prefix: string, count: number, size: number): Generator<EntryUpdate[]> {
+  for (let start = 0; start < count; start += size) {
+    const batch: EntryUpdate[] = [];
+    for (let n = start; n < Math.min(count, start + size); n++) {
+      batch.push(add(unparsed(`${prefix}${n}`)));
+    }
+    yield batch;
+  }
+}
+
+const range = (prefix: string, from: number, to: number): string[] =>
+  Array.from({ length: to - from }, (_, n) => `${prefix}${from + n}`);
+
+describe("ViewerStore under load", () => {
+  it("keeps 100k adds through a small capacity bounded and exact", () => {
+    const store = createViewerStore({ maxEntries: 50 });
+    const state = mirror(store);
+    for (const batch of batches("e", 100_000, 100)) store.apply(batch);
+
+    expect(ids(store)).toEqual(range("e", 99_950, 100_000));
+    expect(store.getStats().evicted).toBe(99_950);
+    expect(store.indexOf("e99950")).toBe(0);
+    expect(store.get("e99949")).toBeUndefined();
+    expect(state.ids).toEqual(ids(store));
+    expect(store.version).toBe(1_000);
+    expectBounded(store, 50, store.getStats().listedBytes);
+  });
+
+  it("bounds multi-MB frames by bytes and keeps an oversized one alone", () => {
+    const maxBytes = 1024 * 1024;
+    const store = createViewerStore({ maxBytes });
+    const frame = (id: string, chars: number) => add(unparsed(id, "x".repeat(chars)));
+
+    // About 600 kB each: only one fits at a time.
+    for (let n = 0; n < 20; n++) store.apply([frame(`m${n}`, 300_000)]);
+    expect(ids(store)).toEqual(["m19"]);
+    expect(store.getStats().evicted).toBe(19);
+    expectBounded(store, Number.MAX_SAFE_INTEGER, maxBytes);
+
+    // About 200 kB each: five fit.
+    for (let n = 0; n < 10; n++) store.apply([frame(`s${n}`, 100_000)]);
+    expect(ids(store)).toEqual(range("s", 5, 10));
+    expect(store.getStats().evicted).toBe(25);
+
+    // About 8 MB on its own: kept alone, then evicted by the next add.
+    store.apply([frame("huge", 4_000_000)]);
+    expect(ids(store)).toEqual(["huge"]);
+    expect(store.getStats().listedBytes).toBeGreaterThan(maxBytes);
+    store.apply([frame("next", 10)]);
+    expect(ids(store)).toEqual(["next"]);
+    expect(store.getStats().evicted).toBe(31);
+
+    store.pause();
+    store.apply([frame("p1", 100_000), frame("p2", 4_000_000)]);
+    expect(store.getStats()).toMatchObject({ pending: 1, droppedPending: 1 });
+    expect(store.isPending("p2")).toBe(true);
+    expectBounded(store, Number.MAX_SAFE_INTEGER, maxBytes);
+  });
+
+  it("re-weighs only the metadata on update bursts over large payloads", () => {
+    let reads = 0;
+    const big = "y".repeat(500_000);
+    const record = (id: string): TraceRecord => {
+      const payload = {};
+      Object.defineProperty(payload, "data", {
+        enumerable: true,
+        get() {
+          reads++;
+          return big;
+        },
+      });
+      return { ...traceRecord(id), payload } as TraceRecord;
+    };
+    const store = createViewerStore({ maxEntries: 10 });
+    store.apply(
+      Array.from({ length: 10 }, (_, n) => add(trace(`t${n}`, { record: record(`t${n}`) }))),
+    );
+    expect(reads).toBe(10);
+    const coreBytes = store.getStats().listedBytes;
+
+    for (let round = 0; round < 1_000; round++) {
+      store.apply(
+        Array.from({ length: 10 }, (_, n) => ({
+          type: "update" as const,
+          id: `t${n}`,
+          revision: round,
+          metadata: { custom: { round } },
+        })),
+      );
+    }
+
+    expect(reads).toBe(10);
+    expect(store.get("t3")?.metadata?.custom).toEqual({ round: 999 });
+    expect(store.getStats()).toMatchObject({ listed: 10, staleUpdates: 0, evicted: 0 });
+    expect(store.getStats().listedBytes).toBeGreaterThan(coreBytes);
+    expectBounded(store, 10, store.getStats().listedBytes);
+  });
+
+  it("bounds a paused overflow at high rate and lists the gap on resume", () => {
+    const store = createViewerStore({ maxEntries: 100 });
+    for (const batch of batches("a", 100, 100)) store.apply(batch);
+    store.pause();
+    for (const batch of batches("p", 50_000, 500)) store.apply(batch);
+
+    expect(ids(store)).toEqual(range("a", 0, 100));
+    expect(store.getStats()).toMatchObject({ pending: 99, droppedPending: 49_901, evicted: 0 });
+    expectBounded(store, 100, store.getStats().listedBytes + store.getStats().pendingBytes);
+
+    const state = mirror(store);
+    store.resume();
+
+    const gapId = `${STORE_ID_PREFIX}gap:1`;
+    expect(ids(store)).toEqual([gapId, ...range("p", 49_901, 50_000)]);
+    expect(store.get(gapId)).toMatchObject({ reason: "dropped", missedCount: 49_901 });
+    expect(store.getStats()).toMatchObject({ pending: 0, evicted: 100 });
+    expect(state.ids).toEqual(ids(store));
+    expectBounded(store, 100, store.getStats().listedBytes);
+  });
+});
