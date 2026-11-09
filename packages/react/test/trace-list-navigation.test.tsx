@@ -246,4 +246,30 @@ describe("<TraceList> follow-scroll", () => {
     expect(renderedIds()).toContain("e98");
     expect(renderedIds()).not.toContain("e149");
   });
+
+  it("stops following when a click selects an older row", () => {
+    const store = storeWith(100);
+    render(<Harness store={store} />);
+    scrolled();
+    expect(jumpButton()).toBeNull();
+    fireEvent.click(row("e98"));
+    expect(selectedIds()).toEqual(["e98"]);
+    expect(jumpButton()).not.toBeNull();
+    act(() => store.apply(entries(50, 100).map(add)));
+    scrolled();
+    expect(renderedIds()).toContain("e98");
+    expect(renderedIds()).not.toContain("e149");
+  });
+
+  it("keeps following when a click selects the newest row", () => {
+    const store = storeWith(100);
+    render(<Harness store={store} />);
+    scrolled();
+    fireEvent.click(row("e99"));
+    expect(selectedIds()).toEqual(["e99"]);
+    expect(jumpButton()).toBeNull();
+    act(() => store.apply(entries(50, 100).map(add)));
+    scrolled();
+    expect(renderedIds()).toContain("e149");
+  });
 });

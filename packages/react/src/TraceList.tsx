@@ -346,7 +346,11 @@ export function TraceList(props: TraceListProps): ReactElement {
                 aria-rowindex={item.index + 2}
                 aria-selected={selected}
                 data-entry-id={entry.id}
-                onClick={() => onSelectedIdChange?.(entry.id)}
+                onClick={() => {
+                  // Like the keyboard: an older row would scroll out of view.
+                  if (following && item.index < count - 1) setFollow(false);
+                  onSelectedIdChange?.(entry.id);
+                }}
                 className={`oot-row oot-row--${entry.kind}${selected ? " oot-row--selected" : ""}`}
                 style={{
                   ...rowStyle,
