@@ -1,12 +1,18 @@
 import { parseOpenOcppTrace, type ParseResult } from "@ocpp-debugkit/toolkit/core";
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
-import type { EntryUpdate, ViewerStore } from "@open-ocpp-trace/viewer-core";
+import {
+  createViewerStore,
+  type EntryUpdate,
+  type ViewerStore,
+} from "@open-ocpp-trace/viewer-core";
 import { describe, expect, it, vi } from "vite-plus/test";
 
 import { analyzeSnapshot, type Analysis } from "../src/analysis.ts";
 import { App } from "../src/App.tsx";
 import { createExampleStore } from "../src/example-store.ts";
+import { readFixtureEntries } from "../src/load-fixture.ts";
 import { buildSnapshot } from "../src/snapshot.ts";
+import { readEdgeCases, readSpecFixture } from "./fixtures.ts";
 import { stubLayout } from "./layout.ts";
 
 stubLayout();
@@ -169,6 +175,30 @@ describe("the DebugKit example", () => {
 
     // Synchronously: the bounded refresh would only run a window later.
     expect(screen.getByText(`Timeline (${analysis.events.length + 1} events)`)).toBeDefined();
+  });
+
+  it("drops the DebugKit selection and says why when the selected entry is evicted", async () => {
+    // A store just big enough for the fixtures: the next add evicts the oldest entry.
+    const capacity = (await createExampleStore()).size;
+    const store = createViewerStore({ maxEntries: capacity });
+    store.load(await readFixtureEntries("failed-auth", readSpecFixture()));
+    store.load(await readFixtureEntries("edge", readEdgeCases()));
+    const oldest = store.toArray()[0]!.id;
+    const analysis = analyzeSnapshot(buildSnapshot(store.toArray()));
+    expect(eventIndex(analysis, oldest)).toBeGreaterThanOrEqual(0);
+    render(<App store={store} />);
+    fireEvent.click(row(oldest));
+    expect(highlighted()).toEqual([eventIndex(analysis, oldest)]);
+
+    act(() => {
+      store.apply([LIVE_HEARTBEAT]);
+    });
+
+    expect(store.get(oldest)).toBeUndefined();
+    expect(highlighted()).toEqual([]);
+    expect(screen.getByRole("status", { name: "Timeline selection" }).textContent).toMatch(
+      /selected entry left the store/,
+    );
   });
 
   it("shows a failed analysis and keeps the previous one flagged as stale", async () => {

@@ -127,8 +127,17 @@ export function App({ store, parse = parseOpenOcppTrace }: AppProps): ReactEleme
           store={store}
           selection={selection}
           onSelectionChange={(next) => {
+            // The viewer clears the selection once its entry leaves the store.
+            const left =
+              next.entryId === null &&
+              selection.entryId !== null &&
+              store.get(selection.entryId) === undefined;
             setSelection(next);
-            setTimelineNote(null);
+            setTimelineNote(
+              left
+                ? "The selected entry left the store (evicted or cleared); nothing is selected."
+                : null,
+            );
           }}
           toolbarActions={toolbarActions}
           detailPanels={detailPanels}
