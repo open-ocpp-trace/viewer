@@ -44,6 +44,9 @@ export interface EntryInspectorProps {
   /**
    * Copy buttons are rendered only with it. The text is the whole block,
    * printed on click without the `maxChars` limit, sensitive fields redacted.
+   * A printed block is capped at 50 000 000 characters (an adapter object
+   * that shares references can print exponentially); past it, the text is
+   * cut and ends with `"\n…[truncated]"`. The raw frame is copied as is.
    */
   onCopy?: (text: string, part: InspectorPart) => void;
   /**
@@ -93,8 +96,19 @@ function read(value: unknown, key: string): unknown {
   }
 }
 
+/** Longest plain field rendered; longer values are clipped and end with « … ». */
+const FIELD_MAX = 1024;
+/** Longest copied block, marker included; bounds a copy of shared references. */
+const COPY_MAX = 50_000_000;
+const COPY_TRUNCATED = "\n…[truncated]";
+
+function clip(value: string): string {
+  return value.length > FIELD_MAX ? `${value.slice(0, FIELD_MAX)}…` : value;
+}
+
+/** A string or number field as clipped text, otherwise null. */
 function text(value: unknown): string | null {
-  if (typeof value === "string") return value;
+  if (typeof value === "string") return clip(value);
   return typeof value === "number" ? String(value) : null;
 }
 
@@ -106,7 +120,7 @@ function Fields({ fields }: { fields: readonly (readonly [string, string | null]
       {shown.map(([label, value]) => (
         <Fragment key={label}>
           <dt>{label}</dt>
-          <dd>{value}</dd>
+          <dd>{value === null ? null : clip(value)}</dd>
         </Fragment>
       ))}
     </dl>
@@ -232,8 +246,46 @@ function usePrinted(value: unknown, limit: number, keys: ReadonlySet<string> | n
   );
 }
 
+/** The first 64 deliveries, one per line; null when absent or unreadable. */
+function deliveriesText(deliveries: unknown): string | null {
+  if (!Array.isArray(deliveries)) return null;
+  try {
+    return deliveries
+      .slice(0, 64)
+      .map((d) =>
+        strings.delivery(
+          text(read(d, "target")) ?? "",
+          text(read(d, "role")),
+          text(read(d, "status")) ?? "",
+          text(read(d, "reason")),
+          text(read(d, "updatedAt")),
+        ),
+      )
+      .join("\n");
+  } catch {
+    return null;
+  }
+}
+
+/** Like {@link text}, unclipped: the raw block slices the frame itself. */
+function rawText(value: unknown): string | null {
+  if (typeof value === "string") return value;
+  return typeof value === "number" ? String(value) : null;
+}
+
+/** The whole block for a copy, up to {@link COPY_MAX} characters. */
+function copyText(value: unknown, keys: ReadonlySet<string> | null): string {
+  const printed = formatValue(value, {
+    maxChars: COPY_MAX - COPY_TRUNCATED.length,
+    maxDepth: DEFAULT_MAX_DEPTH,
+    sensitiveKeys: keys,
+  });
+  return printed.truncated ? printed.text + COPY_TRUNCATED : printed.text;
+}
+
 function TraceDetails({ entry, props, keys, copy }: DetailsProps & { entry: TraceEntry }) {
-  const { record, metadata } = entry;
+  const record = read(entry, "record");
+  const metadata = read(entry, "metadata");
   const limits = useLimits(props.maxChars ?? 20_000);
   const fields = readEntryFields(entry, props.correlator);
   const error = fields.messageType === "CALLERROR" ? read(record, "error") : undefined;
@@ -256,24 +308,10 @@ function TraceDetails({ entry, props, keys, copy }: DetailsProps & { entry: Trac
     (!whole(printed.payload) ||
       (fields.messageType === "CALLERROR" && !whole(printed.error)) ||
       (printed.meta !== null && !whole(printed.meta)));
-  const raw = text(read(record, "raw"));
+  const raw = rawText(read(record, "raw"));
   const source = read(metadata, "source");
   const sourceId = text(read(source, "id"));
-  const deliveries = read(metadata, "deliveries");
-  const delivered = Array.isArray(deliveries)
-    ? deliveries
-        .slice(0, 64)
-        .map((d) =>
-          strings.delivery(
-            text(read(d, "target")) ?? "",
-            text(read(d, "role")),
-            text(read(d, "status")) ?? "",
-            text(read(d, "reason")),
-            text(read(d, "updatedAt")),
-          ),
-        )
-        .join("\n")
-    : null;
+  const delivered = deliveriesText(read(metadata, "deliveries"));
 
   const block = (name: keyof typeof values, part: InspectorPart | null) => {
     const shown = printed[name];
@@ -286,19 +324,7 @@ function TraceDetails({ entry, props, keys, copy }: DetailsProps & { entry: Trac
         title={title}
         printed={shown}
         onMore={limits.more(name)}
-        onCopy={
-          part === null
-            ? undefined
-            : copy(
-                () =>
-                  formatValue(values[name], {
-                    maxChars: Number.POSITIVE_INFINITY,
-                    maxDepth: DEFAULT_MAX_DEPTH,
-                    sensitiveKeys: keys,
-                  }).text,
-                part,
-              )
-        }
+        onCopy={part === null ? undefined : copy(() => copyText(values[name], keys), part)}
       >
         {name === "payload" && render !== undefined && !shown.truncated ? (
           <PayloadBoundary key={limits.step(name)} fallback={plain}>
@@ -324,7 +350,7 @@ function TraceDetails({ entry, props, keys, copy }: DetailsProps & { entry: Trac
           [labels.ocppVersion, text(read(record, "ocppVersion"))],
           [labels.transport, text(read(record, "transport"))],
           [labels.timestamp, fields.timestamp],
-          [labels.receivedAt, text(entry.receivedAt)],
+          [labels.receivedAt, text(read(entry, "receivedAt"))],
           [labels.errorCode, text(read(error, "code"))],
           [labels.errorDescription, text(read(error, "description"))],
         ]}
@@ -393,27 +419,30 @@ function UnparsedDetails({ entry, props, keys, copy }: DetailsProps & { entry: U
       <p className="oot-inspector__badge">{defaultStrings.unparsed}</p>
       <Fields
         fields={[
-          [labels.reason, text(entry.reason)],
-          [labels.timestamp, text(entry.timestamp)],
-          [labels.direction, text(entry.direction)],
-          [labels.transport, text(entry.transport)],
-          [labels.receivedAt, text(entry.receivedAt)],
+          [labels.reason, text(read(entry, "reason"))],
+          [labels.timestamp, text(read(entry, "timestamp"))],
+          [labels.direction, text(read(entry, "direction"))],
+          [labels.transport, text(read(entry, "transport"))],
+          [labels.receivedAt, text(read(entry, "receivedAt"))],
         ]}
       />
-      {redacting(keys) ? rawHiddenNote() : rawBlock(text(entry.raw) ?? "", limits, copy)}
+      {redacting(keys)
+        ? rawHiddenNote()
+        : rawBlock(rawText(read(entry, "raw")) ?? "", limits, copy)}
     </>
   );
 }
 
 function GapDetails({ entry }: { entry: GapEntry }) {
-  const missed = typeof entry.missedCount === "number" ? entry.missedCount : null;
+  const count = read(entry, "missedCount");
+  const missed = typeof count === "number" ? count : null;
   return (
     <>
-      <p>{defaultStrings.gap(missed, text(entry.reason))}</p>
+      <p>{defaultStrings.gap(missed, text(read(entry, "reason")))}</p>
       <Fields
         fields={[
-          [labels.timestamp, text(entry.timestamp)],
-          [labels.receivedAt, text(entry.receivedAt)],
+          [labels.timestamp, text(read(entry, "timestamp"))],
+          [labels.receivedAt, text(read(entry, "receivedAt"))],
         ]}
       />
     </>

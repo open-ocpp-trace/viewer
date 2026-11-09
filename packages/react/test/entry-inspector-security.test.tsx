@@ -199,3 +199,122 @@ describe("<EntryInspector> with large payloads", () => {
     }
   });
 });
+
+describe("<EntryInspector> with huge plain fields", () => {
+  const HUGE = "h".repeat(10 * 1024 * 1024);
+
+  it.each([
+    ["an error description", { messageType: "CALLERROR", error: { code: "E", description: HUGE } }],
+    ["an error code", { messageType: "CALLERROR", error: { code: HUGE, description: "d" } }],
+    ["a message id", { messageId: HUGE }],
+    ["an action", { action: HUGE }],
+    ["a charge point id", { chargePointId: HUGE }],
+  ])("clips %s", (_name, fields) => {
+    const root = inspect(hostileEntry("f", { payload: {}, ...fields }));
+    expect(root.textContent!.length).toBeLessThan(5000);
+  });
+
+  it.each([
+    ["a tenant", { tenant: HUGE }],
+    ["a source label", { source: { id: "s", label: HUGE } }],
+    ["a source id", { source: { id: HUGE } }],
+    ["a session", { sessionId: HUGE }],
+    ["a delivery reason", { deliveries: [{ target: "t", status: "failed", reason: HUGE }] }],
+    [
+      "64 delivery reasons",
+      {
+        deliveries: Array.from({ length: 64 }, () => ({ target: HUGE, status: "s", reason: HUGE })),
+      },
+    ],
+  ])("clips %s", (_name, metadata) => {
+    const root = inspect({ ...hostileEntry("m", { payload: {} }), metadata });
+    expect(root.textContent!.length).toBeLessThan(5000);
+  });
+
+  it("clips an unparsed reason", () => {
+    const root = inspect({ kind: "unparsed", id: "u", raw: "r", reason: HUGE });
+    expect(root.textContent!.length).toBeLessThan(5000);
+  });
+
+  it("clips a gap reason", () => {
+    const root = inspect({ kind: "gap", id: "g", reason: HUGE });
+    expect(root.textContent!.length).toBeLessThan(5000);
+    expect(root.textContent).toContain("…");
+  });
+});
+
+describe("<EntryInspector> copy of adapter objects", () => {
+  it("bounds the copy of a 64-level shared-reference structure", () => {
+    let payload: unknown = "leaf";
+    for (let i = 0; i < 64; i++) payload = { x: payload, y: payload };
+    const store = createViewerStore();
+    store.load([hostileEntry("s", { payload })]);
+    const copied: string[] = [];
+    render(
+      <EntryInspector
+        store={store}
+        entryId="s"
+        onCopy={(text) => copied.push(text)}
+        revealSensitive
+        maxChars={100}
+      />,
+    );
+    screen.getByRole("button", { name: "Copy Payload" }).click();
+    expect(copied).toHaveLength(1);
+    expect(copied[0]!.length).toBeLessThanOrEqual(50_000_000);
+    expect(copied[0]!.endsWith("[truncated]")).toBe(true);
+  });
+});
+
+describe("<EntryInspector> with throwing adapter objects", () => {
+  /** An object whose every property read throws, except the listed ones. */
+  function hostile<T extends object>(target: T, allowed: readonly string[] = []): T {
+    return new Proxy(target, {
+      get(object, key, receiver) {
+        if (typeof key === "string" && allowed.includes(key)) {
+          return Reflect.get(object, key, receiver);
+        }
+        throw new Error(`read ${String(key)}`);
+      },
+    });
+  }
+
+  /**
+   * Inspects `entry` as a host store returns it: the real store validates
+   * and copies what it ingests, so a hostile object reaches the inspector
+   * only through another `ViewerStore` implementation.
+   */
+  function inspectAsIs(entry: ViewerEntry): HTMLElement {
+    const store = new Proxy(createViewerStore(), {
+      get: (target, key) => (key === "get" ? () => entry : Reflect.get(target, key)),
+    });
+    render(<EntryInspector store={store} entryId={entry.id} onCopy={() => {}} revealSensitive />);
+    return screen.getByRole("region", { name: "Entry details" });
+  }
+
+  it("survives deliveries whose traps throw", () => {
+    const root = inspectAsIs({
+      ...hostileEntry("d", { payload: { ok: true } }),
+      metadata: { tenant: "acme", deliveries: hostile([{ target: "t", status: "s" }]) },
+    });
+    expect(root.textContent).toContain("acme");
+  });
+
+  it("survives a trace entry whose getters throw", () => {
+    const entry = hostileEntry("t", { payload: { ok: true } });
+    const root = inspectAsIs(hostile(entry, ["kind", "id"]));
+    expect(root).toBeTruthy();
+  });
+
+  it("survives an unparsed entry whose getters throw", () => {
+    const entry = { kind: "unparsed", id: "u", raw: "r", reason: "x" } as ViewerEntry;
+    const root = inspectAsIs(hostile(entry, ["kind", "id"]));
+    expect(root.textContent).toContain("Unparsed");
+  });
+
+  it("survives a gap entry whose getters throw", () => {
+    const entry = { kind: "gap", id: "g", reason: "x" } as ViewerEntry;
+    const root = inspectAsIs(hostile(entry, ["kind", "id"]));
+    expect(root.textContent).toContain("Gap");
+  });
+});
