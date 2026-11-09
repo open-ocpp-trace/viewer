@@ -118,6 +118,21 @@ describe("<TraceList> selection", () => {
     expect(selectedIds()).toEqual(["e0"]);
   });
 
+  it("scrolls a row selected upward below the sticky header, not under it", () => {
+    render(<Harness store={storeWith(100)} />);
+    scrolled();
+    press("End");
+    press("Home");
+    expect(grid().scrollTop).toBe(0);
+
+    grid().scrollTop = 50 * ROW_HEIGHT;
+    scrolled();
+    fireEvent.click(row("e50"));
+    press("ArrowUp");
+    expect(selectedIds()).toEqual(["e49"]);
+    expect(grid().scrollTop).toBe(49 * ROW_HEIGHT);
+  });
+
   it("moves by a page with PageDown and PageUp", () => {
     render(<Harness store={storeWith(100)} />);
     press("Home");

@@ -209,6 +209,8 @@ export function TraceList(props: TraceListProps): ReactElement {
     overscan: OVERSCAN,
     // The sticky header row sits above the first entry row.
     scrollMargin: rowHeight,
+    // A row scrolled to the start lands below that header, not under it.
+    scrollPaddingStart: rowHeight,
   });
 
   const { selectedId = null, onSelectedIdChange, onFollowChange } = props;
