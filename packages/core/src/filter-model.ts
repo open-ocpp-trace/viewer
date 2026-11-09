@@ -179,6 +179,20 @@ function bound(value: unknown, name: string): number | undefined {
   return time;
 }
 
+/** Producer field definitions by id; a duplicate id throws a `RangeError`. */
+export function fieldMap(
+  fields: readonly FilterFieldDefinition[] | undefined,
+): ReadonlyMap<string, FilterFieldDefinition> {
+  const map = new Map<string, FilterFieldDefinition>();
+  for (const field of fields ?? []) {
+    if (map.has(field.id)) {
+      throw new RangeError(`duplicate filter field id ${JSON.stringify(field.id)}`);
+    }
+    map.set(field.id, field);
+  }
+  return map;
+}
+
 /**
  * Validates `filter` against the declared producer fields and compiles it.
  * Throws a `RangeError` on malformed input, leaving no state behind.

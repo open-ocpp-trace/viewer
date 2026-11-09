@@ -3,7 +3,7 @@ import type { CorrelationChange, Correlator } from "./correlation.ts";
 import type { EntryId, ViewerEntry } from "./entry.ts";
 import type { FilterFieldDefinition } from "./extension.ts";
 import { matchesFilter, type MatchContext } from "./filter-match.ts";
-import { compileFilter, type CompiledFilter, type TraceFilter } from "./filter-model.ts";
+import { compileFilter, fieldMap, type CompiledFilter, type TraceFilter } from "./filter-model.ts";
 import type { ViewerStore, ViewerStoreChange } from "./store.ts";
 import { createListeners } from "./store-listeners.ts";
 
@@ -91,19 +91,6 @@ const EMPTY: Listing = { ids: [], positions: new Map() };
 
 function sameIds(a: readonly EntryId[], b: readonly EntryId[]): boolean {
   return a.length === b.length && a.every((id, index) => id === b[index]);
-}
-
-function fieldMap(
-  fields: readonly FilterFieldDefinition[] | undefined,
-): ReadonlyMap<string, FilterFieldDefinition> {
-  const map = new Map<string, FilterFieldDefinition>();
-  for (const field of fields ?? []) {
-    if (map.has(field.id)) {
-      throw new RangeError(`duplicate filter field id ${JSON.stringify(field.id)}`);
-    }
-    map.set(field.id, field);
-  }
-  return map;
 }
 
 /**
