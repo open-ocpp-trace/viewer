@@ -206,12 +206,12 @@ describe("payload search limits", () => {
         return Reflect.get(target, key, receiver);
       },
     });
-    const start = performance.now();
+    // Counting reads bounds the walk deterministically, unlike a wall clock.
     expect(found(counted)).toBe(false);
     expect(listed).toBe(0);
+    expect(reads).toBeGreaterThan(0);
     expect(reads).toBeLessThanOrEqual(SEARCH_BUDGET + 1);
     expect(found(items)).toBe(false);
-    expect(performance.now() - start).toBeLessThan(1_000);
     expect(found(["a", ["b", "needle"]])).toBe(true);
   });
 
