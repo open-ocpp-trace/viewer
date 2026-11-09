@@ -27,6 +27,9 @@ export type {
   ViewerEntry,
 } from "./entry.ts";
 export type { ColumnDefinition, FilterFieldDefinition, ViewerSelection } from "./extension.ts";
+export { createFilterEngine } from "./filter-engine.ts";
+export type { FilterChange, FilterEngine, FilterEngineOptions } from "./filter-engine.ts";
+export type { TraceFilter } from "./filter-model.ts";
 export {
   createViewerStore,
   DEFAULT_MAX_BYTES,

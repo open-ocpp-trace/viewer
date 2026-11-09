@@ -2,7 +2,7 @@ import type { ViewerEntry } from "./entry.ts";
 import type { FilterFieldDefinition } from "./extension.ts";
 
 /**
- * Which entries a {@link FilterEngine} lists: plain, serializable data.
+ * Which entries a `FilterEngine` lists: plain, serializable data.
  *
  * - Properties combine with AND, the values of one list with OR. An omitted
  *   (or `undefined`) property constrains nothing; an empty list matches no
@@ -25,7 +25,7 @@ import type { FilterFieldDefinition } from "./extension.ts";
  * message type and message id come from the record of a trace only; the
  * direction from the record or the unparsed entry.
  *
- * {@link FilterEngine.setFilter} rejects a malformed filter (unknown
+ * `FilterEngine.setFilter` rejects a malformed filter (unknown
  * property, non-array list, item of the wrong type, unparsable time bound,
  * unknown field id) with a `RangeError`.
  */

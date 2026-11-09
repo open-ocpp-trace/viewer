@@ -15,6 +15,7 @@ describe("@open-ocpp-trace/viewer-core", () => {
       "STORE_ID_PREFIX",
       "VIEWER_CORE_VERSION",
       "createCorrelator",
+      "createFilterEngine",
       "createViewerStore",
     ]);
     expect(viewerCore.STORE_ID_PREFIX).toBe("viewer-store:");
