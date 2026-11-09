@@ -24,7 +24,7 @@ export const themeTokens = [
   "selectedBackground",
   "selectedColor",
   "unparsedBackground",
-] as const satisfies readonly string[];
+] as const;
 
 /** A documented theme token; see {@link themeTokens}. */
 export type ThemeToken = (typeof themeTokens)[number];
