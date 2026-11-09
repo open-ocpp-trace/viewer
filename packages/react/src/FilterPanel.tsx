@@ -16,9 +16,9 @@ import {
   type Value,
   ValueGroup,
 } from "./filter-controls.tsx";
-import { useEngineVersion } from "./hooks.ts";
+import { useEngineVersion, useStableCallback } from "./hooks.ts";
 import { sameFilter } from "./same-filter.ts";
-import { type FilterControl, SlotContent } from "./slots.tsx";
+import { type FilterControl, SlotContent, useUniqueSlots } from "./slots.tsx";
 import type { PartialViewerStrings, TranslateFunction } from "./strings.ts";
 import { StringsContext, useViewerStrings } from "./strings-context.ts";
 
@@ -107,10 +107,11 @@ export function FilterPanel(props: FilterPanelProps): ReactElement {
   const stats = engine.getStats().buffer;
   const view: Readonly<Record<string, unknown>> = isRecord(current) ? current : {};
 
-  function change(next: TraceFilter): void {
+  // Stable, so a host control that keeps it reaches the latest callback.
+  const change = useStableCallback((next: TraceFilter): void => {
     if (!controlled) setInternal(next);
     onFilterChange?.(next);
-  }
+  });
 
   /** Sets properties of the current filter; `undefined` removes one. */
   function set(changes: Readonly<Record<string, unknown>>): void {
@@ -146,6 +147,7 @@ export function FilterPanel(props: FilterPanelProps): ReactElement {
     set({ fields: next.length === 0 ? undefined : next });
   }
 
+  const controls = useUniqueSlots(props.filterControls, "filter control");
   const messageIds = (readList(view["messageIds"]) ?? []).filter((id) => typeof id === "string");
   const text = readString(view["text"]);
 
@@ -252,7 +254,7 @@ export function FilterPanel(props: FilterPanelProps): ReactElement {
             }}
           />
         </Group>
-        {props.filterControls?.map((control) => (
+        {controls.map((control) => (
           <fieldset key={control.id} className="oot-filter-group oot-filter-group--host">
             <legend className="oot-filter-legend">{control.label}</legend>
             <SlotContent slot={control} context={{ filter: current, setFilter: change }} />

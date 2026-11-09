@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { type ReactNode, useEffect, useRef } from "react";
 
 import type {
   Correlator,
@@ -82,6 +82,36 @@ export interface DetailPanel {
   /** Contextual: the panel shows only for entries it accepts (default: all). */
   appliesTo?(entry: ViewerEntry): boolean;
   render(context: DetailPanelContext): ReactNode;
+}
+
+/**
+ * The slots of `items` with distinct ids, the first of each id kept; a
+ * duplicate id is reported once per id with `console.warn`.
+ */
+export function useUniqueSlots<T extends { readonly id: string }>(
+  items: readonly T[] | undefined,
+  kind: string,
+): readonly T[] {
+  const ids = new Set<string>();
+  const unique: T[] = [];
+  const duplicates: string[] = [];
+  for (const item of items ?? []) {
+    if (ids.has(item.id)) duplicates.push(item.id);
+    else {
+      ids.add(item.id);
+      unique.push(item);
+    }
+  }
+  const warned = useRef(new Set<string>());
+  const key = JSON.stringify(duplicates);
+  useEffect(() => {
+    for (const id of JSON.parse(key) as string[]) {
+      if (warned.current.has(id)) continue;
+      warned.current.add(id);
+      console.warn(`Duplicate ${kind} id "${id}": only the first one is rendered.`);
+    }
+  }, [key, kind]);
+  return unique;
 }
 
 /**

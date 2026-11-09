@@ -24,7 +24,7 @@ import type {
 import { EntryInspector, type InspectorPart } from "./EntryInspector.tsx";
 import { exportJsonl, type JsonlExport } from "./export-jsonl.ts";
 import { FilterPanel } from "./FilterPanel.tsx";
-import { useFilterEngine } from "./hooks.ts";
+import { useFilterEngine, useStableCallback } from "./hooks.ts";
 import { reportHostError } from "./report-error.ts";
 import { ResetBoundary } from "./reset-boundary.tsx";
 import {
@@ -33,6 +33,7 @@ import {
   type FilterControl,
   SlotContent,
   type ToolbarAction,
+  useUniqueSlots,
   type ViewerActionContext,
 } from "./slots.tsx";
 import type { PartialViewerStrings, TranslateFunction } from "./strings.ts";
@@ -63,9 +64,11 @@ export interface TraceViewerProps {
   /** The initial selection when uncontrolled. */
   defaultSelection?: ViewerSelection;
   /**
-   * Called when the user selects an entry, and once with `{ entryId: null }`
-   * when the selected entry leaves the store (evicted or cleared), in both
-   * modes. An entry the filter hides stays selected. Only an eviction or a
+   * Called when the user (or a host slot) selects an entry, with that entry
+   * when the store holds it, and once with `{ entryId: null }` and
+   * `undefined` when the selected entry leaves the store (evicted or
+   * cleared), in both modes. It is read at call time: a new identity per
+   * render is never called for an earlier change. An entry the filter hides stays selected. Only an eviction or a
    * clear of the store counts as leaving: an id not listed yet (restored
    * from a URL before its entry arrives) stays selected and shows once the
    * entry is added, and so does an entry dropped from the pending queue
@@ -75,7 +78,7 @@ export interface TraceViewerProps {
    * `console.error`) and neither reaches `store.apply()` nor unmounts the
    * viewer.
    */
-  onSelectionChange?: (selection: ViewerSelection) => void;
+  onSelectionChange?: (selection: ViewerSelection, entry: ViewerEntry | undefined) => void;
   /** Shows a loading message while nothing is listed. */
   loading?: boolean;
   /** A host error message, announced as an alert. */
@@ -222,7 +225,7 @@ export function TraceViewer(props: TraceViewerProps): ReactElement {
   const selectedId = controlled ? selection.entryId : ownSelection;
   const select = (entryId: EntryId | null): void => {
     if (!controlled) setOwnSelection(entryId);
-    onSelectionChange?.({ entryId });
+    onSelectionChange?.({ entryId }, entryId === null ? undefined : store.get(entryId));
   };
   // A paired link of the detail panel selects like a row click; like a
   // click on an older row, a target other than the newest one (or one the
@@ -265,7 +268,7 @@ export function TraceViewer(props: TraceViewerProps): ReactElement {
   useEffect(() => {
     if (gone === null) return;
     try {
-      latest.current.onSelectionChange?.({ entryId: null });
+      latest.current.onSelectionChange?.({ entryId: null }, undefined);
     } catch (error) {
       reportHostError(error);
     }
@@ -283,14 +286,19 @@ export function TraceViewer(props: TraceViewerProps): ReactElement {
     onExport?.(exported, scope);
   };
 
-  // Host slots select like a paired link of the inspector.
-  const hostSelect = (entryId: EntryId | null): void =>
-    entryId === null ? select(null) : navigate(entryId);
+  // Host slots select like a paired link of the inspector, through the
+  // latest render even when they kept an earlier context.
+  const hostSelect = useStableCallback((entryId: EntryId | null): void =>
+    entryId === null ? select(null) : navigate(entryId),
+  );
+  const listedNow = useStableCallback((): ViewerEntry[] => [...listed(engine)]);
+  const toolbarActions = useUniqueSlots(props.toolbarActions, "toolbar action");
+  const detailPanels = useUniqueSlots(props.detailPanels, "detail panel");
   const actionContext: ViewerActionContext = {
     store,
     selection: { entryId: selectedId },
     selectedEntry,
-    listed: () => [...listed(engine)],
+    listed: listedNow,
     select: hostSelect,
   };
 
@@ -349,7 +357,7 @@ export function TraceViewer(props: TraceViewerProps): ReactElement {
               </span>
             </>
           )}
-          {props.toolbarActions?.map((action) => (
+          {toolbarActions.map((action) => (
             <HostAction key={action.id} action={action} context={actionContext} />
           ))}
         </div>
@@ -393,7 +401,7 @@ export function TraceViewer(props: TraceViewerProps): ReactElement {
               {...(props.sensitiveKeys !== undefined && { sensitiveKeys: props.sensitiveKeys })}
             />
             {panelContext &&
-              props.detailPanels?.map((panel) =>
+              detailPanels.map((panel) =>
                 applies(panel, panelContext.entry) ? (
                   <HostPanel key={panel.id} panel={panel} context={panelContext} />
                 ) : null,

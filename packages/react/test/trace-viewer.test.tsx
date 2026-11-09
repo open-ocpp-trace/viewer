@@ -136,7 +136,10 @@ describe("<TraceViewer>", () => {
       const store = storeWith(ENTRIES);
       render(<TraceViewer store={store} onSelectionChange={onSelectionChange} />);
       fireEvent.click(row("a"));
-      expect(onSelectionChange).toHaveBeenCalledExactlyOnceWith({ entryId: "a" });
+      expect(onSelectionChange).toHaveBeenCalledExactlyOnceWith(
+        { entryId: "a" },
+        expect.objectContaining({ id: "a" }),
+      );
       expect(selectedIds()).toEqual(["a"]);
 
       act(() => store.apply([{ type: "update", id: "a", metadata: { tenant: "t" } }]));
@@ -166,7 +169,7 @@ describe("<TraceViewer>", () => {
         />,
       );
       act(() => store.apply([add(sdkEntry("c"))]));
-      expect(onSelectionChange).toHaveBeenCalledExactlyOnceWith({ entryId: null });
+      expect(onSelectionChange).toHaveBeenCalledExactlyOnceWith({ entryId: null }, undefined);
       act(() => store.apply([add(sdkEntry("a"))]));
       expect(listedIds()).toEqual(["c", "a"]);
       expect(selectedIds()).toEqual([]);
@@ -185,7 +188,7 @@ describe("<TraceViewer>", () => {
       );
       act(() => store.clear());
       act(() => store.apply([add(sdkEntry("b"))]));
-      expect(onSelectionChange).toHaveBeenCalledExactlyOnceWith({ entryId: null });
+      expect(onSelectionChange).toHaveBeenCalledExactlyOnceWith({ entryId: null }, undefined);
       expect(selectedIds()).toEqual([]);
     });
 
@@ -206,7 +209,7 @@ describe("<TraceViewer>", () => {
           />,
         );
         expect(() => act(() => store.apply([add(sdkEntry("c"))]))).not.toThrow();
-        expect(onSelectionChange).toHaveBeenCalledExactlyOnceWith({ entryId: null });
+        expect(onSelectionChange).toHaveBeenCalledExactlyOnceWith({ entryId: null }, undefined);
         expect(report).toHaveBeenCalledExactlyOnceWith(failure);
         act(() => store.apply([add(sdkEntry("d"))]));
         expect(listedIds()).toEqual(["c", "d"]);
@@ -245,7 +248,7 @@ describe("<TraceViewer>", () => {
       act(() => store.apply([add(sdkEntry("d"))]));
       act(() => store.clear());
       act(() => store.apply([add(sdkEntry("x"))]));
-      expect(onSelectionChange).toHaveBeenCalledExactlyOnceWith({ entryId: null });
+      expect(onSelectionChange).toHaveBeenCalledExactlyOnceWith({ entryId: null }, undefined);
       expect(selectedIds()).toEqual([]);
     });
 
@@ -281,7 +284,10 @@ describe("<TraceViewer>", () => {
         />,
       );
       fireEvent.click(row("b"));
-      expect(onSelectionChange).toHaveBeenCalledExactlyOnceWith({ entryId: "b" });
+      expect(onSelectionChange).toHaveBeenCalledExactlyOnceWith(
+        { entryId: "b" },
+        expect.objectContaining({ id: "b" }),
+      );
       expect(selectedIds()).toEqual(["a"]);
 
       // The parent ignores the callback: the evicted entry stays the selection.
@@ -289,7 +295,7 @@ describe("<TraceViewer>", () => {
       act(() => store.apply([add(sdkEntry("d"))]));
       act(() => store.apply([add(sdkEntry("e"))]));
       expect(onSelectionChange).toHaveBeenCalledTimes(2);
-      expect(onSelectionChange).toHaveBeenLastCalledWith({ entryId: null });
+      expect(onSelectionChange).toHaveBeenLastCalledWith({ entryId: null }, undefined);
 
       rerender(<TraceViewer store={store} selection={{ entryId: "e" }} />);
       expect(selectedIds()).toEqual(["e"]);
@@ -388,13 +394,19 @@ describe("<TraceViewer>", () => {
       fireEvent.click(within(panel()).getByRole("button", { name: "Go to response" }));
       expect(selectedIds()).toEqual(["result"]);
       expect(row("result").getAttribute("aria-selected")).toBe("true");
-      expect(onSelectionChange).toHaveBeenLastCalledWith({ entryId: "result" });
+      expect(onSelectionChange).toHaveBeenLastCalledWith(
+        { entryId: "result" },
+        expect.objectContaining({ id: "result" }),
+      );
       expect(payload()).toContain('"Accepted"');
       expect(follow.getAttribute("aria-pressed")).toBe("false");
 
       fireEvent.click(within(panel()).getByRole("button", { name: "Go to CALL" }));
       expect(selectedIds()).toEqual(["call"]);
-      expect(onSelectionChange).toHaveBeenLastCalledWith({ entryId: "call" });
+      expect(onSelectionChange).toHaveBeenLastCalledWith(
+        { entryId: "call" },
+        expect.objectContaining({ id: "call" }),
+      );
       expect(onSelectionChange).toHaveBeenCalledTimes(2);
     });
 
@@ -416,7 +428,10 @@ describe("<TraceViewer>", () => {
         />,
       );
       fireEvent.click(within(panel()).getByRole("button", { name: "Go to response" }));
-      expect(onSelectionChange).toHaveBeenCalledExactlyOnceWith({ entryId: "result" });
+      expect(onSelectionChange).toHaveBeenCalledExactlyOnceWith(
+        { entryId: "result" },
+        expect.objectContaining({ id: "result" }),
+      );
       expect(selectedIds()).toEqual(["call"]);
       expect(within(panel()).getByRole("button", { name: "Go to response" })).toBeTruthy();
     });
@@ -476,10 +491,13 @@ describe("<TraceViewer>", () => {
     expect(listedIds()).toEqual(["a", "b", "c"]);
 
     fireEvent.click(row("a"));
-    expect(onSelectionChange).toHaveBeenCalledExactlyOnceWith({ entryId: "a" });
+    expect(onSelectionChange).toHaveBeenCalledExactlyOnceWith(
+      { entryId: "a" },
+      expect.objectContaining({ id: "a" }),
+    );
     act(() => store.apply([add(sdkEntry("d"))]));
     expect(onSelectionChange).toHaveBeenCalledTimes(2);
-    expect(onSelectionChange).toHaveBeenLastCalledWith({ entryId: null });
+    expect(onSelectionChange).toHaveBeenLastCalledWith({ entryId: null }, undefined);
     expect(listedIds()).toEqual(["b", "c", "d"]);
     expect(selectedIds()).toEqual([]);
   });

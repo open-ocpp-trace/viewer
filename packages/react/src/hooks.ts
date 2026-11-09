@@ -1,4 +1,11 @@
-import { useCallback, useEffect, useMemo, useSyncExternalStore } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useSyncExternalStore,
+} from "react";
 
 import {
   createFilterEngine,
@@ -30,6 +37,20 @@ export function useFilterEngine(store: ViewerStore, options?: FilterEngineOption
   );
   useEffect(() => engine.connect(store), [engine, store]);
   return engine;
+}
+
+/**
+ * A function of stable identity calling the latest `callback`, so a host
+ * that keeps it (in state, in an effect) never calls a stale render's one.
+ */
+export function useStableCallback<A extends unknown[], R>(
+  callback: (...args: A) => R,
+): (...args: A) => R {
+  const latest = useRef(callback);
+  useLayoutEffect(() => {
+    latest.current = callback;
+  });
+  return useCallback((...args: A) => latest.current(...args), []);
 }
 
 /** The engine's version, re-rendering the component on every change. */

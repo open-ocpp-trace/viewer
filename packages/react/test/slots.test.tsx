@@ -15,6 +15,7 @@ import {
   type DetailPanelContext,
   FilterPanel,
   type FilterControl,
+  type FilterControlContext,
   type ToolbarAction,
   TraceViewer,
   useFilterEngine,
@@ -538,5 +539,226 @@ describe("detail panels", () => {
     expect(row("other").getAttribute("aria-selected")).toBe("true");
     expect(onSelectionChange).toHaveBeenCalledTimes(1);
     expect(onSelectionChange.mock.calls[0]![0]).toEqual({ entryId: "other" });
+  });
+});
+
+describe("selection callback", () => {
+  it("passes the selected entry, uncontrolled", () => {
+    const store = storeWith(ENTRIES);
+    const onSelectionChange = vi.fn();
+    render(<TraceViewer store={store} onSelectionChange={onSelectionChange} />);
+    fireEvent.click(row("b"));
+    expect(onSelectionChange.mock.calls).toEqual([[{ entryId: "b" }, store.get("b")]]);
+  });
+
+  it("passes the selected entry, controlled", () => {
+    const store = storeWith(ENTRIES);
+    const onSelectionChange = vi.fn();
+    render(
+      <TraceViewer
+        store={store}
+        selection={{ entryId: null }}
+        onSelectionChange={onSelectionChange}
+      />,
+    );
+    fireEvent.click(row("c"));
+    expect(onSelectionChange.mock.calls).toEqual([[{ entryId: "c" }, store.get("c")]]);
+  });
+
+  it("passes undefined when the selected entry leaves the store", () => {
+    const store = storeWith(ENTRIES);
+    const onSelectionChange = vi.fn();
+    render(
+      <TraceViewer
+        store={store}
+        defaultSelection={{ entryId: "a" }}
+        onSelectionChange={onSelectionChange}
+      />,
+    );
+    act(() => store.clear());
+    expect(onSelectionChange.mock.calls).toEqual([[{ entryId: null }, undefined]]);
+    expect(onSelectionChange.mock.calls[0]).toHaveLength(2);
+  });
+});
+
+describe("stable slots and callbacks", () => {
+  function Counter(props: { label: string }): ReactElement {
+    const [count, setCount] = useState(0);
+    return (
+      <button type="button" onClick={() => setCount(count + 1)}>
+        {`${props.label} ${count}`}
+      </button>
+    );
+  }
+
+  /** A parent passing fresh slot arrays and callbacks on every render. */
+  function Host(props: { prepend: boolean; onSelectionChange: () => void }): ReactElement {
+    const panels: DetailPanel[] = [
+      ...(props.prepend ? [{ id: "new", title: "New", render: () => <p>new</p> }] : []),
+      { id: "count", title: "Count", render: () => <Counter label="panel" /> },
+    ];
+    const controls: FilterControl[] = [
+      { id: "count", label: "Count control", render: () => <Counter label="control" /> },
+    ];
+    return (
+      <TraceViewer
+        store={STABLE_STORE}
+        detailPanels={panels}
+        filterControls={controls}
+        toolbarActions={[{ id: "noop", label: "Noop", run: () => {} }]}
+        defaultSelection={{ entryId: "a" }}
+        onSelectionChange={props.onSelectionChange}
+      />
+    );
+  }
+  const STABLE_STORE = storeWith(ENTRIES);
+
+  it("keeps the state of host slots across parent renders with fresh arrays", () => {
+    const first = vi.fn();
+    const { rerender } = render(<Host prepend={false} onSelectionChange={first} />);
+    fireEvent.click(screen.getByRole("button", { name: "panel 0" }));
+    fireEvent.click(screen.getByRole("button", { name: "control 0" }));
+    const second = vi.fn();
+    rerender(<Host prepend onSelectionChange={second} />);
+    expect(panel("New")).not.toBeNull();
+    expect(screen.getByRole("button", { name: "panel 1" })).toBeDefined();
+    expect(screen.getByRole("button", { name: "control 1" })).toBeDefined();
+    expect(first).not.toHaveBeenCalled();
+    expect(second).not.toHaveBeenCalled();
+  });
+
+  it("calls the latest onSelectionChange from a select captured earlier", () => {
+    const store = storeWith(ENTRIES);
+    function Capturing(props: { context: DetailPanelContext }): ReactElement {
+      const [select] = useState(() => (id: string) => props.context.select(id));
+      return (
+        <button type="button" onClick={() => select("c")}>
+          Captured
+        </button>
+      );
+    }
+    const capturing: DetailPanel = {
+      id: "capturing",
+      title: "Capturing",
+      render: (context) => <Capturing context={context} />,
+    };
+    const first = vi.fn();
+    const second = vi.fn();
+    const view = (onSelectionChange: () => void) => (
+      <TraceViewer
+        store={store}
+        detailPanels={[capturing]}
+        defaultSelection={{ entryId: "a" }}
+        onSelectionChange={onSelectionChange}
+      />
+    );
+    const { rerender } = render(view(first));
+    rerender(view(second));
+    fireEvent.click(screen.getByRole("button", { name: "Captured" }));
+    expect(first).not.toHaveBeenCalled();
+    expect(second.mock.calls).toEqual([[{ entryId: "c" }, store.get("c")]]);
+    expect(row("c").getAttribute("aria-selected")).toBe("true");
+  });
+
+  it("keeps the first slot of a duplicate id and warns once per id", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      const view = () => (
+        <TraceViewer
+          store={storeWith(ENTRIES)}
+          defaultSelection={{ entryId: "a" }}
+          toolbarActions={[
+            { id: "dup", label: "First action", run: () => {} },
+            { id: "dup", label: "Second action", run: () => {} },
+          ]}
+          filterControls={[
+            { id: "dup", label: "First control", render: () => null },
+            { id: "dup", label: "Second control", render: () => null },
+          ]}
+          detailPanels={[
+            { id: "dup", title: "First panel", render: () => null },
+            { id: "dup", title: "Second panel", render: () => null },
+          ]}
+        />
+      );
+      const { rerender } = render(view());
+      rerender(view());
+      expect(screen.getByRole("button", { name: "First action" })).toBeDefined();
+      expect(screen.queryByRole("button", { name: "Second action" })).toBeNull();
+      expect(screen.getByRole("group", { name: "First control" })).toBeDefined();
+      expect(screen.queryByRole("group", { name: "Second control" })).toBeNull();
+      expect(panel("First panel")).not.toBeNull();
+      expect(panel("Second panel")).toBeNull();
+      expect(warn).toHaveBeenCalledTimes(3);
+      for (const kind of ["toolbar action", "filter control", "detail panel"]) {
+        expect(warn).toHaveBeenCalledWith(expect.stringContaining(`${kind} id "dup"`));
+      }
+    } finally {
+      warn.mockRestore();
+    }
+  });
+});
+
+describe("host columns", () => {
+  it("renders a custom metadata column", () => {
+    const entries = ENTRIES.map((entry, index): ViewerEntry => ({
+      ...entry,
+      metadata: { custom: { site: `S${index}` } },
+    }));
+    const site = {
+      id: "site",
+      label: "Site",
+      value: (entry: ViewerEntry) => {
+        const value = entry.metadata?.custom?.["site"];
+        return typeof value === "string" ? value : undefined;
+      },
+    };
+    render(<TraceViewer store={storeWith(entries)} columns={[site]} />);
+    const headers = within(screen.getByRole("grid"))
+      .getAllByRole("columnheader")
+      .map((header) => header.textContent);
+    expect(headers.at(-1)).toBe("Site");
+    const cells = within(row("b")).getAllByRole("gridcell");
+    expect(cells.at(-1)?.textContent).toBe("S1");
+  });
+});
+
+describe("stable filter control context", () => {
+  it("calls the latest onFilterChange from a setFilter captured earlier", () => {
+    function Capturing(props: { context: FilterControlContext }): ReactElement {
+      const [setFilter] = useState(() => (next: TraceFilter) => props.context.setFilter(next));
+      return (
+        <button
+          type="button"
+          onClick={() => setFilter({ fields: [{ id: "zone", values: ["north"] }] })}
+        >
+          North
+        </button>
+      );
+    }
+    const control: FilterControl = {
+      id: "capturing",
+      label: "Capturing",
+      render: (context) => <Capturing context={context} />,
+    };
+    const store = storeWith(ZONED);
+    const first = vi.fn();
+    const second = vi.fn();
+    const view = (onFilterChange: (filter: TraceFilter) => void) => (
+      <TraceViewer
+        store={store}
+        fields={ZONE_FIELDS}
+        filterControls={[control]}
+        onFilterChange={onFilterChange}
+      />
+    );
+    const { rerender } = render(view(first));
+    rerender(view(second));
+    fireEvent.click(screen.getByRole("button", { name: "North" }));
+    expect(first).not.toHaveBeenCalled();
+    expect(second).toHaveBeenCalledExactlyOnceWith({
+      fields: [{ id: "zone", values: ["north"] }],
+    });
+    expect(listedIds()).toEqual(["n1", "n2"]);
   });
 });
