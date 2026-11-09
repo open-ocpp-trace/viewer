@@ -1,6 +1,6 @@
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
-import type { ViewerStore } from "@open-ocpp-trace/viewer-core";
-import { describe, expect, it } from "vite-plus/test";
+import type { EntryUpdate, ViewerStore } from "@open-ocpp-trace/viewer-core";
+import { describe, expect, it, vi } from "vite-plus/test";
 
 import { analyzeSnapshot, type Analysis } from "../src/analysis.ts";
 import { App } from "../src/App.tsx";
@@ -9,6 +9,25 @@ import { buildSnapshot } from "../src/snapshot.ts";
 import { stubLayout } from "./layout.ts";
 
 stubLayout();
+
+/** A record arriving after the fixtures, as from a live source. */
+const LIVE_HEARTBEAT: EntryUpdate = {
+  type: "add",
+  entry: {
+    kind: "trace",
+    id: "live:1",
+    record: {
+      schemaVersion: "1.1",
+      timestamp: "2024-01-15T14:00:00.000Z",
+      transport: "json",
+      direction: "cp-to-csms",
+      messageType: "CALL",
+      messageId: "live-1",
+      action: "Heartbeat",
+      payload: {},
+    },
+  },
+};
 
 function row(id: string): HTMLElement {
   const found = within(screen.getByRole("grid"))
@@ -92,6 +111,7 @@ describe("the DebugKit example", () => {
   it("selects the mapped row when a timeline event is selected", async () => {
     const { analysis } = await renderExample();
     const index = eventIndex(analysis, "edge:2");
+    expect(index).toBeGreaterThanOrEqual(0);
 
     fireEvent.click(timelineItems()[index]!);
 
@@ -142,29 +162,33 @@ describe("the DebugKit example", () => {
     const { store, analysis } = await renderExample();
 
     act(() => {
-      store.apply([
-        {
-          type: "add",
-          entry: {
-            kind: "trace",
-            id: "live:1",
-            record: {
-              schemaVersion: "1.1",
-              timestamp: "2024-01-15T14:00:00.000Z",
-              transport: "json",
-              direction: "cp-to-csms",
-              messageType: "CALL",
-              messageId: "live-1",
-              action: "Heartbeat",
-              payload: {},
-            },
-          },
-        },
-      ]);
+      store.apply([LIVE_HEARTBEAT]);
     });
     fireEvent.click(screen.getByRole("button", { name: "Analyze now" }));
 
     // Synchronously: the bounded refresh would only run a window later.
     expect(screen.getByText(`Timeline (${analysis.events.length + 1} events)`)).toBeDefined();
+  });
+
+  it("re-analyzes once the refresh window after a store change closes", async () => {
+    const { store, analysis } = await renderExample();
+    vi.useFakeTimers();
+    try {
+      act(() => {
+        store.apply([LIVE_HEARTBEAT]);
+      });
+      expect(screen.getByText(`Timeline (${analysis.events.length} events)`)).toBeDefined();
+
+      act(() => {
+        vi.advanceTimersByTime(1000);
+      });
+
+      expect(screen.getByText(`Timeline (${analysis.events.length + 1} events)`)).toBeDefined();
+      expect(screen.getByRole("region", { name: "DebugKit analysis" }).textContent).not.toContain(
+        "changed since",
+      );
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
