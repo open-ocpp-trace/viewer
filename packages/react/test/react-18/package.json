@@ -1,0 +1,15 @@
+{
+  "name": "@open-ocpp-trace/viewer-react-18-test",
+  "version": "0.0.0",
+  "private": true,
+  "description": "React 18 and the packages that import it, for the react18 test project.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "devDependencies": {
+    "@tanstack/react-virtual": "3.14.26",
+    "@testing-library/dom": "10.4.2",
+    "@testing-library/react": "16.3.3",
+    "react": "18.3.1",
+    "react-dom": "18.3.1"
+  }
+}

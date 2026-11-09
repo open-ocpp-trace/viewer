@@ -1,3 +1,5 @@
+import { fileURLToPath } from "node:url";
+
 import {
   configDefaults,
   defaultClientConditions,
@@ -12,6 +14,11 @@ import {
 // It differs from the SDK's `@open-ocpp-trace/source`, which the published
 // SDK tarballs do not ship sources for.
 const SOURCE_CONDITION = "@open-ocpp-trace/viewer-source";
+
+// node_modules of packages/react/test/react-18, which pins React 18.
+const REACT_18 = fileURLToPath(
+  new URL("packages/react/test/react-18/node_modules", import.meta.url),
+);
 
 export default defineConfig({
   // The React tests run in a DOM environment, which resolves imports like a
@@ -53,6 +60,33 @@ export default defineConfig({
       {
         test: {
           name: "react",
+          include: ["packages/react/test/**/*.test.{ts,tsx}"],
+          exclude: [...configDefaults.exclude, "packages/react/test/react-18.test.tsx"],
+          environment: "happy-dom",
+          setupFiles: ["packages/react/test/setup.ts"],
+        },
+      },
+      {
+        // The same React tests against React 18. The workspace package in
+        // REACT_18 installs React 18 with its own copies of the packages that
+        // import React, so Node resolves every `react` they load to 18 too;
+        // these aliases point the sources and tests at those copies.
+        resolve: {
+          alias: [
+            { find: /^react(\/.*)?$/, replacement: `${REACT_18}/react$1` },
+            { find: /^react-dom(\/.*)?$/, replacement: `${REACT_18}/react-dom$1` },
+            {
+              find: /^@testing-library\/react$/,
+              replacement: `${REACT_18}/@testing-library/react`,
+            },
+            {
+              find: /^@tanstack\/react-virtual$/,
+              replacement: `${REACT_18}/@tanstack/react-virtual`,
+            },
+          ],
+        },
+        test: {
+          name: "react18",
           include: ["packages/react/test/**/*.test.{ts,tsx}"],
           environment: "happy-dom",
           setupFiles: ["packages/react/test/setup.ts"],
