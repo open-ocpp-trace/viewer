@@ -25,6 +25,12 @@ export const defaultStrings = {
         : `: ${missedCount} ${missedCount === 1 ? "entry" : "entries"} missed`;
     return `Gap${missed}${reason === null ? "" : ` (${reason})`}`;
   },
+  filter: {
+    panelLabel: "Filters",
+    reset: "Reset",
+    /** Followed by the engine's own (English) reason. */
+    invalid: "The filter is invalid",
+  },
 };
 
 /** The type of {@link defaultStrings}. */
