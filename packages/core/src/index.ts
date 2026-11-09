@@ -26,6 +26,8 @@ export type {
   UnparsedEntry,
   ViewerEntry,
 } from "./entry.ts";
+export { readEntryFields } from "./entry-fields.ts";
+export type { EntryFields } from "./entry-fields.ts";
 export type { ColumnDefinition, FilterFieldDefinition, ViewerSelection } from "./extension.ts";
 export { createFilterEngine } from "./filter-engine.ts";
 export type {
