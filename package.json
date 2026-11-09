@@ -9,7 +9,8 @@
   "scripts": {
     "check": "vp check",
     "test": "vp test",
-    "pack": "vp run -r pack"
+    "pack": "vp run -r pack",
+    "smoke": "sh scripts/smoke-consumer.sh"
   },
   "devDependencies": {
     "@arethetypeswrong/cli": "0.18.5",

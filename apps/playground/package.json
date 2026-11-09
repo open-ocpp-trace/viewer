@@ -1,0 +1,21 @@
+{
+  "name": "@open-ocpp-trace/viewer-playground",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Local playground for the Open OCPP Trace viewer packages.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vp dev",
+    "build": "vp build"
+  },
+  "dependencies": {
+    "@open-ocpp-trace/viewer-react": "workspace:*",
+    "react": "19.3.1",
+    "react-dom": "19.3.1"
+  },
+  "devDependencies": {
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0"
+  }
+}

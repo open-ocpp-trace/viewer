@@ -12,6 +12,19 @@
         "vite-plus": "1.5.0",
       },
     },
+    "apps/playground": {
+      "name": "@open-ocpp-trace/viewer-playground",
+      "version": "0.0.0",
+      "dependencies": {
+        "@open-ocpp-trace/viewer-react": "workspace:*",
+        "react": "19.3.1",
+        "react-dom": "19.3.1",
+      },
+      "devDependencies": {
+        "@types/react": "19.3.0",
+        "@types/react-dom": "19.3.0",
+      },
+    },
     "packages/core": {
       "name": "@open-ocpp-trace/viewer-core",
       "version": "0.0.0",
@@ -82,6 +95,8 @@
     "@open-ocpp-trace/jsonl": ["@open-ocpp-trace/jsonl@0.1.0", "https://npm.pkg.github.com/download/@open-ocpp-trace/jsonl/0.1.0/3a89a30b2490f6a70e14bc5a12428d18b13ef0f7", { "dependencies": { "@open-ocpp-trace/core": "0.1.0" } }, "sha512-d2s/ZGevHcpNRZCMAYbXVWnm7NtunzjgHvLT0Ljv1SD6j7E9/H3xwJcDDm966vYfAXP0fVNw+Ikiavljc+NmrA=="],
 
     "@open-ocpp-trace/viewer-core": ["@open-ocpp-trace/viewer-core@workspace:packages/core"],
+
+    "@open-ocpp-trace/viewer-playground": ["@open-ocpp-trace/viewer-playground@workspace:apps/playground"],
 
     "@open-ocpp-trace/viewer-react": ["@open-ocpp-trace/viewer-react@workspace:packages/react"],
 
