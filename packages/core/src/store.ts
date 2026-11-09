@@ -1,6 +1,8 @@
+import type { Unsubscribe } from "./adapter.ts";
 import type { EntryId, ViewerEntry } from "./entry.ts";
 import { coreWeight, metadataWeight } from "./store-estimate.ts";
 import { checkItem, normalizeAddedEntry } from "./store-ingest.ts";
+import { createListeners } from "./store-listeners.ts";
 import type { EntryUpdate } from "./update.ts";
 
 /** Default {@link ViewerStoreOptions.maxEntries}. */
@@ -97,8 +99,44 @@ export interface ViewerStore {
   get(id: EntryId): ViewerEntry | undefined;
   /** A copy of the listed entries, oldest first, in O(n). */
   toArray(): readonly ViewerEntry[];
-  /** The current counters. */
+  /** Bumped once per notified change; starts at 0. */
+  readonly version: number;
+  /** The current counters: the same object until {@link version} changes. */
   getStats(): ViewerStoreStats;
+  /**
+   * Calls `listener` after each change, once the store is consistent.
+   * Listeners run in subscription order; one subscribed during a
+   * notification is first called on the next change, one unsubscribed during
+   * it is not called anymore. A throwing listener does not stop the others:
+   * the first error is rethrown from the call that made the change, after
+   * every listener ran and with the change already applied. Each call returns
+   * its own idempotent {@link Unsubscribe}, even for the same function.
+   */
+  subscribe(listener: (change: ViewerStoreChange) => void): Unsubscribe;
+}
+
+/**
+ * The net effect of one batch on the listed entries.
+ *
+ * A consumer applies it to its previous copy of the list: drop everything
+ * if `cleared`, then drop `evicted.length` entries from the front, then
+ * append `added`. An id added and evicted within the same batch is in
+ * neither list, though it counts in {@link ViewerStoreStats.evicted}. A
+ * change with no listed delta is still notified when the counters changed,
+ * so they can be rendered again; a batch that changes nothing is not
+ * notified and does not bump the version.
+ */
+export interface ViewerStoreChange {
+  /** Equals {@link ViewerStore.version} after the change. */
+  readonly version: number;
+  /** Newly listed ids, in list order, appended at the end. */
+  readonly added: readonly EntryId[];
+  /** Listed ids whose metadata changed, excluding `added` and `evicted`. */
+  readonly updated: readonly EntryId[];
+  /** Ids removed from the front of the list, oldest first. */
+  readonly evicted: readonly EntryId[];
+  /** Everything listed before the change is gone. */
+  readonly cleared: boolean;
 }
 
 interface Slot {
@@ -150,6 +188,14 @@ export function createViewerStore(options: ViewerStoreOptions = {}): ViewerStore
   let nextSeq = 0;
   let listedBytes = 0;
   const counters = { evicted: 0, duplicates: 0, unknownUpdates: 0, invalid: 0 };
+  const listeners = createListeners<ViewerStoreChange>();
+  let version = 0;
+  let stats: ViewerStoreStats | undefined;
+  // State of the batch being applied: whether anything changed, the first
+  // sequence number it lists, and the ids listed before it that it evicted.
+  let changed = false;
+  let batchSeq = 0;
+  let batchEvicted: EntryId[] = [];
 
   const slotAt = (position: number): Slot | undefined => listed[head + position];
   const listedCount = (): number => listed.length - head;
@@ -163,6 +209,7 @@ export function createViewerStore(options: ViewerStoreOptions = {}): ViewerStore
     index.delete(slot.entry.id);
     listedBytes -= slot.coreBytes + slot.metadataBytes;
     counters.evicted++;
+    if (slot.seq < batchSeq) batchEvicted.push(slot.entry.id);
     if (head >= COMPACT_THRESHOLD && head * 2 >= listed.length) {
       listed = listed.slice(head);
       head = 0;
@@ -198,15 +245,48 @@ export function createViewerStore(options: ViewerStoreOptions = {}): ViewerStore
       else append(checked.entry);
     } else if (!index.has(checked.id)) {
       counters.unknownUpdates++;
+    } else {
+      return;
     }
+    changed = true;
+  };
+
+  /** Applies `items` as one batch, then notifies its net delta, if any. */
+  const runBatch = (items: Iterable<unknown>): void => {
+    changed = false;
+    batchSeq = nextSeq;
+    batchEvicted = [];
+    for (const item of items) ingest(item);
+    if (!changed) return;
+    // Entries listed by this batch and still listed: a suffix of the list.
+    const added: EntryId[] = [];
+    for (
+      let position = Math.max(headSeq, batchSeq) - headSeq;
+      position < listedCount();
+      position++
+    ) {
+      const slot = slotAt(position);
+      if (slot !== undefined) added.push(slot.entry.id);
+    }
+    version++;
+    stats = undefined;
+    const change: ViewerStoreChange = Object.freeze({
+      version,
+      added: Object.freeze(added),
+      updated: Object.freeze([]),
+      evicted: Object.freeze(batchEvicted),
+      cleared: false,
+    });
+    batchEvicted = [];
+    listeners.emit(change);
   };
 
   const store: ViewerStore = {
     apply(batch) {
-      for (const item of batch) ingest(item);
+      runBatch(batch);
     },
     load(entries) {
-      for (const entry of entries) ingest({ type: "add", entry });
+      runBatch(entries.map((entry) => ({ type: "add", entry })));
     },
     get size() {
       return listedCount();
@@ -230,8 +310,11 @@ export function createViewerStore(options: ViewerStoreOptions = {}): ViewerStore
       }
       return entries;
     },
+    get version() {
+      return version;
+    },
     getStats() {
-      return {
+      stats ??= Object.freeze({
         listed: listedCount(),
         listedBytes,
         pending: 0,
@@ -240,7 +323,11 @@ export function createViewerStore(options: ViewerStoreOptions = {}): ViewerStore
         droppedPending: 0,
         staleUpdates: 0,
         ...counters,
-      };
+      });
+      return stats;
+    },
+    subscribe(listener) {
+      return listeners.subscribe(listener);
     },
   };
   internals.set(store, { indexSize: () => index.size, backingLength: () => listed.length });

@@ -22,5 +22,10 @@ export {
   DEFAULT_MAX_ENTRIES,
   STORE_ID_PREFIX,
 } from "./store.ts";
-export type { ViewerStore, ViewerStoreOptions, ViewerStoreStats } from "./store.ts";
+export type {
+  ViewerStore,
+  ViewerStoreChange,
+  ViewerStoreOptions,
+  ViewerStoreStats,
+} from "./store.ts";
 export type { EntryMetadataPatch, EntryUpdate } from "./update.ts";
