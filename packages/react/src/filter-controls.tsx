@@ -1,8 +1,6 @@
 import { useState, type ReactElement, type ReactNode } from "react";
 
-import { defaultStrings } from "./strings.ts";
-
-const strings = defaultStrings.filter;
+import { useStrings } from "./strings-context.ts";
 
 /** A value a filter list selects; `null` selects the absent value. */
 export type Value = string | number | null;
@@ -45,6 +43,7 @@ export function Group(props: {
   onClear: (() => void) | undefined;
   children: ReactNode;
 }): ReactElement {
+  const strings = useStrings().filter;
   return (
     <fieldset className="oot-filter-group">
       <legend className="oot-filter-legend">{props.legend}</legend>
@@ -74,6 +73,7 @@ export function ValueGroup(props: {
   display?: (value: Value) => string;
 }): ReactElement {
   const { selected = [], onChange } = props;
+  const strings = useStrings().filter;
   const display = props.display ?? ((value) => String(value));
   return (
     <Group

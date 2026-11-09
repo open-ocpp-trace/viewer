@@ -25,7 +25,9 @@ import { EntryInspector, type InspectorPart } from "./EntryInspector.tsx";
 import { exportJsonl, type JsonlExport } from "./export-jsonl.ts";
 import { FilterPanel } from "./FilterPanel.tsx";
 import { useFilterEngine } from "./hooks.ts";
-import { defaultStrings } from "./strings.ts";
+import { reportHostError } from "./report-error.ts";
+import type { PartialViewerStrings, TranslateFunction } from "./strings.ts";
+import { StringsContext, useViewerStrings } from "./strings-context.ts";
 import { themeStyle, type ViewerTheme } from "./theme.ts";
 import { TraceList } from "./TraceList.tsx";
 
@@ -97,6 +99,17 @@ export interface TraceViewerProps {
    * element (`data-oot-color-scheme` and inline `--oot-*` properties).
    */
   theme?: ViewerTheme;
+  /**
+   * Overrides of `defaultStrings`, for the viewer and every component it
+   * renders. Memoize it: a new identity resolves every string again.
+   */
+  strings?: PartialViewerStrings;
+  /**
+   * Translates each string by its key, before `strings` and the defaults;
+   * see `TranslateFunction`. Memoize it, like `strings`. A throw is
+   * reported and the string falls back.
+   */
+  translate?: TranslateFunction;
   className?: string;
 }
 
@@ -111,16 +124,6 @@ function* listed(engine: FilterEngine): Generator<ViewerEntry> {
     const entry = engine.at(index);
     if (entry !== undefined) yield entry;
   }
-}
-
-/**
- * Reports an error thrown by a host callback the viewer calls outside an
- * event handler, like an error thrown from an event handler is reported:
- * globally, without unmounting the viewer.
- */
-function reportHostError(error: unknown): void {
-  if (typeof reportError === "function") reportError(error);
-  else console.error(error);
 }
 
 /** The store's version, re-rendering the component on every change. */
@@ -138,7 +141,8 @@ function useStoreVersion(store: ViewerStore): number {
  */
 export function TraceViewer(props: TraceViewerProps): ReactElement {
   const { store, correlator, fields, payloadSearch, selection, onSelectionChange } = props;
-  const strings = defaultStrings.toolbar;
+  const allStrings = useViewerStrings(props.strings, props.translate);
+  const strings = allStrings.toolbar;
   const engine = useFilterEngine(store, {
     ...(correlator !== undefined && { correlator }),
     ...(fields !== undefined && { fields }),
@@ -204,100 +208,108 @@ export function TraceViewer(props: TraceViewerProps): ReactElement {
     }
   }, [gone]);
 
-  // The last export's result, announced by a status region.
-  const [exportStatus, setExportStatus] = useState("");
+  // The last export's result, announced by a status region; formatted at
+  // render time, so a change of strings applies to it too.
+  const [exported, setExported] = useState<{ count: number; skipped: number } | null>(null);
   const { onExport } = props;
   const selectedEntry = selectedId === null ? undefined : store.get(selectedId);
   const runExport = (entries: Iterable<ViewerEntry>, scope: ExportScope): void => {
     const exported = exportJsonl(entries);
     const { unparsed, gap, invalid } = exported.skipped;
-    setExportStatus(strings.exported(exported.recordCount, unparsed + gap + invalid));
+    setExported({ count: exported.recordCount, skipped: unparsed + gap + invalid });
     onExport?.(exported, scope);
   };
 
   const className = props.className === undefined ? "oot-viewer" : `oot-viewer ${props.className}`;
   return (
-    <div
-      className={className}
-      data-oot-color-scheme={props.theme?.colorScheme ?? "auto"}
-      style={themeStyle(props.theme, ROOT_STYLE)}
-    >
-      <div className="oot-toolbar">
-        <button
-          type="button"
-          className="oot-toolbar-button"
-          aria-pressed={paused}
-          onClick={() => (paused ? store.resume() : store.pause())}
+    <StringsContext.Provider value={allStrings}>
+      <div
+        className={className}
+        data-oot-color-scheme={props.theme?.colorScheme ?? "auto"}
+        style={themeStyle(props.theme, ROOT_STYLE)}
+      >
+        <div className="oot-toolbar">
+          <button
+            type="button"
+            className="oot-toolbar-button"
+            aria-pressed={paused}
+            onClick={() => (paused ? store.resume() : store.pause())}
+          >
+            {strings.pause}
+          </button>
+          {paused ? <span className="oot-pending">{strings.pending(pending)}</span> : null}
+          <button
+            type="button"
+            className="oot-toolbar-button"
+            aria-pressed={follow}
+            onClick={() => setFollow(!follow)}
+          >
+            {strings.follow}
+          </button>
+          {onExport === undefined ? null : (
+            <>
+              <button
+                type="button"
+                className="oot-toolbar-button"
+                disabled={selectedEntry === undefined}
+                onClick={() => selectedEntry && runExport([selectedEntry], "selection")}
+              >
+                {strings.exportSelection}
+              </button>
+              <button
+                type="button"
+                className="oot-toolbar-button"
+                onClick={() => runExport(listed(engine), "filtered")}
+              >
+                {strings.exportFiltered}
+              </button>
+              <span className="oot-export-status" role="status">
+                {exported === null ? "" : strings.exported(exported.count, exported.skipped)}
+              </span>
+            </>
+          )}
+        </div>
+        <div
+          className="oot-viewer-body"
+          style={{ display: "flex", flex: "1 1 auto", minHeight: 0 }}
         >
-          {strings.pause}
-        </button>
-        {paused ? <span className="oot-pending">{strings.pending(pending)}</span> : null}
-        <button
-          type="button"
-          className="oot-toolbar-button"
-          aria-pressed={follow}
-          onClick={() => setFollow(!follow)}
-        >
-          {strings.follow}
-        </button>
-        {onExport === undefined ? null : (
-          <>
-            <button
-              type="button"
-              className="oot-toolbar-button"
-              disabled={selectedEntry === undefined}
-              onClick={() => selectedEntry && runExport([selectedEntry], "selection")}
-            >
-              {strings.exportSelection}
-            </button>
-            <button
-              type="button"
-              className="oot-toolbar-button"
-              onClick={() => runExport(listed(engine), "filtered")}
-            >
-              {strings.exportFiltered}
-            </button>
-            <span className="oot-export-status" role="status">
-              {exportStatus}
-            </span>
-          </>
-        )}
-      </div>
-      <div className="oot-viewer-body" style={{ display: "flex", flex: "1 1 auto", minHeight: 0 }}>
-        <FilterPanel
-          engine={engine}
-          {...(props.filter !== undefined && { filter: props.filter })}
-          {...(props.defaultFilter !== undefined && { defaultFilter: props.defaultFilter })}
-          {...(props.onFilterChange !== undefined && { onFilterChange: props.onFilterChange })}
-          {...(fields !== undefined && { fields })}
-          {...(payloadSearch !== undefined && { payloadSearch })}
-        />
-        <div className="oot-viewer-list" style={{ flex: "1 1 auto" }}>
-          <TraceList
+          <FilterPanel
             engine={engine}
-            {...(correlator !== undefined && { correlator })}
-            {...(props.columns !== undefined && { columns: props.columns })}
-            {...(props.loading !== undefined && { loading: props.loading })}
-            {...(props.error !== undefined && { error: props.error })}
-            selectedId={selectedId}
-            onSelectedIdChange={select}
-            follow={follow}
-            onFollowChange={setFollow}
+            {...(props.filter !== undefined && { filter: props.filter })}
+            {...(props.defaultFilter !== undefined && { defaultFilter: props.defaultFilter })}
+            {...(props.onFilterChange !== undefined && { onFilterChange: props.onFilterChange })}
+            {...(fields !== undefined && { fields })}
+            {...(payloadSearch !== undefined && { payloadSearch })}
           />
-        </div>
-        <div className="oot-viewer__detail">
-          <EntryInspector
-            store={store}
-            entryId={selectedId}
-            {...(correlator !== undefined && { correlator })}
-            onNavigate={navigate}
-            {...(props.onCopy !== undefined && { onCopy: props.onCopy })}
-            {...(props.renderPayload !== undefined && { renderPayload: props.renderPayload })}
-            {...(props.revealSensitive !== undefined && { revealSensitive: props.revealSensitive })}
-            {...(props.sensitiveKeys !== undefined && { sensitiveKeys: props.sensitiveKeys })}
-          />
+          <div className="oot-viewer-list" style={{ flex: "1 1 auto" }}>
+            <TraceList
+              engine={engine}
+              {...(correlator !== undefined && { correlator })}
+              {...(props.columns !== undefined && { columns: props.columns })}
+              {...(props.loading !== undefined && { loading: props.loading })}
+              {...(props.error !== undefined && { error: props.error })}
+              selectedId={selectedId}
+              onSelectedIdChange={select}
+              follow={follow}
+              onFollowChange={setFollow}
+            />
+          </div>
+          <div className="oot-viewer__detail">
+            <EntryInspector
+              store={store}
+              entryId={selectedId}
+              {...(correlator !== undefined && { correlator })}
+              onNavigate={navigate}
+              {...(props.onCopy !== undefined && { onCopy: props.onCopy })}
+              {...(props.renderPayload !== undefined && { renderPayload: props.renderPayload })}
+              {...(props.revealSensitive !== undefined && {
+                revealSensitive: props.revealSensitive,
+              })}
+              {...(props.sensitiveKeys !== undefined && { sensitiveKeys: props.sensitiveKeys })}
+            />
+          </div>
         </div>
       </div>
-    </div>
+    </StringsContext.Provider>
   );
 }

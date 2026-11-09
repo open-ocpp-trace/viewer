@@ -1,6 +1,8 @@
 /**
- * Every text and accessible label the components show, so a translation
- * replaces this object only. Not exported from the package yet.
+ * Every text and accessible label the components show, in English. A host
+ * overrides leaves with the `strings` prop or a `translate` function; a
+ * leaf's key is its dotted path (`"toolbar.exported"`), and the parameters
+ * of a function leaf are named in {@link stringParams}.
  */
 export const defaultStrings = {
   listLabel: "Trace entries",
@@ -99,8 +101,8 @@ export const defaultStrings = {
   filter: {
     panelLabel: "Filters",
     reset: "Reset",
-    /** Followed by the engine's own (English) reason. */
-    invalid: "The filter is invalid",
+    /** The engine's reason for rejecting the filter, in English. */
+    invalid: (reason: string): string => `The filter is invalid: ${reason}`,
     clear: "Clear",
     /** The accessible name of a group's clear button. */
     clearGroup: (legend: string): string => `Clear ${legend}`,
@@ -131,5 +133,45 @@ export const defaultStrings = {
   },
 };
 
-/** The type of {@link defaultStrings}. */
-export type Strings = typeof defaultStrings;
+/** Every string of the viewer; the type of {@link defaultStrings}. */
+export type ViewerStrings = typeof defaultStrings;
+
+type DeepPartial<T> = {
+  readonly [K in keyof T]?: T[K] extends (...args: never[]) => unknown
+    ? T[K]
+    : T[K] extends object
+      ? DeepPartial<T[K]>
+      : T[K];
+};
+
+/**
+ * Overrides of {@link defaultStrings}: any subset of the leaves, each a
+ * string or a function of the same signature.
+ */
+export type PartialViewerStrings = DeepPartial<ViewerStrings>;
+
+/**
+ * Translates the string of `key` (a dotted path of {@link defaultStrings},
+ * such as `"toolbar.exported"` or `"filter.kindNames.gap"`) with the named
+ * `params` of a function leaf (`{}` for a plain string). Returning
+ * `undefined` keeps the `strings` override or the default. Memoize it.
+ */
+export type TranslateFunction = (
+  key: string,
+  params: Readonly<Record<string, string | number | null>>,
+) => string | undefined;
+
+/** The parameter names of each function leaf, in argument order. */
+export const stringParams: Readonly<Record<string, readonly string[]>> = {
+  "toolbar.pending": ["count"],
+  "toolbar.exported": ["count", "skipped"],
+  gap: ["missedCount", "reason"],
+  "inspector.totalSize": ["chars"],
+  "inspector.copy": ["block"],
+  "inspector.candidate": ["position"],
+  "inspector.source": ["id", "label"],
+  "inspector.delivery": ["target", "role", "status", "reason", "updatedAt"],
+  "filter.invalid": ["reason"],
+  "filter.clearGroup": ["legend"],
+  "filter.option": ["value", "count"],
+};

@@ -18,7 +18,8 @@ import {
 } from "./filter-controls.tsx";
 import { useEngineVersion } from "./hooks.ts";
 import { sameFilter } from "./same-filter.ts";
-import { defaultStrings } from "./strings.ts";
+import type { PartialViewerStrings, TranslateFunction } from "./strings.ts";
+import { StringsContext, useViewerStrings } from "./strings-context.ts";
 
 /** The list properties shown as checkbox groups, in display order. */
 const LISTS = [
@@ -61,6 +62,10 @@ export interface FilterPanelProps {
   fields?: readonly FilterFieldDefinition[];
   /** Shows the "search payloads" toggle; the engine must allow payload search. */
   payloadSearch?: boolean;
+  /** Overrides of `defaultStrings`, as `TraceViewerProps.strings`. */
+  strings?: PartialViewerStrings;
+  /** Translates the strings, as `TraceViewerProps.translate`. */
+  translate?: TranslateFunction;
   className?: string;
 }
 
@@ -74,7 +79,8 @@ export interface FilterPanelProps {
  */
 export function FilterPanel(props: FilterPanelProps): ReactElement {
   const { engine, onFilterChange } = props;
-  const strings = defaultStrings.filter;
+  const allStrings = useViewerStrings(props.strings, props.translate);
+  const strings = allStrings.filter;
   const [internal, setInternal] = useState<TraceFilter>(() => props.defaultFilter ?? engine.filter);
   const controlled = props.filter !== undefined;
   const current = props.filter ?? internal;
@@ -141,105 +147,109 @@ export function FilterPanel(props: FilterPanelProps): ReactElement {
   const text = readString(view["text"]);
 
   return (
-    <div
-      role="group"
-      aria-label={strings.panelLabel}
-      className={props.className === undefined ? "oot-filter" : `oot-filter ${props.className}`}
-    >
-      {error !== null && (
-        <p role="alert" className="oot-filter-error">
-          {`${strings.invalid}: ${error}`}
-        </p>
-      )}
-      <button type="button" className="oot-filter-reset" onClick={() => change({})}>
-        {strings.reset}
-      </button>
-      <Group
-        legend={strings.search}
-        onClear={
-          view["text"] === undefined && view["searchPayloads"] === undefined
-            ? undefined
-            : () => set({ text: undefined, searchPayloads: undefined })
-        }
+    <StringsContext.Provider value={allStrings}>
+      <div
+        role="group"
+        aria-label={strings.panelLabel}
+        className={props.className === undefined ? "oot-filter" : `oot-filter ${props.className}`}
       >
-        <label className="oot-filter-field">
-          {strings.text}
-          <input
-            type="search"
-            value={text}
-            onChange={(event) => set({ text: event.currentTarget.value || undefined })}
-          />
-        </label>
-        {props.payloadSearch === true && (
-          <label className="oot-filter-option">
+        {error !== null && (
+          <p role="alert" className="oot-filter-error">
+            {strings.invalid(error)}
+          </p>
+        )}
+        <button type="button" className="oot-filter-reset" onClick={() => change({})}>
+          {strings.reset}
+        </button>
+        <Group
+          legend={strings.search}
+          onClear={
+            view["text"] === undefined && view["searchPayloads"] === undefined
+              ? undefined
+              : () => set({ text: undefined, searchPayloads: undefined })
+          }
+        >
+          <label className="oot-filter-field">
+            {strings.text}
             <input
-              type="checkbox"
-              checked={view["searchPayloads"] === true}
-              onChange={(event) =>
-                set({ searchPayloads: event.currentTarget.checked || undefined })
-              }
+              type="search"
+              value={text}
+              onChange={(event) => set({ text: event.currentTarget.value || undefined })}
             />
-            {strings.searchPayloads}
           </label>
-        )}
-      </Group>
-      <ValueGroup
-        legend={strings.kinds}
-        options={optionsOf(
-          new Map(KINDS.map((kind) => [kind, stats.kinds[kind]])),
-          readList(view["kinds"]),
-        )}
-        selected={readList(view["kinds"])}
-        onChange={(kinds) => set({ kinds })}
-        display={(kind) => strings.kindNames[String(kind)] ?? String(kind)}
-      />
-      <Group
-        legend={strings.timeRange}
-        onClear={view["timeRange"] === undefined ? undefined : () => set({ timeRange: undefined })}
-      >
-        <DraftInput
-          label={strings.from}
-          value={from}
-          onCommit={(value) => setBound("from", value)}
-        />
-        <DraftInput label={strings.to} value={to} onCommit={(value) => setBound("to", value)} />
-      </Group>
-      {LISTS.map((property) => (
+          {props.payloadSearch === true && (
+            <label className="oot-filter-option">
+              <input
+                type="checkbox"
+                checked={view["searchPayloads"] === true}
+                onChange={(event) =>
+                  set({ searchPayloads: event.currentTarget.checked || undefined })
+                }
+              />
+              {strings.searchPayloads}
+            </label>
+          )}
+        </Group>
         <ValueGroup
-          key={property}
-          legend={strings[property]}
-          options={optionsOf(stats[property], readList(view[property]))}
-          selected={readList(view[property])}
-          onChange={(values) => set({ [property]: values })}
+          legend={strings.kinds}
+          options={optionsOf(
+            new Map(KINDS.map((kind) => [kind, stats.kinds[kind]])),
+            readList(view["kinds"]),
+          )}
+          selected={readList(view["kinds"])}
+          onChange={(kinds) => set({ kinds })}
+          display={(kind) => strings.kindNames[String(kind)] ?? String(kind)}
         />
-      ))}
-      {[...fieldIds].map((id) => {
-        const selected = selectedFields.find((field) => field.id === id)?.values;
-        return (
-          <ValueGroup
-            key={id}
-            legend={props.fields?.find((field) => field.id === id)?.label ?? id}
-            options={optionsOf(stats.fields.get(id), selected)}
-            selected={selected}
-            onChange={(values) => setField(id, values)}
+        <Group
+          legend={strings.timeRange}
+          onClear={
+            view["timeRange"] === undefined ? undefined : () => set({ timeRange: undefined })
+          }
+        >
+          <DraftInput
+            label={strings.from}
+            value={from}
+            onCommit={(value) => setBound("from", value)}
           />
-        );
-      })}
-      <Group
-        legend={strings.messageIds}
-        onClear={
-          view["messageIds"] === undefined ? undefined : () => set({ messageIds: undefined })
-        }
-      >
-        <DraftInput
-          label={strings.messageIds}
-          value={messageIds.join(", ")}
-          onCommit={(value) => {
-            const ids = value.split(/[\s,]+/).filter((id) => id !== "");
-            set({ messageIds: ids.length === 0 ? undefined : ids });
-          }}
-        />
-      </Group>
-    </div>
+          <DraftInput label={strings.to} value={to} onCommit={(value) => setBound("to", value)} />
+        </Group>
+        {LISTS.map((property) => (
+          <ValueGroup
+            key={property}
+            legend={strings[property]}
+            options={optionsOf(stats[property], readList(view[property]))}
+            selected={readList(view[property])}
+            onChange={(values) => set({ [property]: values })}
+          />
+        ))}
+        {[...fieldIds].map((id) => {
+          const selected = selectedFields.find((field) => field.id === id)?.values;
+          return (
+            <ValueGroup
+              key={id}
+              legend={props.fields?.find((field) => field.id === id)?.label ?? id}
+              options={optionsOf(stats.fields.get(id), selected)}
+              selected={selected}
+              onChange={(values) => setField(id, values)}
+            />
+          );
+        })}
+        <Group
+          legend={strings.messageIds}
+          onClear={
+            view["messageIds"] === undefined ? undefined : () => set({ messageIds: undefined })
+          }
+        >
+          <DraftInput
+            label={strings.messageIds}
+            value={messageIds.join(", ")}
+            onCommit={(value) => {
+              const ids = value.split(/[\s,]+/).filter((id) => id !== "");
+              set({ messageIds: ids.length === 0 ? undefined : ids });
+            }}
+          />
+        </Group>
+      </div>
+    </StringsContext.Provider>
   );
 }

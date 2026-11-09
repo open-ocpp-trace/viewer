@@ -23,7 +23,8 @@ import {
 } from "@open-ocpp-trace/viewer-core";
 
 import { useEngineVersion } from "./hooks.ts";
-import { defaultStrings as strings } from "./strings.ts";
+import type { PartialViewerStrings, TranslateFunction, ViewerStrings } from "./strings.ts";
+import { useViewerStrings } from "./strings-context.ts";
 
 /** Props of {@link TraceList}. */
 export interface TraceListProps {
@@ -53,6 +54,10 @@ export interface TraceListProps {
   follow?: boolean;
   /** Called whenever the list turns following on or off. */
   onFollowChange?: (follow: boolean) => void;
+  /** Overrides of `defaultStrings`, as `TraceViewerProps.strings`. */
+  strings?: PartialViewerStrings;
+  /** Translates the strings, as `TraceViewerProps.translate`. */
+  translate?: TranslateFunction;
 }
 
 /** Built-in columns, in display order. */
@@ -64,7 +69,7 @@ const BUILT_IN = [
   ["messageType", "messageType"],
   ["action", "action"],
   ["messageId", "messageId"],
-] as const satisfies readonly (readonly [keyof typeof strings.columns, keyof EntryFields])[];
+] as const satisfies readonly (readonly [keyof ViewerStrings["columns"], keyof EntryFields])[];
 
 /** Built-in columns an unparsed row fills before its marker cell. */
 const UNPARSED_LEADING = 4;
@@ -121,7 +126,7 @@ function hostCells(columns: readonly ColumnDefinition[], entry: ViewerEntry): Re
   );
 }
 
-function gapText(entry: ViewerEntry): string {
+function gapText(entry: ViewerEntry, strings: ViewerStrings): string {
   const count = own(entry, "missedCount");
   const reason = own(entry, "reason");
   return strings.gap(
@@ -130,7 +135,7 @@ function gapText(entry: ViewerEntry): string {
   );
 }
 
-function unparsedMarker(entry: ViewerEntry): ReactElement {
+function unparsedMarker(entry: ViewerEntry, strings: ViewerStrings): ReactElement {
   const raw = textOf(own(entry, "raw"));
   const preview = raw.length > PREVIEW_LENGTH ? `${raw.slice(0, PREVIEW_LENGTH)}…` : raw;
   return cell(
@@ -149,15 +154,18 @@ function rowCells(
   entry: ViewerEntry,
   columns: readonly ColumnDefinition[],
   correlator: Correlator | undefined,
+  strings: ViewerStrings,
 ): ReactElement[] {
   if (entry.kind === "gap") {
-    return [cell("gap", "oot-cell--gap", gapText(entry), BUILT_IN.length + columns.length)];
+    return [
+      cell("gap", "oot-cell--gap", gapText(entry, strings), BUILT_IN.length + columns.length),
+    ];
   }
   const fields = readEntryFields(entry, correlator);
   if (entry.kind === "unparsed") {
     return [
       ...builtInCells(fields, UNPARSED_LEADING),
-      unparsedMarker(entry),
+      unparsedMarker(entry, strings),
       ...hostCells(columns, entry),
     ];
   }
@@ -192,6 +200,7 @@ function targetIndex(key: string, current: number, count: number, page: number):
 export function TraceList(props: TraceListProps): ReactElement {
   const { engine, correlator, columns = [], loading = false, error = null, className } = props;
   const rowHeight = props.rowHeight ?? DEFAULT_ROW_HEIGHT;
+  const strings = useViewerStrings(props.strings, props.translate);
   const version = useEngineVersion(engine);
   const baseId = useId();
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -361,7 +370,7 @@ export function TraceList(props: TraceListProps): ReactElement {
                   transform: `translateY(${item.start - rowHeight}px)`,
                 }}
               >
-                {rowCells(entry, columns, correlator)}
+                {rowCells(entry, columns, correlator, strings)}
               </div>
             );
           })}

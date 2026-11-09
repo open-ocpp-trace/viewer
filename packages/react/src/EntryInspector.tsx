@@ -27,7 +27,8 @@ import {
   formatValue,
   sensitiveKeySet,
 } from "./inspect-format.ts";
-import { defaultStrings } from "./strings.ts";
+import type { PartialViewerStrings, TranslateFunction, ViewerStrings } from "./strings.ts";
+import { StringsContext, useStrings, useViewerStrings } from "./strings-context.ts";
 
 /** The block a copied text comes from. */
 export type InspectorPart = "payload" | "raw" | "error" | "meta";
@@ -73,11 +74,12 @@ export interface EntryInspectorProps {
   sensitiveKeys?: readonly string[];
   /** Initial printed length of each block; « Show more » multiplies it by 4. Default 20 000. */
   maxChars?: number;
+  /** Overrides of `defaultStrings`, as `TraceViewerProps.strings`. */
+  strings?: PartialViewerStrings;
+  /** Translates the strings, as `TraceViewerProps.translate`. */
+  translate?: TranslateFunction;
   className?: string;
 }
-
-const strings = defaultStrings.inspector;
-const labels = strings.fields;
 
 function useVersion(source?: { subscribe(listener: () => void): () => void; version: number }) {
   const subscribe = useCallback(
@@ -148,6 +150,7 @@ interface BlockProps {
 }
 
 function Block({ title, printed, onMore, onCopy, total, children }: BlockProps) {
+  const strings = useStrings().inspector;
   return (
     <div className="oot-inspector__block">
       <div className="oot-inspector__title">
@@ -224,12 +227,17 @@ function useLimits(maxChars: number) {
   };
 }
 
-function rawBlock(raw: string, limits: ReturnType<typeof useLimits>, copy: DetailsProps["copy"]) {
+function rawBlock(
+  raw: string,
+  limits: ReturnType<typeof useLimits>,
+  copy: DetailsProps["copy"],
+  strings: ViewerStrings,
+) {
   const limit = limits.limit("raw");
   const printed = { text: raw.slice(0, limit), truncated: raw.length > limit };
   return (
     <Block
-      title={strings.blocks.raw}
+      title={strings.inspector.blocks.raw}
       printed={printed}
       onMore={limits.more("raw")}
       onCopy={copy(() => raw, "raw")}
@@ -277,8 +285,8 @@ function rawMayHoldKey(raw: string, keys: ReadonlySet<string>): boolean {
   return false;
 }
 
-function rawHiddenNote() {
-  return <p className="oot-inspector__note">{strings.rawHidden}</p>;
+function rawHiddenNote(strings: ViewerStrings) {
+  return <p className="oot-inspector__note">{strings.inspector.rawHidden}</p>;
 }
 
 function usePrinted(value: unknown, limit: number, keys: ReadonlySet<string> | null) {
@@ -292,13 +300,13 @@ function usePrinted(value: unknown, limit: number, keys: ReadonlySet<string> | n
 }
 
 /** The first 64 deliveries, one per line; null when absent or unreadable. */
-function deliveriesText(deliveries: unknown): string | null {
+function deliveriesText(deliveries: unknown, strings: ViewerStrings): string | null {
   if (!Array.isArray(deliveries)) return null;
   try {
     return deliveries
       .slice(0, 64)
       .map((d) =>
-        strings.delivery(
+        strings.inspector.delivery(
           text(read(d, "target")) ?? "",
           text(read(d, "role")),
           text(read(d, "status")) ?? "",
@@ -329,6 +337,9 @@ function copyText(value: unknown, keys: ReadonlySet<string> | null): string {
 }
 
 function TraceDetails({ entry, props, keys, copy }: DetailsProps & { entry: TraceEntry }) {
+  const all = useStrings();
+  const strings = all.inspector;
+  const labels = strings.fields;
   const record = read(entry, "record");
   const metadata = read(entry, "metadata");
   const limits = useLimits(props.maxChars ?? 20_000);
@@ -362,7 +373,7 @@ function TraceDetails({ entry, props, keys, copy }: DetailsProps & { entry: Trac
       (printed.meta !== null && !whole(printed.meta)));
   const source = read(metadata, "source");
   const sourceId = text(read(source, "id"));
-  const delivered = deliveriesText(read(metadata, "deliveries"));
+  const delivered = deliveriesText(read(metadata, "deliveries"), all);
 
   const block = (name: keyof typeof values, part: InspectorPart | null) => {
     const shown = printed[name];
@@ -413,7 +424,7 @@ function TraceDetails({ entry, props, keys, copy }: DetailsProps & { entry: Trac
       <Pairing entry={entry} props={props} />
       {block("error", "error")}
       {block("payload", "payload")}
-      {raw !== null && (rawHidden ? rawHiddenNote() : rawBlock(raw, limits, copy))}
+      {raw !== null && (rawHidden ? rawHiddenNote(all) : rawBlock(raw, limits, copy, all))}
       {block("meta", "meta")}
       <Fields
         fields={[
@@ -434,6 +445,7 @@ function TraceDetails({ entry, props, keys, copy }: DetailsProps & { entry: Trac
 
 function Pairing({ entry, props }: { entry: TraceEntry; props: EntryInspectorProps }) {
   const { store, correlator, onNavigate } = props;
+  const strings = useStrings().inspector;
   const pairing = correlator?.get(entry.id);
   if (pairing === undefined) return null;
   const link = (label: string, id: EntryId) => {
@@ -469,9 +481,11 @@ function Pairing({ entry, props }: { entry: TraceEntry; props: EntryInspectorPro
 
 function UnparsedDetails({ entry, props, keys, copy }: DetailsProps & { entry: UnparsedEntry }) {
   const limits = useLimits(props.maxChars ?? 20_000);
+  const all = useStrings();
+  const labels = all.inspector.fields;
   return (
     <>
-      <p className="oot-inspector__badge">{defaultStrings.unparsed}</p>
+      <p className="oot-inspector__badge">{all.unparsed}</p>
       <Fields
         fields={[
           [labels.reason, text(read(entry, "reason"))],
@@ -482,8 +496,8 @@ function UnparsedDetails({ entry, props, keys, copy }: DetailsProps & { entry: U
         ]}
       />
       {redacting(keys)
-        ? rawHiddenNote()
-        : rawBlock(rawText(read(entry, "raw")) ?? "", limits, copy)}
+        ? rawHiddenNote(all)
+        : rawBlock(rawText(read(entry, "raw")) ?? "", limits, copy, all)}
     </>
   );
 }
@@ -491,9 +505,11 @@ function UnparsedDetails({ entry, props, keys, copy }: DetailsProps & { entry: U
 function GapDetails({ entry }: { entry: GapEntry }) {
   const count = read(entry, "missedCount");
   const missed = typeof count === "number" ? count : null;
+  const all = useStrings();
+  const labels = all.inspector.fields;
   return (
     <>
-      <p>{defaultStrings.gap(missed, text(read(entry, "reason")))}</p>
+      <p>{all.gap(missed, text(read(entry, "reason")))}</p>
       <Fields
         fields={[
           [labels.timestamp, text(read(entry, "timestamp"))],
@@ -512,6 +528,8 @@ function GapDetails({ entry }: { entry: GapEntry }) {
 export function EntryInspector(props: EntryInspectorProps): ReactElement {
   const { store, entryId, correlator, onCopy, revealSensitive = false, className } = props;
   const sensitiveKeys = props.sensitiveKeys ?? defaultSensitiveKeys;
+  const allStrings = useViewerStrings(props.strings, props.translate);
+  const strings = allStrings.inspector;
   useVersion(store);
   useVersion(correlator);
   const keys = useMemo(
@@ -532,11 +550,13 @@ export function EntryInspector(props: EntryInspectorProps): ReactElement {
   else body = <GapDetails entry={entry} />;
 
   return (
-    <section
-      className={className === undefined ? "oot-inspector" : `oot-inspector ${className}`}
-      aria-label={strings.label}
-    >
-      {body}
-    </section>
+    <StringsContext.Provider value={allStrings}>
+      <section
+        className={className === undefined ? "oot-inspector" : `oot-inspector ${className}`}
+        aria-label={strings.label}
+      >
+        {body}
+      </section>
+    </StringsContext.Provider>
   );
 }
