@@ -1,3 +1,4 @@
+import { parseOpenOcppTrace, type ParseResult } from "@ocpp-debugkit/toolkit/core";
 import { FailureSummary, MessageInspector, SessionTimeline } from "@ocpp-debugkit/toolkit/react";
 import type { ViewerSelection, ViewerStore } from "@open-ocpp-trace/viewer-core";
 import { TraceViewer, type DetailPanel, type ToolbarAction } from "@open-ocpp-trace/viewer-react";
@@ -23,6 +24,8 @@ const NOT_ANALYZED: Record<NotAnalyzedReason, string> = {
 export interface AppProps {
   /** The store the viewer shows and DebugKit analyzes. */
   readonly store: ViewerStore;
+  /** DebugKit's parser; replaced in tests to make an analysis fail. */
+  readonly parse?: (input: string) => ParseResult;
 }
 
 /**
@@ -30,20 +33,31 @@ export interface AppProps {
  * of the store (see `scheduler.ts`); the two views share one selection,
  * translated through the identity mapping of the current analysis only.
  */
-export function App({ store }: AppProps): ReactElement {
+export function App({ store, parse = parseOpenOcppTrace }: AppProps): ReactElement {
   const [analysis, setAnalysis] = useState<Analysis>();
+  const [failure, setFailure] = useState<string>();
   const [selection, setSelection] = useState<ViewerSelection>({ entryId: null });
   const [stale, setStale] = useState(false);
   const [timelineNote, setTimelineNote] = useState<string | null>(null);
   const scheduler = useRef<AnalysisScheduler>(null);
+  // Read at run time, so a new parser identity never re-creates the scheduler.
+  const parseRef = useRef(parse);
+  parseRef.current = parse;
 
   useEffect(() => {
     const created = createAnalysisScheduler({
       run: () => {
+        // Computed first: if it throws, the previous analysis stays stale.
+        const next = analyzeSnapshot(buildSnapshot(store.toArray()), parseRef.current);
+        setAnalysis(next);
         setStale(false);
-        setAnalysis(analyzeSnapshot(buildSnapshot(store.toArray())));
+        setFailure(undefined);
         // Event ids are only valid for the analysis that produced them.
         setTimelineNote(null);
+      },
+      onError: (error) => {
+        console.error(error);
+        setFailure(error instanceof Error ? error.message : String(error));
       },
     });
     scheduler.current = created;
@@ -137,7 +151,7 @@ export function App({ store }: AppProps): ReactElement {
         <section aria-label="DebugKit failures">
           <FailureSummary failures={[...(analysis?.failures ?? [])]} />
         </section>
-        <AnalysisStatus analysis={analysis} stale={stale} />
+        <AnalysisStatus analysis={analysis} stale={stale} failure={failure} />
       </aside>
     </main>
   );

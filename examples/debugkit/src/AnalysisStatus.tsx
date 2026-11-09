@@ -6,6 +6,11 @@ export interface AnalysisStatusProps {
   readonly analysis: Analysis | undefined;
   /** The store changed since this analysis: a refresh is due. */
   readonly stale: boolean;
+  /**
+   * Why the last analysis failed (an error other than DebugKit's ParseError),
+   * when it did: `analysis` is then the one before it.
+   */
+  readonly failure?: string | undefined;
 }
 
 /**
@@ -14,11 +19,12 @@ export interface AnalysisStatusProps {
  * Warnings are listed for the whole analysis, never attached to an entry:
  * their `index` lives in several index spaces.
  */
-export function AnalysisStatus({ analysis, stale }: AnalysisStatusProps): ReactElement {
+export function AnalysisStatus({ analysis, stale, failure }: AnalysisStatusProps): ReactElement {
   return (
     <section aria-label="DebugKit analysis" className="debugkit-status">
       <h2>DebugKit analysis</h2>
       {stale && <p>The trace changed since this analysis; a refresh is scheduled.</p>}
+      {failure !== undefined && <p role="alert">The last analysis failed: {failure}</p>}
       {analysis === undefined ? <p>Not analyzed yet.</p> : <Details analysis={analysis} />}
     </section>
   );

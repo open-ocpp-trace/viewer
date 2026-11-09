@@ -1,3 +1,4 @@
+import { parseOpenOcppTrace, type ParseResult } from "@ocpp-debugkit/toolkit/core";
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import type { EntryUpdate, ViewerStore } from "@open-ocpp-trace/viewer-core";
 import { describe, expect, it, vi } from "vite-plus/test";
@@ -168,6 +169,39 @@ describe("the DebugKit example", () => {
 
     // Synchronously: the bounded refresh would only run a window later.
     expect(screen.getByText(`Timeline (${analysis.events.length + 1} events)`)).toBeDefined();
+  });
+
+  it("shows a failed analysis and keeps the previous one flagged as stale", async () => {
+    const store = await createExampleStore();
+    let failing = false;
+    const parse = (input: string): ParseResult => {
+      if (failing) throw new ReferenceError("Buffer is not defined");
+      return parseOpenOcppTrace(input);
+    };
+    const quiet = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      render(<App store={store} parse={parse} />);
+      const status = (): string =>
+        screen.getByRole("region", { name: "DebugKit analysis" }).textContent ?? "";
+      expect(status()).not.toContain("failed");
+
+      act(() => {
+        store.apply([LIVE_HEARTBEAT]);
+      });
+      failing = true;
+      fireEvent.click(screen.getByRole("button", { name: "Analyze now" }));
+
+      expect(status()).toContain("changed since");
+      expect(status()).toContain("The last analysis failed: Buffer is not defined");
+
+      failing = false;
+      fireEvent.click(screen.getByRole("button", { name: "Analyze now" }));
+
+      expect(status()).not.toContain("changed since");
+      expect(status()).not.toContain("failed");
+    } finally {
+      quiet.mockRestore();
+    }
   });
 
   it("re-analyzes once the refresh window after a store change closes", async () => {
