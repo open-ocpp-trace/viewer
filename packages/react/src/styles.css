@@ -32,6 +32,22 @@
   background: var(--oot-unparsed-background, rgb(220 40 40 / 10%));
 }
 
+.oot-row--selected {
+  background: var(--oot-selected-background, Highlight);
+  color: var(--oot-selected-color, HighlightText);
+}
+
+.oot-grid:focus-visible {
+  outline: 2px solid var(--oot-focus-color, Highlight);
+  outline-offset: -2px;
+}
+
+.oot-jump {
+  align-self: end;
+  margin: 0.25em 0.5em;
+  font: inherit;
+}
+
 .oot-cell {
   flex: 1 1 0;
   min-width: 0;

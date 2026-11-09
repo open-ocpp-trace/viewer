@@ -1,6 +1,6 @@
 import { act, render, screen, within } from "@testing-library/react";
 import { StrictMode, type ReactElement } from "react";
-import { afterEach, beforeEach, describe, expect, it } from "vite-plus/test";
+import { describe, expect, it } from "vite-plus/test";
 
 import {
   type ColumnDefinition,
@@ -13,29 +13,9 @@ import {
 import { TraceList, type TraceListProps, useFilterEngine } from "@open-ocpp-trace/viewer-react";
 
 import { add, sdkEntry } from "./fixtures.ts";
+import { stubLayout } from "./layout.ts";
 
-const ROW_HEIGHT = 28;
-const VIEWPORT_ROWS = 10;
-
-// happy-dom does no layout: every clientHeight is 0, so the virtualizer,
-// which reads the scroll element's clientHeight on mount, would render no
-// row. Give elements a fixed size instead; `initialRect` would not help, as
-// that first read replaces it.
-beforeEach(() => {
-  Object.defineProperty(HTMLElement.prototype, "clientHeight", {
-    configurable: true,
-    get: () => ROW_HEIGHT * VIEWPORT_ROWS,
-  });
-  Object.defineProperty(HTMLElement.prototype, "clientWidth", {
-    configurable: true,
-    get: () => 800,
-  });
-});
-
-afterEach(() => {
-  delete (HTMLElement.prototype as { clientHeight?: number }).clientHeight;
-  delete (HTMLElement.prototype as { clientWidth?: number }).clientWidth;
-});
+stubLayout();
 
 type ListProps = Omit<TraceListProps, "engine">;
 

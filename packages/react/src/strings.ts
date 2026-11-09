@@ -17,6 +17,7 @@ export const defaultStrings = {
   empty: "No entries",
   noMatch: "No entries match the filter",
   unparsed: "Unparsed",
+  jumpToLatest: "Jump to latest",
   /** The text of a gap row; the count and the reason are omitted when unknown. */
   gap(missedCount: number | null, reason: string | null): string {
     const missed =
