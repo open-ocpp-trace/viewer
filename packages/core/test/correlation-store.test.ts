@@ -306,6 +306,22 @@ describe("Correlator and store clear, pause and listeners", () => {
     expect(correlator.get("c1")).toMatchObject({ role: "call" });
   });
 
+  it("reports a listener error of the seed change and still returns the unsubscribe", () => {
+    const reported: unknown[] = [];
+    const correlator = createCorrelatorWith(undefined, (error) => reported.push(error));
+    correlator.subscribe(() => {
+      throw new Error("listener");
+    });
+    const store = createViewerStore();
+    store.apply(addAll(call("c1", "m1")));
+
+    const unsubscribe = correlator.connect(store);
+
+    expect(reported).toEqual([new Error("listener")]);
+    unsubscribe();
+    expect(() => correlator.connect(store)).not.toThrow();
+  });
+
   it("emits what it collected before an internal error, then reports it", () => {
     const reported: unknown[] = [];
     const correlator = createCorrelatorWith(undefined, (error) => reported.push(error));

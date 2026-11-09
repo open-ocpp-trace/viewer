@@ -142,10 +142,17 @@ export interface Correlator {
   readonly version: number;
   /**
    * Listeners run in subscription order. A throwing listener does not stop
-   * the others; the first error is reported asynchronously (as an unhandled
-   * promise rejection), never thrown into the store or `connect`: the
+   * the others; the first error is reported asynchronously (as a rejected
+   * promise nobody handles), never thrown into the store or `connect`: the
    * correlator runs inside the store's listener, where an error would
-   * surface in the unrelated caller of `apply`.
+   * surface in the unrelated caller of `apply`. The seed change emitted by
+   * `connect` is reported the same way, since rethrowing would lose the
+   * {@link Unsubscribe} and leave the correlator connected. An internal
+   * error while following the store is reported likewise, after the change
+   * collected so far is emitted.
+   *
+   * Under Node's default `--unhandled-rejections=throw`, such a rejection
+   * terminates the process: listeners should not throw.
    */
   subscribe(listener: (change: CorrelationChange) => void): Unsubscribe;
 }

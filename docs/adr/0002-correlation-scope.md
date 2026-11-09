@@ -94,7 +94,13 @@ state, emits `cleared: true` if anything was correlated, and allows a new `conne
 Listeners run in subscription order and a throwing listener does not stop the others. Unlike the store,
 the correlator never rethrows: it runs inside the store's listener, so an error would surface in the
 caller of `apply`, which has no part in it. The first listener error of a change is reported as an
-unhandled promise rejection instead.
+unhandled promise rejection instead. The seed change emitted by `connect` follows the same path:
+rethrowing there would lose the returned `Unsubscribe` and leave the correlator connected for good.
+An internal error while following a store change is reported the same way, after the change collected
+so far is emitted, so the version and the lists never silently diverge from the indexes.
+
+Under Node's default `--unhandled-rejections=throw`, such a rejection terminates the process. Listeners
+should therefore not throw; a host that cannot guarantee it catches inside its own listener.
 
 ### Bounds
 
