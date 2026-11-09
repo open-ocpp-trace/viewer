@@ -11,6 +11,7 @@ export function hostReactVersion(): string {
 export { FilterPanel } from "./FilterPanel.tsx";
 export type { FilterPanelProps } from "./FilterPanel.tsx";
 export { useFilterEngine } from "./hooks.ts";
+export { defaultSensitiveKeys } from "./inspect-format.ts";
 export { TraceList } from "./TraceList.tsx";
 export type { TraceListProps } from "./TraceList.tsx";
 export { TraceViewer } from "./TraceViewer.tsx";
