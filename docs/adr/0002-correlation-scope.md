@@ -94,16 +94,19 @@ followed; a failing subscription or seed drops the subscription made and leaves 
 without emitting. The returned `Unsubscribe` stops following, resets the
 state, emits `cleared: true` if anything was correlated, and allows a new `connect`.
 
-Listeners run in subscription order and a throwing listener does not stop the others. Unlike the store,
+Listeners run in subscription order and a throwing listener does not stop the others. Like the store,
 the correlator never rethrows: it runs inside the store's listener, so an error would surface in the
-caller of `apply`, which has no part in it. The first listener error of a change is reported as an
-unhandled promise rejection instead. The seed change emitted by `connect` follows the same path:
-rethrowing there would lose the returned `Unsubscribe` and leave the correlator connected for good.
-An internal error while following a store change is reported the same way, after the change collected
-so far is emitted, so the version and the lists never silently diverge from the indexes.
+caller of `apply`, which has no part in it. Each listener error is reported, synchronously, to the
+`onError` option (`ViewerErrorHandler`) with `{ component: "correlator", callback: "listener" }`. The
+seed change emitted by `connect` follows the same path: rethrowing there would lose the returned
+`Unsubscribe` and leave the correlator connected for good. An internal error while following a store
+change is reported the same way (`callback: "follow"`), after the change collected so far is emitted,
+so the version and the lists never silently diverge from the indexes.
 
-Under Node's default `--unhandled-rejections=throw`, such a rejection terminates the process. Listeners
-should therefore not throw; a host that cannot guarantee it catches inside its own listener.
+Without `onError`, or when it throws, errors go to the default reporter of `reportViewerError`:
+`globalThis.reportError` when it is a function, else `console.error`. A throwing handler hands the
+default the original error, then its own; nothing is rethrown and no promise rejection is created, so
+a throwing listener never terminates a Node process.
 
 ### Bounds
 

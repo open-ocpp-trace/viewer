@@ -65,7 +65,9 @@ then. A delivery update on an entry the filter hides changes the counts, so it n
 a listed entry notifies even when no count changes (a new conversation id, a reordered delivery
 list), so `at(i)` never returns a new object under the same `version` and a list bound to `version`
 does not render stale rows; an update of a hidden entry that changes no count stays silent. Listener
-errors are reported asynchronously, as the correlator's are.
+errors are reported synchronously to the `onError` option, as the correlator's are, with
+`{ component: "filterEngine", callback }`: `"listener"`, or `"follow"`, `"correlate"` and `"setFilter"`
+for an internal error while following the store, following the correlator or applying a filter.
 
 The engine maintains its state incrementally. It keeps, per listed entry, the counted values and the
 membership: evicted entries are gone from the store, so this cache is the only way to decrement them,

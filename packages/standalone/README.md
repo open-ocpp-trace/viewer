@@ -67,8 +67,18 @@ Live options have the meaning of the `<TraceViewer>` props of the same name
 `defaultFilter`, `onFilterChange`, `selection`, `defaultSelection`,
 `onSelectionChange(selection, entry)`, `loading`, `error`, `onCopy`,
 `revealSensitive`, `sensitiveKeys`, `onExport`, `theme`, `strings`,
-`translate` and `toolbarActions`. Callbacks are read when called: a new
-function passed to `setOptions` never re-runs an earlier change.
+`translate`, `toolbarActions` and `onError`. Callbacks are read when called: a
+new function passed to `setOptions` never re-runs an earlier change.
+
+`onError(error, context)` receives the errors of host callbacks and of the
+viewer's own store, correlator and filter engine, with a `ViewerErrorContext`
+(`{ component, callback }`, such as `{ component: "store", callback:
+"snapshot" }` for an adapter snapshot that fails to apply, or `{ component:
+"TraceViewer", callback: "toolbarActions.run" }`; the full list is in the
+viewer-react README, § Error reporting). A handler set with `setOptions`
+receives every later error, the store's and the correlator's included.
+Without it, or when it throws, errors go to `globalThis.reportError`, else
+`console.error`; the viewer keeps running.
 
 React-only: `filterControls`, `detailPanels` and `renderPayload` take React
 elements, which a non-React host cannot build, so they are not options here.

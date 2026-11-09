@@ -55,6 +55,7 @@ export function Traces(): ReactElement {
 | `theme`                                                       | Color scheme and tokens of this viewer ([Theming](#theming))                |
 | `strings`, `translate`                                        | Localization ([Localization](#localization))                                |
 | `columns`, `filterControls`, `toolbarActions`, `detailPanels` | Host slots ([Slots](#slots))                                                |
+| `onError`                                                     | Receives host callback errors ([Error reporting](#error-reporting))         |
 
 **Integration adapters** come from `@open-ocpp-trace/viewer-core` and connect the viewer to a data source; they
 have no React dependency:
@@ -135,7 +136,7 @@ the markers the inspector prints inside its blocks in place of hidden values (`i
 Per leaf, the first that applies wins: a string returned by `translate`, then the `strings` leaf, then the default.
 The strings are resolved again only when the identity of `strings` or `translate` changes: memoize both (a new
 object or function on every render resolves every string on every render). A `translate` that throws is
-reported (`reportError`, else `console.error`) and the leaf falls back; the viewer stays mounted.
+reported to `onError` ([Error reporting](#error-reporting)) and the leaf falls back; the viewer stays mounted.
 
 A standalone component's own `strings` or `translate` replace those of the enclosing `<TraceViewer>` instead of
 merging with them: an `<EntryInspector strings={…}>` rendered inside a detail panel no longer sees the viewer's
@@ -259,8 +260,8 @@ to the inspector. A column, an action or a panel that shows payload values must 
 A filter control that throws while rendering shows the `filterControlError` string in its fieldset until another
 control object is passed.
 
-A throw in `run`, `disabled` or `appliesTo` is reported (`reportError`, else `console.error`): the action or the
-panel is disabled or hidden, and the viewer stays mounted.
+A throw in `run`, `disabled` or `appliesTo` is reported to `onError` ([Error reporting](#error-reporting)): the
+action or the panel is disabled or hidden, and the viewer stays mounted.
 
 ## Callbacks
 
@@ -271,3 +272,29 @@ panel is disabled or hidden, and the viewer stays mounted.
 - `onExport(exported, scope)`: receives the JSONL export of the selection or of the filtered entries.
 
 `onSelectionChange` is read at call time: a new function per render is never called for an earlier change.
+
+## Error reporting
+
+An error thrown by a host callback that no caller of the host is left to receive is passed to `onError`
+(`ViewerErrorHandler` from `@open-ocpp-trace/viewer-core`) with a `ViewerErrorContext`, `{ component, callback }`;
+the viewer stays mounted and keeps delivering the other callbacks.
+
+| `component`                                                           | `callback`                                                                                                            |
+| --------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| `"TraceViewer"`                                                       | `"translate"`, `"onSelectionChange"`, `"toolbarActions.run"`, `"toolbarActions.disabled"`, `"detailPanels.appliesTo"` |
+| `"TraceList"`, `"FilterPanel"`, `"EntryInspector"`                    | `"translate"` (their own `translate` prop)                                                                            |
+| `"filterEngine"` (the engine of `<TraceViewer>` or `useFilterEngine`) | `"listener"`, `"follow"`, `"correlate"`, `"setFilter"`                                                                |
+
+`<TraceViewer>` passes its `onError` to the components it renders and to its filter engine; `useFilterEngine`
+forwards `options.onError` the same way. The handler is read when an error is reported: a new function on every
+render recreates nothing.
+
+Without `onError`, an error goes to `globalThis.reportError` when it is a function, else to `console.error`. If
+`onError` throws, that default receives the original error, then the handler's error; nothing is rethrown.
+
+The store and the correlator belong to the host: give them their own handler, which can be the same function.
+`createViewerStore({ onError })` reports `{ component: "store" }` errors (`"listener"`, never rethrown to the
+caller of `apply` or `load`, and `"snapshot"` for a promised adapter snapshot, or a batch buffered before it, that
+fails to apply); `createCorrelator({ onError })` reports `{ component:
+"correlator" }` errors (`"listener"`, `"follow"`). Core's `reportViewerError(onError, error, context)` applies the
+same rules for a host's own components.
