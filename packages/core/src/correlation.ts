@@ -2,7 +2,7 @@ import type { Unsubscribe } from "./adapter.ts";
 import { type CallNode, createCallIndex, type Direction } from "./correlation-index.ts";
 import type { EntryId, ViewerEntry } from "./entry.ts";
 import { createListeners } from "./store-listeners.ts";
-import type { ViewerStore } from "./store.ts";
+import type { ViewerStore, ViewerStoreChange } from "./store.ts";
 
 /**
  * Which records may answer each other, on top of the same `messageId` and
@@ -329,6 +329,20 @@ export function createCorrelatorWith(
     );
   }
 
+  /** Drops an evicted entry from every index; a response keeps its result's `callId`. */
+  function evict(id: EntryId, removed: EntryId[]): void {
+    const node = tracked.get(id);
+    if (node === undefined) return;
+    tracked.delete(id);
+    if (node !== null) {
+      index.remove(node);
+      unanswered.delete(id);
+    } else {
+      orphans.delete(id);
+    }
+    if (results.delete(id)) removed.push(id);
+  }
+
   function emit(changed: readonly EntryId[], removed: readonly EntryId[], cleared: boolean): void {
     if (changed.length === 0 && removed.length === 0 && !cleared) return;
     version += 1;
@@ -346,14 +360,49 @@ export function createCorrelatorWith(
       if (connected !== undefined) throw new Error("the correlator is already connected");
       const connection = {};
       connected = connection;
-      const stats = store.getStats();
-      incomplete = stats.evicted > 0 || stats.droppedPending > 0;
-      const changed = new Set<EntryId>();
-      for (const entry of store.toArray()) process(entry, changed);
-      emit([...changed], [], false);
+      let seen = store.getStats();
+      incomplete = seen.evicted > 0 || seen.droppedPending > 0;
+      const seeded = new Set<EntryId>();
+      for (const entry of store.toArray()) process(entry, seeded);
+      emit([...seeded], [], false);
+
+      function follow(change: ViewerStoreChange): void {
+        const cleared = change.cleared;
+        if (cleared) reset();
+        const stats = store.getStats();
+        // Counters restart from 0 on clear; events are net deltas, so an
+        // entry added and evicted in one batch shows only in the counters.
+        const before = cleared ? { evicted: 0, droppedPending: 0 } : seen;
+        if (
+          change.evicted.length > 0 ||
+          stats.evicted > before.evicted ||
+          stats.droppedPending > before.droppedPending
+        ) {
+          incomplete = true;
+        }
+        seen = stats;
+        const removed: EntryId[] = [];
+        for (const id of change.evicted) evict(id, removed);
+        const changed = new Set<EntryId>();
+        for (const id of change.added) {
+          const entry = store.get(id);
+          if (entry !== undefined) process(entry, changed);
+        }
+        emit([...changed], removed, cleared);
+      }
+
+      const unsubscribeStore = store.subscribe((change) => {
+        if (connected !== connection) return;
+        try {
+          follow(change);
+        } catch (error) {
+          report(error);
+        }
+      });
       return () => {
         if (connected !== connection) return;
         connected = undefined;
+        unsubscribeStore();
         const had = results.size > 0;
         reset();
         emit([], [], had);
