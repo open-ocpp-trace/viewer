@@ -1,4 +1,4 @@
-import type { ViewerEntry } from "@open-ocpp-trace/viewer-core";
+import type { EntryId, ViewerEntry, ViewerStore } from "@open-ocpp-trace/viewer-core";
 
 import type { Analysis } from "./analysis.ts";
 
@@ -43,4 +43,21 @@ export function entryStatus(analysis: Analysis | undefined, entry: ViewerEntry):
   if (line === undefined) return { reason: "not-sent" };
   if (mapping.ambiguousEntryIds.includes(entry.id)) return { reason: "ambiguous" };
   return { reason: "ignored" };
+}
+
+/**
+ * The viewer entry DebugKit event `eventId` was parsed from, or `undefined`
+ * when there is none. The same rule as `entryStatus`: an entry whose id was
+ * reused for a new record is not this event's entry.
+ */
+export function entryForEvent(
+  analysis: Analysis | undefined,
+  store: Pick<ViewerStore, "get">,
+  eventId: string,
+): EntryId | undefined {
+  const entryId = analysis?.mapping.entryByEvent.get(eventId);
+  if (entryId === undefined) return undefined;
+  const entry = store.get(entryId);
+  if (entry === undefined || !("eventId" in entryStatus(analysis, entry))) return undefined;
+  return entryId;
 }

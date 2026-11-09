@@ -7,7 +7,7 @@ import {
 import { describe, expect, it } from "vite-plus/test";
 
 import { analyzeSnapshot, type Analysis } from "../src/analysis.ts";
-import { entryStatus } from "../src/entry-status.ts";
+import { entryForEvent, entryStatus } from "../src/entry-status.ts";
 import { readFixtureEntries } from "../src/load-fixture.ts";
 import { buildSnapshot } from "../src/snapshot.ts";
 import { readEdgeCases, readSpecFixture } from "./fixtures.ts";
@@ -135,5 +135,36 @@ describe("entryStatus", () => {
 
     expect(broken.mapping.status).toBe("broken");
     expect(entryStatus(broken, heartbeat)).toEqual({ reason: "mapping-broken" });
+  });
+});
+
+describe("entryForEvent", () => {
+  const storeOf = (...entries: ViewerEntry[]): Pick<ViewerStore, "get"> => ({
+    get: (id) => entries.find((candidate) => candidate.id === id),
+  });
+
+  it("gives the entry an event was parsed from", () => {
+    const analysis = analyzeSnapshot(buildSnapshot([heartbeat]));
+    const eventId = analysis.mapping.eventByEntry.get(heartbeat.id);
+
+    expect(eventId).toBeDefined();
+    expect(entryForEvent(analysis, storeOf(heartbeat), eventId!)).toBe(heartbeat.id);
+  });
+
+  it("gives no entry for an unknown event, an evicted entry or before any analysis", () => {
+    const analysis = analyzeSnapshot(buildSnapshot([heartbeat]));
+    const eventId = analysis.mapping.eventByEntry.get(heartbeat.id)!;
+
+    expect(entryForEvent(analysis, storeOf(heartbeat), "evt-unknown")).toBeUndefined();
+    expect(entryForEvent(analysis, storeOf(), eventId)).toBeUndefined();
+    expect(entryForEvent(undefined, storeOf(heartbeat), eventId)).toBeUndefined();
+  });
+
+  it("gives no entry when the id was reused for a new record", () => {
+    const analysis = analyzeSnapshot(buildSnapshot([heartbeat]));
+    const eventId = analysis.mapping.eventByEntry.get(heartbeat.id)!;
+    const readded: ViewerEntry = { ...heartbeat, record: { ...HEARTBEAT } };
+
+    expect(entryForEvent(analysis, storeOf(readded), eventId)).toBeUndefined();
   });
 });

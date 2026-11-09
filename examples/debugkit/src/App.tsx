@@ -6,7 +6,7 @@ import { useEffect, useMemo, useRef, useState, type ReactElement } from "react";
 
 import { analyzeSnapshot, type Analysis } from "./analysis.ts";
 import { AnalysisStatus } from "./AnalysisStatus.tsx";
-import { entryStatus, type NotAnalyzedReason } from "./entry-status.ts";
+import { entryForEvent, entryStatus, type NotAnalyzedReason } from "./entry-status.ts";
 import { createAnalysisScheduler, type AnalysisScheduler } from "./scheduler.ts";
 import { buildSnapshot } from "./snapshot.ts";
 
@@ -116,14 +116,8 @@ export function App({ store, parse = parseOpenOcppTrace }: AppProps): ReactEleme
     selectedStatus !== undefined && "eventId" in selectedStatus ? selectedStatus.eventId : null;
 
   function selectEvent(eventId: string): void {
-    const entryId = analysis?.mapping.entryByEvent.get(eventId);
-    const entry = entryId === undefined ? undefined : store.get(entryId);
-    // The same rule as the other direction: a reused id is not this event's entry.
-    if (
-      entryId === undefined ||
-      entry === undefined ||
-      !("eventId" in entryStatus(analysis, entry))
-    ) {
+    const entryId = entryForEvent(analysis, store, eventId);
+    if (entryId === undefined) {
       setTimelineNote(`Event ${eventId} has no single viewer entry; the selection is unchanged.`);
       return;
     }

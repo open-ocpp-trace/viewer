@@ -11,7 +11,7 @@ export interface AnalysisSchedulerOptions {
   readonly windowMs?: number;
   readonly timers?: TimerHost;
   /** Receives what `run` throws or rejects with. Default `console.error`. */
-  onError?(error: unknown): void;
+  readonly onError?: (error: unknown) => void;
 }
 
 export interface AnalysisScheduler {
@@ -49,15 +49,11 @@ const globalTimers: TimerHost = {
 export function createAnalysisScheduler(options: AnalysisSchedulerOptions): AnalysisScheduler {
   const windowMs = options.windowMs ?? 1000;
   const timers = options.timers ?? globalTimers;
-  const report = (error: unknown): void => {
-    if (options.onError === undefined) console.error(error);
-    else options.onError(error);
-  };
+  const report = options.onError ?? ((error: unknown) => console.error(error));
   let timer: unknown;
   let armed = false;
   let stale = false;
   let running = false;
-  let again = false;
   let disposed = false;
 
   function arm(): void {
@@ -77,17 +73,15 @@ export function createAnalysisScheduler(options: AnalysisSchedulerOptions): Anal
 
   function finish(): void {
     running = false;
-    if (again || stale) {
-      again = false;
-      stale = true;
-      arm();
-    }
+    // `stale` is cleared when a run starts, so it is set here only by a
+    // change (or an « Analyze now ») during the run: run once more.
+    if (stale) arm();
   }
 
   function start(): void {
     if (disposed) return;
     if (running) {
-      again = true;
+      stale = true;
       return;
     }
     running = true;
@@ -114,8 +108,7 @@ export function createAnalysisScheduler(options: AnalysisSchedulerOptions): Anal
     markStale() {
       if (disposed) return;
       stale = true;
-      if (running) again = true;
-      else arm();
+      if (!running) arm();
     },
     runNow() {
       disarm();
