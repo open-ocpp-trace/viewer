@@ -13,7 +13,7 @@ import {
   type ViewerStore,
 } from "@open-ocpp-trace/viewer-core";
 
-import { FilterPanel } from "../src/FilterPanel.tsx";
+import { FilterPanel, type FilterPanelProps } from "@open-ocpp-trace/viewer-react";
 import { add, sdkEntry } from "./fixtures.ts";
 
 function connected(
@@ -309,7 +309,8 @@ describe("<FilterPanel> filter state", () => {
     const engine = connectedEngine(sdkEntry("a"));
     function Parent(): ReactElement {
       const [filter, setFilter] = useState<TraceFilter>({ kinds: ["gap"] });
-      return <FilterPanel engine={engine} filter={filter} onFilterChange={setFilter} />;
+      const props: FilterPanelProps = { engine, filter, onFilterChange: setFilter };
+      return <FilterPanel {...props} />;
     }
     render(<Parent />);
     act(() => screen.getByRole("button", { name: "Reset" }).click());

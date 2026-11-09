@@ -8,6 +8,8 @@ export function hostReactVersion(): string {
   return version;
 }
 
+export { FilterPanel } from "./FilterPanel.tsx";
+export type { FilterPanelProps } from "./FilterPanel.tsx";
 export { useFilterEngine } from "./hooks.ts";
 export { TraceList } from "./TraceList.tsx";
 export type { TraceListProps } from "./TraceList.tsx";
