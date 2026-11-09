@@ -137,6 +137,27 @@ describe("attachStyles", () => {
     expect(root.querySelector("style")).toBeNull();
   });
 
+  it("adopts each css its own sheet, and one sheet per css in a document", () => {
+    const attach = (css: string): ShadowRoot => {
+      const root = document.createElement("div").attachShadow({ mode: "open" });
+      attachStyles(root, css, undefined);
+      return root;
+    };
+    const rules = (root: ShadowRoot): string =>
+      root.adoptedStyleSheets
+        .flatMap((sheet) => Array.from(sheet.cssRules, (rule) => rule.cssText))
+        .join("\n");
+
+    const first = attach(".oot-first { color: red; }");
+    const second = attach(".oot-second { color: blue; }");
+    const again = attach(".oot-first { color: red; }");
+
+    expect(rules(first)).toContain(".oot-first");
+    expect(rules(second)).toContain(".oot-second");
+    expect(rules(second)).not.toContain(".oot-first");
+    expect(again.adoptedStyleSheets[0]).toBe(first.adoptedStyleSheets[0]);
+  });
+
   it("falls back to a <style> element carrying the nonce", () => {
     const root = document.createElement("div").attachShadow({ mode: "open" });
     Object.defineProperty(root, "adoptedStyleSheets", { value: undefined });

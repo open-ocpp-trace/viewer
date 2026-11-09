@@ -1,9 +1,9 @@
-// One constructable sheet per document: a sheet can only be adopted by the
-// document it was constructed in, and it is never modified once built.
-const sheets = new WeakMap<Document, CSSStyleSheet>();
+// One constructable sheet per document and css: a sheet can only be adopted
+// by the document it was constructed in, and it is never modified once built.
+const sheets = new WeakMap<Document, Map<string, CSSStyleSheet>>();
 
 function sharedSheet(document: Document, css: string): CSSStyleSheet | undefined {
-  const cached = sheets.get(document);
+  const cached = sheets.get(document)?.get(css);
   if (cached !== undefined) return cached;
   const Sheet = document.defaultView?.CSSStyleSheet;
   if (typeof Sheet !== "function" || typeof Sheet.prototype.replaceSync !== "function") {
@@ -11,7 +11,9 @@ function sharedSheet(document: Document, css: string): CSSStyleSheet | undefined
   }
   const sheet = new Sheet();
   sheet.replaceSync(css);
-  sheets.set(document, sheet);
+  const byCss = sheets.get(document) ?? new Map<string, CSSStyleSheet>();
+  byCss.set(css, sheet);
+  sheets.set(document, byCss);
   return sheet;
 }
 
