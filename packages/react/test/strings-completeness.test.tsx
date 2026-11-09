@@ -1,5 +1,5 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vite-plus/test";
+import { describe, expect, it, vi } from "vite-plus/test";
 
 import {
   createCorrelator,
@@ -7,7 +7,12 @@ import {
   type EntryId,
   type ViewerEntry,
 } from "@open-ocpp-trace/viewer-core";
-import { defaultStrings, type TranslateFunction, TraceViewer } from "@open-ocpp-trace/viewer-react";
+import {
+  defaultStrings,
+  type DetailPanel,
+  type TranslateFunction,
+  TraceViewer,
+} from "@open-ocpp-trace/viewer-react";
 
 import { add, sdkEntry } from "./fixtures.ts";
 import { stubLayout } from "./layout.ts";
@@ -88,8 +93,18 @@ const ENTRIES: ViewerEntry[] = [
   { kind: "gap", id: "g", reason: "disconnected", missedCount: 3 },
 ];
 
+/** A host panel that always fails, to show the localized fallback. */
+const CRASHING: DetailPanel = {
+  id: "crashing",
+  title: "⟦host panel⟧",
+  render: () => {
+    throw new Error("host panel failure");
+  },
+};
+
 describe("a fully translated viewer", () => {
   it("shows no default English string in any state", () => {
+    const quiet = vi.spyOn(console, "error").mockImplementation(() => {});
     const store = createViewerStore();
     const correlator = createCorrelator();
     correlator.connect(store);
@@ -103,6 +118,7 @@ describe("a fully translated viewer", () => {
         onCopy={() => {}}
         filter={{ timeRange: { from: "soon" } }}
         selection={{ entryId: selected }}
+        detailPanels={[CRASHING]}
         payloadSearch
       />
     );
@@ -142,6 +158,7 @@ describe("a fully translated viewer", () => {
       "inspector.copy",
       "inspector.rawHidden",
       "inspector.gone",
+      "detailPanelError",
     ]) {
       expect(
         all.some((text) => text.includes(`⟦${key}⟧`)),
@@ -149,6 +166,7 @@ describe("a fully translated viewer", () => {
       ).toBe(true);
     }
     expect(leftovers(all)).toEqual([]);
+    quiet.mockRestore();
   });
 
   it("finds the default strings of an untranslated viewer", () => {

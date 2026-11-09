@@ -17,6 +17,8 @@ export type { FilterPanelProps } from "./FilterPanel.tsx";
 export { useFilterEngine } from "./hooks.ts";
 export { defaultSensitiveKeys } from "./inspect-format.ts";
 export type {
+  DetailPanel,
+  DetailPanelContext,
   FilterControl,
   FilterControlContext,
   ToolbarAction,

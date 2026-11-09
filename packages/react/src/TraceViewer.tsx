@@ -26,9 +26,17 @@ import { exportJsonl, type JsonlExport } from "./export-jsonl.ts";
 import { FilterPanel } from "./FilterPanel.tsx";
 import { useFilterEngine } from "./hooks.ts";
 import { reportHostError } from "./report-error.ts";
-import type { FilterControl, ToolbarAction, ViewerActionContext } from "./slots.tsx";
+import { ResetBoundary } from "./reset-boundary.tsx";
+import {
+  type DetailPanel,
+  type DetailPanelContext,
+  type FilterControl,
+  SlotContent,
+  type ToolbarAction,
+  type ViewerActionContext,
+} from "./slots.tsx";
 import type { PartialViewerStrings, TranslateFunction } from "./strings.ts";
-import { StringsContext, useViewerStrings } from "./strings-context.ts";
+import { StringsContext, useStrings, useViewerStrings } from "./strings-context.ts";
 import { themeStyle, type ViewerTheme } from "./theme.ts";
 import { TraceList } from "./TraceList.tsx";
 
@@ -115,6 +123,8 @@ export interface TraceViewerProps {
   toolbarActions?: readonly ToolbarAction[];
   /** Host controls of the filter panel, as `FilterPanelProps.filterControls`. */
   filterControls?: readonly FilterControl[];
+  /** Host sections shown under the inspector for the selected entry. */
+  detailPanels?: readonly DetailPanel[];
   className?: string;
 }
 
@@ -152,6 +162,30 @@ function HostAction(props: { action: ToolbarAction; context: ViewerActionContext
     <button type="button" className="oot-toolbar-button" disabled={disabled} onClick={run}>
       {action.label}
     </button>
+  );
+}
+
+/** Whether `panel` shows for `entry`; a throw of `appliesTo` hides it. */
+function applies(panel: DetailPanel, entry: ViewerEntry): boolean {
+  try {
+    return panel.appliesTo?.(entry) ?? true;
+  } catch (error) {
+    reportHostError(error);
+    return false;
+  }
+}
+
+/** A host detail panel; a render throw shows a fallback until the entry changes. */
+function HostPanel(props: { panel: DetailPanel; context: DetailPanelContext }): ReactElement {
+  const { panel, context } = props;
+  const fallback = <p className="oot-detail-panel__error">{useStrings().detailPanelError}</p>;
+  return (
+    <section className="oot-detail-panel" aria-label={panel.title}>
+      <h3>{panel.title}</h3>
+      <ResetBoundary fallback={fallback} resetKeys={[context.entry.id]}>
+        <SlotContent slot={panel} context={context} />
+      </ResetBoundary>
+    </section>
   );
 }
 
@@ -249,12 +283,22 @@ export function TraceViewer(props: TraceViewerProps): ReactElement {
     onExport?.(exported, scope);
   };
 
+  // Host slots select like a paired link of the inspector.
+  const hostSelect = (entryId: EntryId | null): void =>
+    entryId === null ? select(null) : navigate(entryId);
   const actionContext: ViewerActionContext = {
     store,
     selection: { entryId: selectedId },
     selectedEntry,
     listed: () => [...listed(engine)],
-    select: (entryId) => (entryId === null ? select(null) : navigate(entryId)),
+    select: hostSelect,
+  };
+
+  const panelContext: DetailPanelContext | undefined = selectedEntry && {
+    entry: selectedEntry,
+    store,
+    correlator,
+    select: hostSelect,
   };
 
   const className = props.className === undefined ? "oot-viewer" : `oot-viewer ${props.className}`;
@@ -348,6 +392,12 @@ export function TraceViewer(props: TraceViewerProps): ReactElement {
               })}
               {...(props.sensitiveKeys !== undefined && { sensitiveKeys: props.sensitiveKeys })}
             />
+            {panelContext &&
+              props.detailPanels?.map((panel) =>
+                applies(panel, panelContext.entry) ? (
+                  <HostPanel key={panel.id} panel={panel} context={panelContext} />
+                ) : null,
+              )}
           </div>
         </div>
       </div>

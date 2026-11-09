@@ -1,5 +1,4 @@
 import {
-  Component,
   Fragment,
   memo,
   type ReactElement,
@@ -27,6 +26,7 @@ import {
   formatValue,
   sensitiveKeySet,
 } from "./inspect-format.ts";
+import { ResetBoundary } from "./reset-boundary.tsx";
 import type { PartialViewerStrings, TranslateFunction, ViewerStrings } from "./strings.ts";
 import { StringsContext, useStrings, useViewerStrings } from "./strings-context.ts";
 
@@ -172,35 +172,6 @@ function Block({ title, printed, onMore, onCopy, total, children }: BlockProps) 
       )}
     </div>
   );
-}
-
-interface PayloadBoundaryProps {
-  fallback: ReactNode;
-  /** A change of any of them (renderer, printed text) renders the children again. */
-  resetKeys: readonly unknown[];
-  children: ReactNode;
-}
-
-class PayloadBoundary extends Component<
-  PayloadBoundaryProps,
-  { failed: boolean; resetKeys: readonly unknown[] }
-> {
-  override state = { failed: false, resetKeys: this.props.resetKeys };
-  static getDerivedStateFromError(): { failed: boolean } {
-    return { failed: true };
-  }
-  static getDerivedStateFromProps(
-    props: PayloadBoundaryProps,
-    state: { resetKeys: readonly unknown[] },
-  ): { failed: boolean; resetKeys: readonly unknown[] } | null {
-    const same =
-      props.resetKeys.length === state.resetKeys.length &&
-      props.resetKeys.every((key, i) => Object.is(key, state.resetKeys[i]));
-    return same ? null : { failed: false, resetKeys: props.resetKeys };
-  }
-  override render(): ReactNode {
-    return this.state.failed ? this.props.fallback : this.props.children;
-  }
 }
 
 const HostPayload = memo(function HostPayload(props: {
@@ -389,15 +360,11 @@ function TraceDetails({ entry, props, keys, copy }: DetailsProps & { entry: Trac
         onCopy={part === null ? undefined : copy(() => copyText(values[name], keys), part)}
       >
         {name === "payload" && render !== undefined && !shown.truncated ? (
-          <PayloadBoundary
-            key={limits.step(name)}
-            fallback={plain}
-            resetKeys={[render, shown.text]}
-          >
+          <ResetBoundary key={limits.step(name)} fallback={plain} resetKeys={[render, shown.text]}>
             <Code title={title}>
               <HostPayload render={render} text={shown.text} entry={entry} />
             </Code>
-          </PayloadBoundary>
+          </ResetBoundary>
         ) : undefined}
       </Block>
     );

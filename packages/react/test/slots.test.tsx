@@ -3,6 +3,7 @@ import { useState, type ReactElement } from "react";
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 
 import {
+  createCorrelator,
   createViewerStore,
   type FilterFieldDefinition,
   type TraceFilter,
@@ -10,6 +11,8 @@ import {
   type ViewerStore,
 } from "@open-ocpp-trace/viewer-core";
 import {
+  type DetailPanel,
+  type DetailPanelContext,
   FilterPanel,
   type FilterControl,
   type ToolbarAction,
@@ -338,5 +341,202 @@ describe("filter controls", () => {
       "checked",
       true,
     );
+  });
+});
+
+const ERRORED = [
+  sdkEntry("call"),
+  sdkEntry("error", {
+    direction: "csms-to-cp",
+    messageType: "CALLERROR",
+    action: undefined,
+    error: { code: "InternalError", description: "boom" },
+  }),
+  sdkEntry("other", { action: "Authorize" }),
+];
+
+function panel(title: string): HTMLElement | null {
+  return document.querySelector<HTMLElement>(`section.oot-detail-panel[aria-label="${title}"]`);
+}
+
+const ENTRY_PANEL: DetailPanel = {
+  id: "entry",
+  title: "Host entry",
+  render: (context) => <p className="host-entry">{`entry ${context.entry.id}`}</p>,
+};
+
+const ERROR_PANEL: DetailPanel = {
+  id: "failure",
+  title: "Host failure",
+  appliesTo: (entry) => entry.kind === "trace" && entry.record.messageType === "CALLERROR",
+  render: () => <p>failure details</p>,
+};
+
+describe("detail panels", () => {
+  it("renders a panel under the inspector for the selected entry", () => {
+    const { container } = render(
+      <TraceViewer
+        store={storeWith(ERRORED)}
+        detailPanels={[ENTRY_PANEL]}
+        defaultSelection={{ entryId: "call" }}
+      />,
+    );
+    const section = panel("Host entry");
+    expect(section).not.toBeNull();
+    expect(section!.querySelector("h3")?.textContent).toBe("Host entry");
+    expect(section!.textContent).toContain("entry call");
+    const detail = container.querySelector(".oot-viewer__detail")!;
+    expect(section!.parentElement).toBe(detail);
+    expect(detail.lastElementChild).toBe(section);
+    expect(detail.children.length).toBeGreaterThan(1);
+  });
+
+  it("renders no panel without a present selected entry", () => {
+    const { rerender } = render(
+      <TraceViewer store={storeWith(ERRORED)} detailPanels={[ENTRY_PANEL]} />,
+    );
+    expect(panel("Host entry")).toBeNull();
+    rerender(
+      <TraceViewer
+        store={storeWith(ERRORED)}
+        detailPanels={[ENTRY_PANEL]}
+        selection={{ entryId: "missing" }}
+      />,
+    );
+    expect(panel("Host entry")).toBeNull();
+  });
+
+  it("shows a contextual panel only for the entries it applies to", () => {
+    render(<TraceViewer store={storeWith(ERRORED)} detailPanels={[ENTRY_PANEL, ERROR_PANEL]} />);
+    fireEvent.click(row("call"));
+    expect(panel("Host entry")).not.toBeNull();
+    expect(panel("Host failure")).toBeNull();
+    fireEvent.click(row("error"));
+    expect(panel("Host failure")?.textContent).toContain("failure details");
+    expect(panel("Host entry")).not.toBeNull();
+  });
+
+  it("gives a panel the store, the correlator and the entry", () => {
+    const store = storeWith(ERRORED);
+    const correlator = createCorrelator();
+    correlator.connect(store);
+    const seen: DetailPanelContext[] = [];
+    const spy: DetailPanel = {
+      id: "spy",
+      title: "Spy",
+      render: (context) => {
+        seen.push(context);
+        return null;
+      },
+    };
+    render(
+      <TraceViewer
+        store={store}
+        correlator={correlator}
+        detailPanels={[spy]}
+        defaultSelection={{ entryId: "error" }}
+      />,
+    );
+    const context = seen.at(-1)!;
+    expect(context.store).toBe(store);
+    expect(context.correlator).toBe(correlator);
+    expect(context.entry).toBe(store.get("error"));
+  });
+
+  it("isolates a crashing panel and recovers on another entry", () => {
+    const quiet = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const crashing: DetailPanel = {
+        id: "crash",
+        title: "Crashing",
+        render: (context) => {
+          if (context.entry.id === "error") throw new Error("panel failure");
+          return <p>{`fine ${context.entry.id}`}</p>;
+        },
+      };
+      render(<TraceViewer store={storeWith(ERRORED)} detailPanels={[crashing, ENTRY_PANEL]} />);
+      fireEvent.click(row("error"));
+      expect(panel("Crashing")?.querySelector("h3")?.textContent).toBe("Crashing");
+      expect(panel("Crashing")?.querySelector(".oot-detail-panel__error")?.textContent).toBe(
+        "This panel failed to render.",
+      );
+      expect(panel("Host entry")?.textContent).toContain("entry error");
+      fireEvent.click(row("other"));
+      expect(row("other").getAttribute("aria-selected")).toBe("true");
+      expect(panel("Crashing")?.textContent).toContain("fine other");
+      expect(panel("Crashing")?.querySelector(".oot-detail-panel__error")).toBeNull();
+    } finally {
+      quiet.mockRestore();
+    }
+  });
+
+  it("localizes the fallback of a crashing panel", () => {
+    const quiet = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const crashing: DetailPanel = {
+        id: "crash",
+        title: "Crashing",
+        render: () => {
+          throw new Error("panel failure");
+        },
+      };
+      render(
+        <TraceViewer
+          store={storeWith(ERRORED)}
+          detailPanels={[crashing]}
+          defaultSelection={{ entryId: "call" }}
+          strings={{ detailPanelError: "Panneau en échec" }}
+        />,
+      );
+      expect(panel("Crashing")?.querySelector(".oot-detail-panel__error")?.textContent).toBe(
+        "Panneau en échec",
+      );
+    } finally {
+      quiet.mockRestore();
+    }
+  });
+
+  it("reports a throwing appliesTo and hides that panel", () => {
+    const report = vi.fn();
+    vi.stubGlobal("reportError", report);
+    const failure = new Error("appliesTo failure");
+    const broken: DetailPanel = {
+      id: "broken",
+      title: "Broken",
+      appliesTo: () => {
+        throw failure;
+      },
+      render: () => <p>never</p>,
+    };
+    render(<TraceViewer store={storeWith(ERRORED)} detailPanels={[broken, ENTRY_PANEL]} />);
+    fireEvent.click(row("call"));
+    expect(panel("Broken")).toBeNull();
+    expect(panel("Host entry")).not.toBeNull();
+    expect(report).toHaveBeenCalledWith(failure);
+  });
+
+  it("selects another entry from a panel", () => {
+    const onSelectionChange = vi.fn();
+    const navigator: DetailPanel = {
+      id: "nav",
+      title: "Navigator",
+      render: (context) => (
+        <button type="button" onClick={() => context.select("other")}>
+          Go to other
+        </button>
+      ),
+    };
+    render(
+      <TraceViewer
+        store={storeWith(ERRORED)}
+        detailPanels={[navigator]}
+        defaultSelection={{ entryId: "call" }}
+        onSelectionChange={onSelectionChange}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Go to other" }));
+    expect(row("other").getAttribute("aria-selected")).toBe("true");
+    expect(onSelectionChange).toHaveBeenCalledTimes(1);
+    expect(onSelectionChange.mock.calls[0]![0]).toEqual({ entryId: "other" });
   });
 });

@@ -20,6 +20,8 @@ export const defaultStrings = {
   noMatch: "No entries match the filter",
   unparsed: "Unparsed",
   jumpToLatest: "Jump to latest",
+  /** Shown in place of a host detail panel that failed to render. */
+  detailPanelError: "This panel failed to render.",
   toolbar: {
     /** A toggle button: its pressed state tells whether the store is paused. */
     pause: "Pause",

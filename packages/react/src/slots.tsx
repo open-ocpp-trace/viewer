@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 
 import type {
+  Correlator,
   EntryId,
   TraceFilter,
   ViewerEntry,
@@ -57,6 +58,30 @@ export interface FilterControl {
   readonly id: string;
   readonly label: string;
   render(context: FilterControlContext): ReactNode;
+}
+
+/** What a {@link DetailPanel} renders. */
+export interface DetailPanelContext {
+  /** The selected entry, present in the store. */
+  readonly entry: ViewerEntry;
+  readonly store: ViewerStore;
+  readonly correlator: Correlator | undefined;
+  /** Selects like a paired link of the inspector: `onSelectionChange` is called. */
+  select(entryId: EntryId | null): void;
+}
+
+/**
+ * A host section rendered under the inspector for the selected entry, with
+ * `title` as its heading (shown as given). A throw while rendering shows the
+ * `detailPanelError` string in its place until another entry is selected.
+ */
+export interface DetailPanel {
+  /** Keys the panel; a later panel with the same id is ignored. */
+  readonly id: string;
+  readonly title: string;
+  /** Contextual: the panel shows only for entries it accepts (default: all). */
+  appliesTo?(entry: ViewerEntry): boolean;
+  render(context: DetailPanelContext): ReactNode;
 }
 
 /**
