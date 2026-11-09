@@ -9,8 +9,9 @@
 # the three tarballs with npm into a throwaway project outside the
 # workspace, next to that React version and its @types packages, and:
 #   1. imports viewer-core under Node.js and under Bun (no React, no DOM);
-#   2. imports viewer-react and checks that it uses the consumer's React
-#      and that the project holds a single React copy;
+#   2. imports viewer-react, checks that it uses the consumer's React and
+#      that the project holds a single React copy, and renders a
+#      <TraceViewer> to a string with react-dom/server;
 #   3. type-checks smoke-consumer/consumer.ts with `tsc --noEmit`, once
 #      with `moduleResolution: "bundler"` and once with "nodenext", so the
 #      `types` entry of every tarball must resolve;
@@ -116,7 +117,7 @@ EOF
   (cd "$consumer" && node core.mjs)
   (cd "$consumer" && bun --no-install core.mjs)
 
-  step "import viewer-react with React $react_version"
+  step "import viewer-react and render a viewer with React $react_version"
   (cd "$consumer" && node react.mjs "$major")
   copies=$(cd "$consumer" && find . -path '*/node_modules/react/package.json' | wc -l | tr -d ' ')
   if [ "$copies" != 1 ]; then
