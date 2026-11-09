@@ -59,10 +59,13 @@ optional for producers that do not have them. Statuses (`queued`, `submitted`, `
 `EntryUpdate` is either `{ type: 'add', entry }` or `{ type: 'update', id, revision?, metadata }`.
 The store (#3) applies these rules:
 
-1. **Staleness.** When `revision` is present, an update whose revision is lower than or equal to the
-   last revision applied to that id is ignored. Without `revision`, arrival order wins (last write
-   wins). The revision is per entry, not per field: an adapter must emit revisions that increase per
-   entry across all its updates, or omit them.
+1. **Staleness.** Each entry has a revision watermark, initially none (added and snapshot entries
+   carry no revision). An update whose `revision` is lower than or equal to the watermark is
+   ignored; otherwise it applies and its revision becomes the watermark, so the first revised update
+   is accepted. An update without `revision` always applies (last write wins) and leaves the
+   watermark unchanged. A `revision` that is not a finite integer ≥ 0 makes the update invalid:
+   dropped and counted. The revision is per entry, not per field: an adapter must emit revisions
+   that increase per entry across all its updates, or omit them.
 2. **Unknown id.** An update for an id the store does not hold is dropped and counted, not buffered.
    This also covers an entry already evicted.
 3. **No resurrection, no reordering.** An update never brings back an evicted entry and never moves an
@@ -76,7 +79,12 @@ The store (#3) applies these rules:
    delivery at a time as its status changes, addressed by its index in that list; a full-list
    replacement would force its adapter to keep every list, while a per-target merge only needs the
    index-to-target mapping it saw on `add`. A patch cannot remove a field.
-6. **Duplicate add.** An `add` for an id already held is ignored and counted.
+6. **Duplicate add.** An `add` for an id already held is ignored and counted. An `add` for an
+   evicted id is accepted as a new entry, appended at the end: the store keeps no tombstones, so
+   its memory stays bounded.
+
+List order is arrival order: the snapshot, then each batch, each batch in array order. The time
+displayed for an entry is `record.timestamp` for a trace, else `timestamp ?? receivedAt`.
 
 Core does not rank delivery statuses: the gateway's forward-only rule (`queued` → `submitted` → a
 final status) is its own semantics, and an open status union cannot rank unknown values. An adapter
@@ -85,8 +93,10 @@ that needs it enforces it before emitting.
 ### Adapter contract
 
 `ViewerAdapter` exposes `snapshot()` (synchronous or a promise) and `subscribe(listener)`, which
-receives batches of `EntryUpdate`s and returns an `Unsubscribe`. The viewer takes the snapshot, then
-subscribes. Transports (WebSocket, SSE, polling) and codecs (JSONL, producer envelopes) stay in
+receives batches of `EntryUpdate`s and returns an `Unsubscribe`. The viewer subscribes first and
+buffers the batches it receives, applies the snapshot (its entries carry no revision), then replays
+the buffer in order. An entry present in both the snapshot and an early batch is a duplicate `add`,
+ignored by rule 6, so the overlap is safe. Transports (WebSocket, SSE, polling) and codecs (JSONL, producer envelopes) stay in
 adapters and examples; core has no transport type. A connection loss is reported by the adapter as a
 `gap` entry.
 

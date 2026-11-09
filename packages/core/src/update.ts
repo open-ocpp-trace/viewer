@@ -10,9 +10,14 @@ export type EntryMetadataPatch = EntryMetadata;
 /**
  * One change to the viewer's entries: a new entry, or a metadata patch for an
  * entry already added. An update never touches `record`, `kind`, `id` or
- * `raw`. When `revision` is present, an update whose revision is not greater
- * than the last one applied to that entry is stale and ignored; without it,
- * arrival order wins.
+ * `raw`.
+ *
+ * Each entry has a revision watermark, initially none. An update whose
+ * `revision` is lower than or equal to the watermark is stale and ignored;
+ * otherwise it applies and its revision becomes the watermark. An update
+ * without `revision` always applies and leaves the watermark unchanged.
+ * `revision` must be a finite integer >= 0, else the update is dropped and
+ * counted. An `add` for an evicted id is a new entry, appended at the end.
  */
 export type EntryUpdate =
   | { readonly type: "add"; readonly entry: ViewerEntry }

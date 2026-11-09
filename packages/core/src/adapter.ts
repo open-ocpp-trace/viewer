@@ -5,9 +5,11 @@ import type { EntryUpdate } from "./update.ts";
 export type Unsubscribe = () => void;
 
 /**
- * Feeds a viewer from one producer. The viewer takes the snapshot, then
- * subscribes to incremental updates, delivered in batches. Transports and
- * codecs stay in the adapter: a connection loss is reported as a `gap` entry.
+ * Feeds a viewer from one producer. The viewer subscribes first and buffers
+ * the batches it receives, then applies the snapshot (entries without a
+ * revision), then replays the buffer in order; an entry present in both is a
+ * duplicate `add`, ignored. Transports and codecs stay in the adapter: a
+ * connection loss is reported as a `gap` entry.
  */
 export interface ViewerAdapter {
   snapshot(): readonly ViewerEntry[] | Promise<readonly ViewerEntry[]>;

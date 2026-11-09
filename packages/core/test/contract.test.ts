@@ -151,7 +151,9 @@ describe("adapter sketches", () => {
   it("expresses gateway deliveries beside the record, then a gap", async () => {
     const gateway = createGatewayAdapter();
     const updates: EntryUpdate[] = [];
+    // The viewer subscribes first, buffering batches, then takes the snapshot.
     const unsubscribe = gateway.adapter.subscribe((batch) => updates.push(...batch));
+    expect(await gateway.adapter.snapshot()).toEqual([]);
     const queued = {
       target: "csms-a",
       role: "primary",
@@ -173,7 +175,6 @@ describe("adapter sketches", () => {
     unsubscribe();
     gateway.reconnected("2026-11-09T10:06:00.000Z");
 
-    expect(await gateway.adapter.snapshot()).toEqual([]);
     expect(updates).toHaveLength(3);
     const [added, changed, gap] = updates;
     expect(added?.type === "add" && added.entry.kind === "trace" && added.entry.record).toBe(
@@ -182,7 +183,6 @@ describe("adapter sketches", () => {
     expect(changed).toEqual({
       type: "update",
       id: "t-1",
-      revision: 1,
       metadata: { deliveries: [{ ...queued, status: "written" }] },
     });
     expect(gap?.type === "add" && gap.entry).toMatchObject({

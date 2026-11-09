@@ -111,7 +111,6 @@ export function createGatewayAdapter(): GatewayAdapter {
   // The gateway addresses a delivery by its index in the envelope's list; the
   // viewer merges deliveries per target, so the adapter keeps the mapping.
   const targets = new Map<EntryId, readonly string[]>();
-  const revisions = new Map<EntryId, number>();
   let gaps = 0;
   const emit = (updates: readonly EntryUpdate[]): void => {
     for (const listener of listeners) listener(updates);
@@ -134,11 +133,10 @@ export function createGatewayAdapter(): GatewayAdapter {
     },
     deliveryChanged({ id, index, delivery }) {
       if (targets.get(id)?.[index] !== delivery.target) return;
-      const revision = (revisions.get(id) ?? 0) + 1;
-      revisions.set(id, revision);
-      emit([
-        { type: "update", id, revision, metadata: { deliveries: [toEntryDelivery(delivery)] } },
-      ]);
+      // No revision: a counter stamped here would only restate arrival order.
+      // Keeping delivery statuses forward-only (queued, submitted, then a
+      // final status) is this adapter's job, not the viewer's.
+      emit([{ type: "update", id, metadata: { deliveries: [toEntryDelivery(delivery)] } }]);
     },
     reconnected(at, missedCount) {
       emit([
