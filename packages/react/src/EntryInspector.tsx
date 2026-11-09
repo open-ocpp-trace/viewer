@@ -7,6 +7,7 @@ import {
   readEntryFields,
   type TraceEntry,
   type UnparsedEntry,
+  type ViewerErrorHandler,
   type ViewerStore,
 } from "@open-ocpp-trace/viewer-core";
 
@@ -73,6 +74,11 @@ export interface EntryInspectorProps {
   strings?: PartialViewerStrings;
   /** Translates the strings, as `TraceViewerProps.translate`. */
   translate?: TranslateFunction;
+  /**
+   * Receives an error thrown by `translate`, with `{ component: "EntryInspector",
+   * callback: "translate" }`, as `TraceViewerProps.onError`.
+   */
+  onError?: ViewerErrorHandler;
   className?: string;
 }
 
@@ -489,7 +495,12 @@ function GapDetails({ entry }: { entry: GapEntry }) {
 export function EntryInspector(props: EntryInspectorProps): ReactElement {
   const { store, entryId, correlator, onCopy, revealSensitive = false, className } = props;
   const sensitiveKeys = props.sensitiveKeys ?? defaultSensitiveKeys;
-  const allStrings = useViewerStrings(props.strings, props.translate);
+  const allStrings = useViewerStrings(
+    props.strings,
+    props.translate,
+    props.onError,
+    "EntryInspector",
+  );
   const strings = allStrings.inspector;
   useVersion(store);
   useVersion(correlator);

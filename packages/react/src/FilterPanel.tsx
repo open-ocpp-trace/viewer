@@ -4,6 +4,7 @@ import type {
   FilterEngine,
   FilterFieldDefinition,
   TraceFilter,
+  ViewerErrorHandler,
 } from "@open-ocpp-trace/viewer-core";
 
 import {
@@ -67,6 +68,11 @@ export interface FilterPanelProps {
   strings?: PartialViewerStrings;
   /** Translates the strings, as `TraceViewerProps.translate`. */
   translate?: TranslateFunction;
+  /**
+   * Receives an error thrown by `translate`, with `{ component: "FilterPanel",
+   * callback: "translate" }`, as `TraceViewerProps.onError`.
+   */
+  onError?: ViewerErrorHandler;
   /** Host controls, rendered after the built-in groups. */
   filterControls?: readonly FilterControl[];
   className?: string;
@@ -82,7 +88,7 @@ export interface FilterPanelProps {
  */
 export function FilterPanel(props: FilterPanelProps): ReactElement {
   const { engine, onFilterChange } = props;
-  const allStrings = useViewerStrings(props.strings, props.translate);
+  const allStrings = useViewerStrings(props.strings, props.translate, props.onError, "FilterPanel");
   const strings = allStrings.filter;
   const [internal, setInternal] = useState<TraceFilter>(() => props.defaultFilter ?? engine.filter);
   const controlled = props.filter !== undefined;

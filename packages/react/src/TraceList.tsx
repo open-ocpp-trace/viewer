@@ -19,6 +19,7 @@ import {
   type FilterEngine,
   readEntryFields,
   type ViewerEntry,
+  type ViewerErrorHandler,
 } from "@open-ocpp-trace/viewer-core";
 
 import { readProp, readString } from "./guards.ts";
@@ -58,6 +59,11 @@ export interface TraceListProps {
   strings?: PartialViewerStrings;
   /** Translates the strings, as `TraceViewerProps.translate`. */
   translate?: TranslateFunction;
+  /**
+   * Receives an error thrown by `translate`, with `{ component: "TraceList",
+   * callback: "translate" }`, as `TraceViewerProps.onError`.
+   */
+  onError?: ViewerErrorHandler;
 }
 
 /** Built-in columns, in display order. */
@@ -184,7 +190,7 @@ function targetIndex(key: string, current: number, count: number, page: number):
 export function TraceList(props: TraceListProps): ReactElement {
   const { engine, correlator, columns = [], loading = false, error = null, className } = props;
   const rowHeight = props.rowHeight ?? DEFAULT_ROW_HEIGHT;
-  const strings = useViewerStrings(props.strings, props.translate);
+  const strings = useViewerStrings(props.strings, props.translate, props.onError, "TraceList");
   const version = useVersion(engine);
   const baseId = useId();
   const scrollRef = useRef<HTMLDivElement>(null);

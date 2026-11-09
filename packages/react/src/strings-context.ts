@@ -1,6 +1,8 @@
 import { createContext, useContext, useMemo } from "react";
 
-import { reportHostError } from "./report-error.ts";
+import { reportViewerError, type ViewerErrorHandler } from "@open-ocpp-trace/viewer-core";
+
+import { useStableCallback } from "./hooks.ts";
 import {
   defaultStrings,
   type PartialViewerStrings,
@@ -14,6 +16,12 @@ type Leaf = (...args: never[]) => string;
 
 const NO_PARAMS: Params = Object.freeze({});
 
+/** Receives an error thrown by `translate`. */
+type ReportFunction = (error: unknown) => void;
+
+const reportByDefault: ReportFunction = (error) =>
+  reportViewerError(undefined, error, { component: "strings", callback: "translate" });
+
 /**
  * The strings resolved by the nearest `<TraceViewer>` (or standalone
  * component given `strings` or `translate`), read by everything it renders.
@@ -25,13 +33,14 @@ function translated(
   translate: TranslateFunction | undefined,
   key: string,
   params: Params,
+  report: ReportFunction,
 ): string | undefined {
   if (translate === undefined) return undefined;
   try {
     const text = translate(key, params);
     return typeof text === "string" ? text : undefined;
   } catch (error) {
-    reportHostError(error);
+    report(error);
     return undefined;
   }
 }
@@ -48,6 +57,7 @@ function resolveFunction(
   fallback: Leaf,
   own: unknown,
   translate: TranslateFunction | undefined,
+  report: ReportFunction,
 ): Leaf {
   const base = (typeof own === "function" ? own : fallback) as (...args: unknown[]) => string;
   if (translate === undefined) return base;
@@ -57,7 +67,7 @@ function resolveFunction(
     names.forEach((name, index) => {
       params[name] = args[index] as string | number | null;
     });
-    return translated(translate, key, params) ?? base(...args);
+    return translated(translate, key, params, report) ?? base(...args);
   };
 }
 
@@ -66,6 +76,7 @@ function resolveNode(
   override: unknown,
   translate: TranslateFunction | undefined,
   prefix: string,
+  report: ReportFunction,
 ): Record<string, unknown> {
   const resolved: Record<string, unknown> = {};
   for (const [name, value] of Object.entries(defaults)) {
@@ -73,11 +84,11 @@ function resolveNode(
     const own = child(override, name);
     if (typeof value === "string") {
       resolved[name] =
-        translated(translate, key, NO_PARAMS) ?? (typeof own === "string" ? own : value);
+        translated(translate, key, NO_PARAMS, report) ?? (typeof own === "string" ? own : value);
     } else if (typeof value === "function") {
-      resolved[name] = resolveFunction(key, value as Leaf, own, translate);
+      resolved[name] = resolveFunction(key, value as Leaf, own, translate, report);
     } else {
-      resolved[name] = resolveNode(value as object, own, translate, `${key}.`);
+      resolved[name] = resolveNode(value as object, own, translate, `${key}.`, report);
     }
   }
   return resolved;
@@ -85,31 +96,41 @@ function resolveNode(
 
 /**
  * The strings to show: per leaf, `translate(key, params)` when it returns a
- * string, else the `overrides` leaf, else the default.
+ * string, else the `overrides` leaf, else the default. A throw of
+ * `translate` goes to `report` (by default, the default reporter of
+ * `reportViewerError`).
  */
 export function resolveStrings(
   overrides: PartialViewerStrings | undefined,
   translate: TranslateFunction | undefined,
+  report: ReportFunction = reportByDefault,
 ): ViewerStrings {
   if (overrides === undefined && translate === undefined) return defaultStrings;
-  return resolveNode(defaultStrings, overrides, translate, "") as unknown as ViewerStrings;
+  return resolveNode(defaultStrings, overrides, translate, "", report) as unknown as ViewerStrings;
 }
 
 /**
  * A component's strings: resolved from its own props when it has any,
- * memoized on their identity, else those of the enclosing viewer.
+ * memoized on their identity, else those of the enclosing viewer. A throw of
+ * `translate` goes to the latest `onError` with `{ component, callback:
+ * "translate" }`; a new `onError` identity resolves nothing again.
  */
 export function useViewerStrings(
   overrides: PartialViewerStrings | undefined,
   translate: TranslateFunction | undefined,
+  onError: ViewerErrorHandler | undefined,
+  component: string,
 ): ViewerStrings {
   const inherited = useContext(StringsContext);
+  const report = useStableCallback((error: unknown): void =>
+    reportViewerError(onError, error, { component, callback: "translate" }),
+  );
   const own = useMemo(
     () =>
       overrides === undefined && translate === undefined
         ? null
-        : resolveStrings(overrides, translate),
-    [overrides, translate],
+        : resolveStrings(overrides, translate, report),
+    [overrides, translate, report],
   );
   return own ?? inherited;
 }

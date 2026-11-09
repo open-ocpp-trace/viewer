@@ -11,6 +11,8 @@ import {
   createFilterEngine,
   type FilterEngine,
   type FilterEngineOptions,
+  reportViewerError,
+  type ViewerErrorContext,
   type ViewerStore,
 } from "@open-ocpp-trace/viewer-core";
 
@@ -19,21 +21,27 @@ import {
  * mounted. A new engine is created when `store`, `options.correlator`,
  * `options.fields` or `options.payloadSearch` changes identity: memoize
  * `fields` (and keep the correlator) across renders. The correlator must be
- * connected to the same store by the host.
+ * connected to the same store by the host. The engine reports its errors to
+ * the latest `options.onError`: a new handler identity keeps the engine.
  */
 export function useFilterEngine(store: ViewerStore, options?: FilterEngineOptions): FilterEngine {
   const correlator = options?.correlator;
   const fields = options?.fields;
   const payloadSearch = options?.payloadSearch;
+  const handler = options?.onError;
+  const onError = useStableCallback((error: unknown, context: ViewerErrorContext): void =>
+    reportViewerError(handler, error, context),
+  );
   const engine = useMemo(
     () =>
       createFilterEngine({
         ...(correlator !== undefined && { correlator }),
         ...(fields !== undefined && { fields }),
         ...(payloadSearch !== undefined && { payloadSearch }),
+        onError,
       }),
     // A new store gets a new engine, so the old one's list never shows.
-    [store, correlator, fields, payloadSearch],
+    [store, correlator, fields, payloadSearch, onError],
   );
   useEffect(() => engine.connect(store), [engine, store]);
   return engine;

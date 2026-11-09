@@ -1,23 +1,24 @@
 import { type ReactElement, type ReactNode, useEffect, useRef, useState } from "react";
 
-import type {
-  ColumnDefinition,
-  Correlator,
-  EntryId,
-  FilterEngine,
-  FilterFieldDefinition,
-  TraceFilter,
-  ViewerEntry,
-  ViewerSelection,
-  TraceEntry,
-  ViewerStore,
+import {
+  type ColumnDefinition,
+  type Correlator,
+  type EntryId,
+  type FilterEngine,
+  type FilterFieldDefinition,
+  reportViewerError,
+  type TraceFilter,
+  type ViewerEntry,
+  type ViewerSelection,
+  type TraceEntry,
+  type ViewerErrorHandler,
+  type ViewerStore,
 } from "@open-ocpp-trace/viewer-core";
 
 import { EntryInspector, type InspectorPart } from "./EntryInspector.tsx";
 import { exportJsonl, type JsonlExport } from "./export-jsonl.ts";
 import { FilterPanel } from "./FilterPanel.tsx";
 import { useFilterEngine, useStableCallback, useVersion } from "./hooks.ts";
-import { reportHostError } from "./report-error.ts";
 import { ResetBoundary } from "./reset-boundary.tsx";
 import {
   type DetailPanel,
@@ -66,9 +67,9 @@ export interface TraceViewerProps {
    * entry is added, and so does an entry dropped from the pending queue
    * while paused, which never was listed. The `{ entryId: null }`
    * call runs in an effect after the store change, never inside the store's
-   * notification: an error it throws is passed to `reportError` (or
-   * `console.error`) and neither reaches `store.apply()` nor unmounts the
-   * viewer.
+   * notification: an error it throws is passed to `onError` (callback
+   * `"onSelectionChange"`) and neither reaches `store.apply()` nor unmounts
+   * the viewer.
    */
   onSelectionChange?: (selection: ViewerSelection, entry: ViewerEntry | undefined) => void;
   /** Shows a loading message while nothing is listed. */
@@ -120,8 +121,22 @@ export interface TraceViewerProps {
   filterControls?: readonly FilterControl[];
   /** Host sections shown under the inspector for the selected entry. */
   detailPanels?: readonly DetailPanel[];
+  /**
+   * Receives the errors thrown by host callbacks the viewer calls outside an
+   * event handler of the host, with `{ component: "TraceViewer", callback }`:
+   * `"translate"`, `"onSelectionChange"`, `"toolbarActions.run"`,
+   * `"toolbarActions.disabled"` or `"detailPanels.appliesTo"`; and those of
+   * its filter engine (`component: "filterEngine"`). It is read at report
+   * time: a new identity per render recreates nothing. Without it, or if it
+   * throws, errors go to `globalThis.reportError`, else `console.error`
+   * (see `reportViewerError`). Passed on to the components it renders.
+   */
+  onError?: ViewerErrorHandler;
   className?: string;
 }
+
+/** Reports a host callback error of {@link TraceViewer}. */
+type Report = (error: unknown, callback: string) => void;
 
 const ROOT_STYLE = { display: "flex", flexDirection: "column", height: "100%" } as const;
 
@@ -140,8 +155,12 @@ function* listed(engine: FilterEngine): Generator<ViewerEntry> {
  * A host toolbar button; a throw of `disabled` disables it. Keyed by the
  * action id, it reports that throw once, not on every render.
  */
-function HostAction(props: { action: ToolbarAction; context: ViewerActionContext }): ReactElement {
-  const { action, context } = props;
+function HostAction(props: {
+  action: ToolbarAction;
+  context: ViewerActionContext;
+  report: Report;
+}): ReactElement {
+  const { action, context, report } = props;
   const reported = useRef(false);
   let disabled = false;
   try {
@@ -149,7 +168,7 @@ function HostAction(props: { action: ToolbarAction; context: ViewerActionContext
   } catch (error) {
     if (!reported.current) {
       reported.current = true;
-      reportHostError(error);
+      report(error, "toolbarActions.disabled");
     }
     disabled = true;
   }
@@ -157,7 +176,7 @@ function HostAction(props: { action: ToolbarAction; context: ViewerActionContext
     try {
       action.run(context);
     } catch (error) {
-      reportHostError(error);
+      report(error, "toolbarActions.run");
     }
   };
   return (
@@ -168,11 +187,11 @@ function HostAction(props: { action: ToolbarAction; context: ViewerActionContext
 }
 
 /** Whether `panel` shows for `entry`; a throw of `appliesTo` hides it. */
-function applies(panel: DetailPanel, entry: ViewerEntry): boolean {
+function applies(panel: DetailPanel, entry: ViewerEntry, report: Report): boolean {
   try {
     return panel.appliesTo?.(entry) ?? true;
   } catch (error) {
-    reportHostError(error);
+    report(error, "detailPanels.appliesTo");
     return false;
   }
 }
@@ -198,8 +217,8 @@ function HostPanel(props: { panel: DetailPanel; context: DetailPanelContext }): 
  * and the engine filters them.
  */
 export function TraceViewer(props: TraceViewerProps): ReactElement {
-  const { store, correlator, fields, payloadSearch, selection, onSelectionChange } = props;
-  const allStrings = useViewerStrings(props.strings, props.translate);
+  const { store, correlator, fields, payloadSearch, selection, onSelectionChange, onError } = props;
+  const allStrings = useViewerStrings(props.strings, props.translate, onError, "TraceViewer");
   const strings = allStrings.toolbar;
   const engine = useFilterEngine(store, props);
   useVersion(store);
@@ -228,10 +247,10 @@ export function TraceViewer(props: TraceViewerProps): ReactElement {
   // The store listener reads the latest props through this ref; `announced`
   // holds the id already reported gone, so a parent that keeps a stale
   // controlled selection hears about it once.
-  const latest = useRef({ selectedId, controlled, onSelectionChange });
+  const latest = useRef({ selectedId, controlled, onSelectionChange, onError });
   const announced = useRef<EntryId | null>(null);
   useEffect(() => {
-    latest.current = { selectedId, controlled, onSelectionChange };
+    latest.current = { selectedId, controlled, onSelectionChange, onError };
     if (selectedId !== announced.current) announced.current = null;
   });
   // The listener only sets state, which never throws, so the host's
@@ -260,7 +279,10 @@ export function TraceViewer(props: TraceViewerProps): ReactElement {
     try {
       latest.current.onSelectionChange?.({ entryId: null }, undefined);
     } catch (error) {
-      reportHostError(error);
+      reportViewerError(latest.current.onError, error, {
+        component: "TraceViewer",
+        callback: "onSelectionChange",
+      });
     }
   }, [gone]);
 
@@ -282,6 +304,8 @@ export function TraceViewer(props: TraceViewerProps): ReactElement {
     entryId === null ? select(null) : navigate(entryId),
   );
   const listedNow = useStableCallback((): ViewerEntry[] => [...listed(engine)]);
+  const report: Report = (error, callback) =>
+    reportViewerError(onError, error, { component: "TraceViewer", callback });
   const toolbarActions = useUniqueSlots(props.toolbarActions, "toolbar action");
   const detailPanels = useUniqueSlots(props.detailPanels, "detail panel");
   const actionContext: ViewerActionContext = {
@@ -348,7 +372,7 @@ export function TraceViewer(props: TraceViewerProps): ReactElement {
             </>
           )}
           {toolbarActions.map((action) => (
-            <HostAction key={action.id} action={action} context={actionContext} />
+            <HostAction key={action.id} action={action} context={actionContext} report={report} />
           ))}
         </div>
         <div
@@ -363,6 +387,7 @@ export function TraceViewer(props: TraceViewerProps): ReactElement {
             {...(fields !== undefined && { fields })}
             {...(payloadSearch !== undefined && { payloadSearch })}
             {...(props.filterControls !== undefined && { filterControls: props.filterControls })}
+            {...(onError !== undefined && { onError })}
           />
           <div className="oot-viewer-list" style={{ flex: "1 1 auto" }}>
             <TraceList
@@ -375,6 +400,7 @@ export function TraceViewer(props: TraceViewerProps): ReactElement {
               onSelectedIdChange={select}
               follow={follow}
               onFollowChange={setFollow}
+              {...(onError !== undefined && { onError })}
             />
           </div>
           <div className="oot-viewer__detail">
@@ -389,10 +415,11 @@ export function TraceViewer(props: TraceViewerProps): ReactElement {
                 revealSensitive: props.revealSensitive,
               })}
               {...(props.sensitiveKeys !== undefined && { sensitiveKeys: props.sensitiveKeys })}
+              {...(onError !== undefined && { onError })}
             />
             {panelContext &&
               detailPanels.map((panel) =>
-                applies(panel, panelContext.entry) ? (
+                applies(panel, panelContext.entry, report) ? (
                   <HostPanel key={panel.id} panel={panel} context={panelContext} />
                 ) : null,
               )}
