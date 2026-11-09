@@ -1,4 +1,5 @@
 import type { EntryId, ViewerEntry } from "./entry.ts";
+import { coreWeight, metadataWeight } from "./store-estimate.ts";
 import { checkItem, normalizeAddedEntry } from "./store-ingest.ts";
 import type { EntryUpdate } from "./update.ts";
 
@@ -25,6 +26,17 @@ export interface ViewerStoreOptions {
   /**
    * Maximum approximate bytes retained by the listed entries. Default
    * {@link DEFAULT_MAX_BYTES}.
+   *
+   * An entry weighs its record (trace), raw frame and reason (unparsed) or a
+   * constant (gap), estimated once when it is added, plus its metadata. The
+   * estimate is approximate (about 2 bytes per string character) and never
+   * reads more than it needs to exceed this limit.
+   *
+   * After each add, the oldest listed entries are evicted while the list
+   * holds more than `maxEntries` entries or more than `maxBytes` bytes with
+   * more than one entry. An entry heavier than `maxBytes` on its own is
+   * therefore kept alone: it evicts every older entry and stays the only
+   * listed entry until the next add evicts it.
    */
   readonly maxBytes?: number;
 }
@@ -93,10 +105,18 @@ interface Slot {
   readonly entry: ViewerEntry;
   /** Position in the listing sequence; the listed index is `seq - headSeq`. */
   readonly seq: number;
+  /** Cached weight of the record or raw frame, computed once at add. */
+  readonly coreBytes: number;
+  /** Cached weight of the metadata, recomputed when it changes. */
+  readonly metadataBytes: number;
 }
+
+/** The backing array is compacted once this many evicted slots precede the head. */
+const COMPACT_THRESHOLD = 1024;
 
 interface StoreInternals {
   indexSize(): number;
+  backingLength(): number;
 }
 
 const internals = new WeakMap<ViewerStore, StoreInternals>();
@@ -118,29 +138,64 @@ function checkLimit(name: string, value: number | undefined, fallback: number): 
 
 /** Creates an empty viewer store. */
 export function createViewerStore(options: ViewerStoreOptions = {}): ViewerStore {
-  checkLimit("maxEntries", options.maxEntries, DEFAULT_MAX_ENTRIES);
-  checkLimit("maxBytes", options.maxBytes, DEFAULT_MAX_BYTES);
+  const maxEntries = checkLimit("maxEntries", options.maxEntries, DEFAULT_MAX_ENTRIES);
+  const maxBytes = checkLimit("maxBytes", options.maxBytes, DEFAULT_MAX_BYTES);
 
   const index = new Map<EntryId, Slot>();
-  const listed: Slot[] = [];
-  const head = 0;
+  // Listed slots live at listed[head..]; evicted ones are cleared, and the
+  // array is compacted occasionally instead of shifted per eviction.
+  let listed: (Slot | undefined)[] = [];
+  let head = 0;
+  let headSeq = 0;
   let nextSeq = 0;
-  const counters = { duplicates: 0, unknownUpdates: 0, invalid: 0 };
+  let listedBytes = 0;
+  const counters = { evicted: 0, duplicates: 0, unknownUpdates: 0, invalid: 0 };
 
-  const headSeq = (): number => listed[head]?.seq ?? nextSeq;
+  const slotAt = (position: number): Slot | undefined => listed[head + position];
+  const listedCount = (): number => listed.length - head;
+
+  const evictOldest = (): void => {
+    const slot = listed[head];
+    if (slot === undefined) return;
+    listed[head] = undefined;
+    head++;
+    headSeq++;
+    index.delete(slot.entry.id);
+    listedBytes -= slot.coreBytes + slot.metadataBytes;
+    counters.evicted++;
+    if (head >= COMPACT_THRESHOLD && head * 2 >= listed.length) {
+      listed = listed.slice(head);
+      head = 0;
+    }
+  };
+
+  const enforceBounds = (): void => {
+    while (listedCount() > maxEntries || (listedBytes > maxBytes && listedCount() > 1)) {
+      evictOldest();
+    }
+  };
+
+  const append = (added: ViewerEntry): void => {
+    const entry = normalizeAddedEntry(added);
+    const slot: Slot = {
+      entry,
+      seq: nextSeq++,
+      coreBytes: coreWeight(entry, maxBytes),
+      metadataBytes: metadataWeight(entry, maxBytes),
+    };
+    index.set(entry.id, slot);
+    listed.push(slot);
+    listedBytes += slot.coreBytes + slot.metadataBytes;
+    enforceBounds();
+  };
 
   const ingest = (item: unknown): void => {
     const checked = checkItem(item);
     if (checked === undefined) {
       counters.invalid++;
     } else if (checked.type === "add") {
-      if (index.has(checked.entry.id)) {
-        counters.duplicates++;
-        return;
-      }
-      const slot: Slot = { entry: normalizeAddedEntry(checked.entry), seq: nextSeq++ };
-      index.set(slot.entry.id, slot);
-      listed.push(slot);
+      if (index.has(checked.entry.id)) counters.duplicates++;
+      else append(checked.entry);
     } else if (!index.has(checked.id)) {
       counters.unknownUpdates++;
     }
@@ -154,36 +209,40 @@ export function createViewerStore(options: ViewerStoreOptions = {}): ViewerStore
       for (const entry of entries) ingest({ type: "add", entry });
     },
     get size() {
-      return listed.length - head;
+      return listedCount();
     },
     at(position) {
       if (!Number.isInteger(position) || position < 0) return undefined;
-      return listed[head + position]?.entry;
+      return slotAt(position)?.entry;
     },
     indexOf(id) {
       const slot = index.get(id);
-      return slot === undefined ? -1 : slot.seq - headSeq();
+      return slot === undefined ? -1 : slot.seq - headSeq;
     },
     get(id) {
       return index.get(id)?.entry;
     },
     toArray() {
-      return listed.slice(head).map((slot) => slot.entry);
+      const entries: ViewerEntry[] = [];
+      for (let position = head; position < listed.length; position++) {
+        const slot = listed[position];
+        if (slot !== undefined) entries.push(slot.entry);
+      }
+      return entries;
     },
     getStats() {
       return {
-        listed: store.size,
-        listedBytes: 0,
+        listed: listedCount(),
+        listedBytes,
         pending: 0,
         pendingBytes: 0,
         paused: false,
-        evicted: 0,
         droppedPending: 0,
         staleUpdates: 0,
         ...counters,
       };
     },
   };
-  internals.set(store, { indexSize: () => index.size });
+  internals.set(store, { indexSize: () => index.size, backingLength: () => listed.length });
   return store;
 }
