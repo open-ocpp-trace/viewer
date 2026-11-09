@@ -121,15 +121,16 @@ export interface CorrelationChange {
 export interface Correlator {
   readonly scope: CorrelationScope;
   /**
-   * Seeds from the listed entries, emitting one change if any correlates,
-   * then follows the store's changes, one {@link CorrelationChange} at most
-   * per store change: `cleared` resets (emitting `cleared: true`), `evicted` ids leave
-   * every index (a response keeps its `callId` and `action`), `added` entries
-   * are correlated in order, `updated` entries are not re-correlated. One
-   * store at a time: a second connect throws. If reading the store throws
-   * while seeding, connect rethrows and stays disconnected; if subscribing
-   * to it throws, connect also releases the seed (emitting `cleared: true`
-   * if anything was correlated) before rethrowing. The returned
+   * Subscribes to the store, seeds from the listed entries, then emits one
+   * change if any correlates: a change a listener makes during that emission
+   * is followed. From then on it follows the store's changes, one
+   * {@link CorrelationChange} at most per store change: `cleared` resets
+   * (emitting `cleared: true`), `evicted` ids leave every index (a response
+   * keeps its `callId` and `action`), `added` entries are correlated in
+   * order, `updated` entries are not re-correlated. One store at a time: a
+   * second connect throws. If subscribing or reading the store throws,
+   * connect drops the subscription it made, rethrows and stays
+   * disconnected, without emitting. The returned
    * {@link Unsubscribe} stops following, resets the state (emitting
    * `cleared: true` if anything was correlated) and allows a new connect.
    */
@@ -379,19 +380,6 @@ export function createCorrelatorWith(
       if (connected !== undefined) throw new Error("the correlator is already connected");
       const connection = {};
       let seen: ViewerStoreStats;
-      const seeded = new Set<EntryId>();
-      try {
-        seen = store.getStats();
-        incomplete = seen.evicted > 0 || seen.droppedPending > 0;
-        for (const entry of store.toArray()) process(entry, seeded);
-      } catch (error) {
-        // Nothing was emitted yet: drop what was seeded and stay disconnected.
-        reset();
-        throw error;
-      }
-      connected = connection;
-      emit([...seeded], [], false);
-
       /** Applies one store change, collecting into `removed` and `changed`. */
       function follow(change: ViewerStoreChange, removed: EntryId[], changed: Set<EntryId>): void {
         const cleared = change.cleared;
@@ -422,15 +410,24 @@ export function createCorrelatorWith(
         emit([], [], had);
       }
 
-      let unsubscribeStore: Unsubscribe;
+      // Subscribe before seeding, so a change made by a listener of the seed
+      // notification is followed; the listener ignores anything before then.
+      let unsubscribeStore: Unsubscribe = () => {};
+      const seeded = new Set<EntryId>();
       try {
         unsubscribeStore = store.subscribe(listener);
+        seen = store.getStats();
+        incomplete = seen.evicted > 0 || seen.droppedPending > 0;
+        for (const entry of store.toArray()) process(entry, seeded);
       } catch (error) {
-        // The seed was emitted: release it as an unsubscribe would.
-        connected = undefined;
-        release();
+        // Nothing was emitted yet: drop the subscription and what was
+        // seeded, and stay disconnected.
+        unsubscribeStore();
+        reset();
         throw error;
       }
+      connected = connection;
+      emit([...seeded], [], false);
 
       function listener(change: ViewerStoreChange): void {
         if (connected !== connection) return;

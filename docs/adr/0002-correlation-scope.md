@@ -88,7 +88,10 @@ evictions are applied before its additions. That is the only order that does not
 batch was cut, since a net delta does not say which addition caused which eviction; matching first
 would pair the response only when both happen to land in one change. Paused entries are correlated when the store lists them on resume, in arrival order.
 
-One store at a time: a second `connect` throws. The returned `Unsubscribe` stops following, resets the
+One store at a time: a second `connect` throws. `connect` subscribes to the store before it seeds from
+the listed entries and emits the seed change, so a change a listener makes during that emission is
+followed; a failing subscription or seed drops the subscription made and leaves it disconnected,
+without emitting. The returned `Unsubscribe` stops following, resets the
 state, emits `cleared: true` if anything was correlated, and allows a new `connect`.
 
 Listeners run in subscription order and a throwing listener does not stop the others. Unlike the store,

@@ -368,7 +368,57 @@ describe("Correlator and store clear, pause and listeners", () => {
     expect(correlator.get("c1")).toMatchObject({ role: "call" });
   });
 
-  it("stays disconnected and releases the seed when subscribing to the store throws", () => {
+  it("correlates a store change a listener makes during the seed notification", () => {
+    const store = createViewerStore();
+    store.apply(addAll(call("c1", "m1")));
+    const correlator = createCorrelator();
+    const changes: CorrelationChange[] = [];
+    correlator.subscribe((change) => {
+      changes.push(change);
+      if (changes.length === 1) store.apply(addAll(result("r1", "m1")));
+    });
+
+    correlator.connect(store);
+
+    expect(correlator.get("r1")).toMatchObject({ role: "response", callId: "c1" });
+    expect(correlator.get("c1")).toMatchObject({ role: "call", responseId: "r1" });
+    expect(correlator.unansweredCalls()).toEqual([]);
+    expect(changes).toEqual([
+      { version: 1, changed: ["c1"], removed: [], cleared: false },
+      { version: 2, changed: ["c1", "r1"], removed: [], cleared: false },
+    ]);
+  });
+
+  it("stays disconnected and unsubscribes when seeding throws", () => {
+    const correlator = createCorrelator();
+    const store = createViewerStore();
+    store.apply(addAll(call("c1", "m1")));
+    let unsubscribed = false;
+    const failing: ViewerStore = {
+      ...store,
+      subscribe: (listener) => {
+        const unsubscribe = store.subscribe(listener);
+        return () => {
+          unsubscribed = true;
+          unsubscribe();
+        };
+      },
+      toArray: () => {
+        throw new Error("toArray");
+      },
+    };
+    const changes: CorrelationChange[] = [];
+    correlator.subscribe((change) => changes.push(change));
+
+    expect(() => correlator.connect(failing)).toThrow("toArray");
+
+    expect(unsubscribed).toBe(true);
+    expect(changes).toEqual([]);
+    store.apply(addAll(call("c2", "m2")));
+    expect(correlator.get("c2")).toBeUndefined();
+  });
+
+  it("stays disconnected without notifying when subscribing to the store throws", () => {
     const correlator = createCorrelator();
     const store = createViewerStore();
     store.apply(addAll(call("c1", "m1")));
@@ -383,10 +433,8 @@ describe("Correlator and store clear, pause and listeners", () => {
 
     expect(() => correlator.connect(failingSubscribe)).toThrow("subscribe");
 
-    expect(changes).toEqual([
-      { version: 1, changed: ["c1"], removed: [], cleared: false },
-      { version: 2, changed: [], removed: [], cleared: true },
-    ]);
+    expect(changes).toEqual([]);
+    expect(correlator.version).toBe(0);
     expect(correlator.get("c1")).toBeUndefined();
     expect(correlator.unansweredCalls()).toEqual([]);
     correlator.connect(store);
