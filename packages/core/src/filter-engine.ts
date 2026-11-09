@@ -35,7 +35,10 @@ export interface FilterEngineOptions {
   readonly payloadSearch?: boolean;
 }
 
-/** One notification of a {@link FilterEngine}: the listed entries or the counts changed. */
+/**
+ * One notification of a {@link FilterEngine}: the listed entries, the
+ * object of a listed entry (a store update) or the counts changed.
+ */
 export interface FilterChange {
   /** Equals {@link FilterEngine.version} after the change. */
   readonly version: number;
@@ -110,7 +113,11 @@ export interface FilterEngine {
   /**
    * Bumps once per notified {@link FilterChange}: when the listed entries
    * or the counts change, even if membership does not (a delivery update
-   * on an entry the filter hides). Starts at 0.
+   * on an entry the filter hides), and when a store update replaces the
+   * object of a listed entry, even if no count changes, so {@link
+   * FilterEngine.at} never returns a new object under the same version.
+   * An update of a hidden entry that changes no count does not notify.
+   * Starts at 0.
    */
   readonly version: number;
   /**
@@ -228,7 +235,8 @@ export function createFilterEngineWith(
       if (matches) ids.splice(at, 0, entry.id);
       else ids.splice(at, 1);
     }
-    return !same || matches !== old.matches;
+    // A replaced matching entry changes what `at` returns, so it notifies too.
+    return !same || matches !== old.matches || (matches && entry !== old.entry);
   }
 
   /** Lists the store anew; whether anything was or is now held. */

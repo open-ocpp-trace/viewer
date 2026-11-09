@@ -1,3 +1,5 @@
+import { isDeepStrictEqual } from "node:util";
+
 import { describe, expect, it } from "vite-plus/test";
 
 import {
@@ -188,8 +190,8 @@ function run(
     if (current.ids.length > 0 && current.ids.length < entries.length) coverage.partial += 1;
     if (updated && engine.version !== version) {
       const sameIds = current.ids.join("\n") === previous.ids.join("\n");
-      if (sameIds) coverage.countsOnly += 1;
-      else coverage.membershipByUpdate += 1;
+      if (!sameIds) coverage.membershipByUpdate += 1;
+      else if (!isDeepStrictEqual(current.stats, previous.stats)) coverage.countsOnly += 1;
     }
     previous = current;
   }
@@ -201,13 +203,32 @@ function add(entry: ViewerEntry): EntryUpdate {
   return { type: "add", entry };
 }
 
+/** A number per entry object, so a snapshot tells a replaced entry from a deep-equal one. */
+const identities = new WeakMap<ViewerEntry, number>();
+let lastIdentity = 0;
+
+function identity(entry: ViewerEntry): number {
+  let found = identities.get(entry);
+  if (found === undefined) {
+    found = lastIdentity += 1;
+    identities.set(entry, found);
+  }
+  return found;
+}
+
 function snapshot(engine: FilterEngine): {
   ids: string[];
+  entries: number[];
   stats: ReturnType<FilterEngine["getStats"]>;
 } {
   const ids: string[] = [];
-  for (let index = 0; index < engine.size; index += 1) ids.push(engine.at(index)!.id);
-  return { ids, stats: engine.getStats() };
+  const entries: number[] = [];
+  for (let index = 0; index < engine.size; index += 1) {
+    const entry = engine.at(index)!;
+    ids.push(entry.id);
+    entries.push(identity(entry));
+  }
+  return { ids, entries, stats: engine.getStats() };
 }
 
 describe("FilterEngine incremental maintenance", () => {

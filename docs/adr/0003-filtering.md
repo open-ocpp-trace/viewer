@@ -60,10 +60,13 @@ the entries and both connection orders converge. `connect` allows one store at a
 to the store and the correlator before it lists the store and notifies the seed, so a change a listener
 makes during that notification is followed; a failing subscription or seed drops the subscriptions
 made and leaves it disconnected, without notifying. (The correlator's own `connect` still notifies
-before it subscribes; that is left to a follow-up.) A
-`FilterChange` is notified when the listed entries or the counts change, and only then: a delivery
-update on an entry the filter hides changes the counts, so it notifies. Listener errors are reported
-asynchronously, as the correlator's are.
+before it subscribes; that is left to a follow-up.) A `FilterChange` is notified when the listed
+entries or the counts change, or when a store update replaces the object of a listed entry, and only
+then. A delivery update on an entry the filter hides changes the counts, so it notifies. An update of
+a listed entry notifies even when no count changes (a new conversation id, a reordered delivery
+list), so `at(i)` never returns a new object under the same `version` and a list bound to `version`
+does not render stale rows; an update of a hidden entry that changes no count stays silent. Listener
+errors are reported asynchronously, as the correlator's are.
 
 The engine maintains its state incrementally. It keeps, per listed entry, the counted values and the
 membership: evicted entries are gone from the store, so this cache is the only way to decrement them,

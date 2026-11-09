@@ -192,7 +192,7 @@ describe("FilterEngine", () => {
     expect(stats.filtered.kinds).toEqual({ trace: 1, unparsed: 0, gap: 1 });
   });
 
-  it("does not notify when an update only reorders multi-valued values", () => {
+  it("notifies when a listed entry is replaced, even if no count changes", () => {
     const { store, engine, changes } = setup([gateway.primary]);
     const stats = engine.getStats();
 
@@ -209,7 +209,33 @@ describe("FilterEngine", () => {
       },
     ]);
 
-    expect(changes).toHaveLength(1);
+    expect(changes).toEqual([{ version: 1 }, { version: 2 }]);
+    expect(engine.at(0)).toBe(store.get("g1"));
+    expect(engine.getStats()).not.toBe(stats);
+    expect(engine.getStats()).toEqual(stats);
+  });
+
+  it("does not notify when an update of a hidden entry only reorders multi-valued values", () => {
+    const { store, engine, changes } = setup([gateway.primary]);
+    engine.setFilter({ kinds: ["gap"] });
+    const stats = engine.getStats();
+    const version = engine.version;
+
+    store.apply([
+      {
+        type: "update",
+        id: "g1",
+        metadata: {
+          deliveries: [
+            { target: "csms-a", status: "failed" },
+            { target: "csms-b", status: "written" },
+          ],
+        },
+      },
+    ]);
+
+    expect(engine.version).toBe(version);
+    expect(changes).toHaveLength(version);
     expect(engine.getStats()).toBe(stats);
   });
 
