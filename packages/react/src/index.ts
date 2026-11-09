@@ -19,4 +19,4 @@ export { defaultSensitiveKeys } from "./inspect-format.ts";
 export { TraceList } from "./TraceList.tsx";
 export type { TraceListProps } from "./TraceList.tsx";
 export { TraceViewer } from "./TraceViewer.tsx";
-export type { TraceViewerProps } from "./TraceViewer.tsx";
+export type { ExportScope, TraceViewerProps } from "./TraceViewer.tsx";

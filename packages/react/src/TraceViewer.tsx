@@ -12,14 +12,17 @@ import type {
   ColumnDefinition,
   Correlator,
   EntryId,
+  FilterEngine,
   FilterFieldDefinition,
   TraceFilter,
+  ViewerEntry,
   ViewerSelection,
   TraceEntry,
   ViewerStore,
 } from "@open-ocpp-trace/viewer-core";
 
 import { EntryInspector, type InspectorPart } from "./EntryInspector.tsx";
+import { exportJsonl, type JsonlExport } from "./export-jsonl.ts";
 import { FilterPanel } from "./FilterPanel.tsx";
 import { useFilterEngine } from "./hooks.ts";
 import { defaultStrings } from "./strings.ts";
@@ -76,7 +79,26 @@ export interface TraceViewerProps {
   revealSensitive?: boolean;
   /** Property names the detail panel redacts, as `EntryInspectorProps.sensitiveKeys`. */
   sensitiveKeys?: readonly string[];
+  /**
+   * Receives an export the user asked for, built with {@link exportJsonl}:
+   * the selected entry (`"selection"`) or every entry the filter lists, in
+   * order (`"filtered"`). The host downloads or copies `exported.text`. The
+   * export buttons render only when this is given. Records are exported
+   * unmodified: the detail panel's redaction does not apply.
+   */
+  onExport?: (exported: JsonlExport, scope: ExportScope) => void;
   className?: string;
+}
+
+/** What an export of {@link TraceViewer} covers. */
+export type ExportScope = "selection" | "filtered";
+
+/** The entries the engine lists, in order. */
+function* listed(engine: FilterEngine): Generator<ViewerEntry> {
+  for (let index = 0; index < engine.size; index += 1) {
+    const entry = engine.at(index);
+    if (entry !== undefined) yield entry;
+  }
 }
 
 /**
@@ -170,6 +192,17 @@ export function TraceViewer(props: TraceViewerProps): ReactElement {
     }
   }, [gone]);
 
+  // The last export's result, announced by a status region.
+  const [exportStatus, setExportStatus] = useState("");
+  const { onExport } = props;
+  const selectedEntry = selectedId === null ? undefined : store.get(selectedId);
+  const runExport = (entries: Iterable<ViewerEntry>, scope: ExportScope): void => {
+    const exported = exportJsonl(entries);
+    const { unparsed, gap, invalid } = exported.skipped;
+    setExportStatus(strings.exported(exported.recordCount, unparsed + gap + invalid));
+    onExport?.(exported, scope);
+  };
+
   const className = props.className === undefined ? "oot-viewer" : `oot-viewer ${props.className}`;
   return (
     <div className={className} style={{ display: "flex", flexDirection: "column", height: "100%" }}>
@@ -191,6 +224,28 @@ export function TraceViewer(props: TraceViewerProps): ReactElement {
         >
           {strings.follow}
         </button>
+        {onExport === undefined ? null : (
+          <>
+            <button
+              type="button"
+              className="oot-toolbar-button"
+              disabled={selectedEntry === undefined}
+              onClick={() => selectedEntry && runExport([selectedEntry], "selection")}
+            >
+              {strings.exportSelection}
+            </button>
+            <button
+              type="button"
+              className="oot-toolbar-button"
+              onClick={() => runExport(listed(engine), "filtered")}
+            >
+              {strings.exportFiltered}
+            </button>
+            <span className="oot-export-status" role="status">
+              {exportStatus}
+            </span>
+          </>
+        )}
       </div>
       <div className="oot-viewer-body" style={{ display: "flex", flex: "1 1 auto", minHeight: 0 }}>
         <FilterPanel

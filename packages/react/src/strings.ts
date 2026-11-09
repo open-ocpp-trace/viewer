@@ -25,6 +25,14 @@ export const defaultStrings = {
     pending: (count: number): string => `${count} pending`,
     /** A toggle button: its pressed state tells whether the list follows. */
     follow: "Follow latest",
+    /** Exports the selected entry; shown only when the host handles exports. */
+    exportSelection: "Export selection",
+    /** Exports every entry the filter lists, in order. */
+    exportFiltered: "Export filtered",
+    /** The result of the last export; `skipped` counts gaps, unparsed and invalid entries. */
+    exported: (count: number, skipped: number): string =>
+      `Exported ${count} ${count === 1 ? "record" : "records"}` +
+      (skipped > 0 ? ` (${skipped} skipped)` : ""),
   },
   /** The text of a gap row; the count and the reason are omitted when unknown. */
   gap(missedCount: number | null, reason: string | null): string {
