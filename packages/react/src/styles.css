@@ -157,3 +157,50 @@
   font-weight: 600;
   color: var(--oot-alert-color, rgb(180 30 30));
 }
+
+.oot-inspector {
+  font-family: var(--oot-font-family, ui-monospace, monospace);
+  font-size: var(--oot-font-size, 0.8125rem);
+  color: var(--oot-color, CanvasText);
+  background: var(--oot-background, Canvas);
+  overflow: auto;
+}
+
+.oot-inspector__fields {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 0.125em 1em;
+  margin: 0.5em;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+
+.oot-inspector__title,
+.oot-inspector__more,
+.oot-inspector__pairing {
+  display: flex;
+  gap: 0.5em;
+  align-items: center;
+  margin: 0.5em;
+  font-weight: 600;
+}
+
+.oot-inspector__code {
+  margin: 0 0.5em;
+  padding: 0.5em;
+  max-height: var(--oot-code-max-height, 24em);
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  background: var(--oot-header-background, rgb(128 128 128 / 12%));
+}
+
+.oot-inspector__badge,
+.oot-inspector__note {
+  margin: 0.5em;
+  font-style: italic;
+}
+
+.oot-inspector__link[aria-disabled="true"] {
+  opacity: 0.6;
+}

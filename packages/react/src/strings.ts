@@ -34,6 +34,60 @@ export const defaultStrings = {
         : `: ${missedCount} ${missedCount === 1 ? "entry" : "entries"} missed`;
     return `Gap${missed}${reason === null ? "" : ` (${reason})`}`;
   },
+  inspector: {
+    label: "Entry details",
+    empty: "No entry selected",
+    gone: "This entry is no longer available",
+    fields: {
+      messageType: "Type",
+      action: "Action",
+      direction: "Direction",
+      messageId: "Message ID",
+      chargePoint: "Charge point",
+      connector: "Connector",
+      ocppVersion: "OCPP version",
+      transport: "Transport",
+      timestamp: "Timestamp",
+      receivedAt: "Received at",
+      reason: "Reason",
+      errorCode: "Error code",
+      errorDescription: "Error description",
+      tenant: "Tenant",
+      source: "Source",
+      session: "Session",
+      conversation: "Conversation",
+      deliveries: "Deliveries",
+    },
+    /** Block titles, also the accessible names of the blocks. */
+    blocks: {
+      payload: "Payload",
+      raw: "Raw frame",
+      error: "Error details",
+      meta: "Meta",
+      custom: "Custom metadata",
+    },
+    showMore: "Show more",
+    totalSize: (chars: number): string => `${chars} characters in total`,
+    copy: (block: string): string => `Copy ${block}`,
+    rawHidden: "The raw frame is hidden: it may contain sensitive fields",
+    goToResponse: "Go to response",
+    goToCall: "Go to CALL",
+    noMatchingCall: "No matching CALL",
+    candidate: (position: number): string => `Candidate ${position}`,
+    source: (id: string, label: string | null): string =>
+      label === null ? id : `${label} (${id})`,
+    delivery(
+      target: string,
+      role: string | null,
+      status: string,
+      reason: string | null,
+      updatedAt: string | null,
+    ): string {
+      const by = role === null ? "" : ` (${role})`;
+      const why = reason === null ? "" : ` — ${reason}`;
+      return `${target}${by}: ${status}${why}${updatedAt === null ? "" : ` at ${updatedAt}`}`;
+    },
+  },
   filter: {
     panelLabel: "Filters",
     reset: "Reset",

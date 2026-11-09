@@ -8,6 +8,8 @@ export function hostReactVersion(): string {
   return version;
 }
 
+export { EntryInspector } from "./EntryInspector.tsx";
+export type { EntryInspectorProps, InspectorPart } from "./EntryInspector.tsx";
 export { FilterPanel } from "./FilterPanel.tsx";
 export type { FilterPanelProps } from "./FilterPanel.tsx";
 export { useFilterEngine } from "./hooks.ts";
