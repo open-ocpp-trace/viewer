@@ -188,6 +188,33 @@ describe("<TraceViewer>", () => {
       expect(selectedIds()).toEqual([]);
     });
 
+    it("keeps the store ingesting when the host callback throws", () => {
+      const report = vi.fn();
+      vi.stubGlobal("reportError", report);
+      try {
+        const failure = new Error("host failure");
+        const onSelectionChange = vi.fn(() => {
+          throw failure;
+        });
+        const store = storeWith(ENTRIES.slice(0, 2), 2);
+        render(
+          <TraceViewer
+            store={store}
+            defaultSelection={{ entryId: "a" }}
+            onSelectionChange={onSelectionChange}
+          />,
+        );
+        expect(() => act(() => store.apply([add(sdkEntry("c"))]))).not.toThrow();
+        expect(onSelectionChange).toHaveBeenCalledExactlyOnceWith({ entryId: null });
+        expect(report).toHaveBeenCalledExactlyOnceWith(failure);
+        act(() => store.apply([add(sdkEntry("d"))]));
+        expect(listedIds()).toEqual(["c", "d"]);
+        expect(selectedIds()).toEqual([]);
+      } finally {
+        vi.unstubAllGlobals();
+      }
+    });
+
     it("follows a controlled selection and announces an eviction once", () => {
       const onSelectionChange = vi.fn();
       const store = storeWith(ENTRIES.slice(0, 2), 2);

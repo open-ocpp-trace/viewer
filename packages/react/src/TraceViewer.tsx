@@ -47,7 +47,11 @@ export interface TraceViewerProps {
   /**
    * Called when the user selects an entry, and once with `{ entryId: null }`
    * when the selected entry leaves the store (evicted or cleared), in both
-   * modes. An entry the filter hides stays selected.
+   * modes. An entry the filter hides stays selected. The `{ entryId: null }`
+   * call runs in an effect after the store change, never inside the store's
+   * notification: an error it throws is passed to `reportError` (or
+   * `console.error`) and neither reaches `store.apply()` nor unmounts the
+   * viewer.
    */
   onSelectionChange?: (selection: ViewerSelection) => void;
   /** Shows a loading message while nothing is listed. */
@@ -55,6 +59,16 @@ export interface TraceViewerProps {
   /** A host error message, announced as an alert. */
   error?: string | null;
   className?: string;
+}
+
+/**
+ * Reports an error thrown by a host callback the viewer calls outside an
+ * event handler, like an error thrown from an event handler is reported:
+ * globally, without unmounting the viewer.
+ */
+function reportHostError(error: unknown): void {
+  if (typeof reportError === "function") reportError(error);
+  else console.error(error);
 }
 
 /** The store's version, re-rendering the component on every change. */
@@ -100,21 +114,32 @@ export function TraceViewer(props: TraceViewerProps): ReactElement {
     latest.current = { selectedId, controlled, onSelectionChange };
     if (selectedId !== announced.current) announced.current = null;
   });
+  // The listener only sets state, which never throws, so the host's
+  // `store.apply()` cannot fail because of the viewer. A fresh object per
+  // announcement re-runs the effect below even for the same id.
+  const [gone, setGone] = useState<{ readonly id: EntryId } | null>(null);
   useEffect(
     () =>
       store.subscribe(() => {
-        const {
-          selectedId: id,
-          controlled: isControlled,
-          onSelectionChange: notify,
-        } = latest.current;
+        const { selectedId: id, controlled: isControlled } = latest.current;
         if (id === null || id === announced.current || store.get(id) !== undefined) return;
         announced.current = id;
         if (!isControlled) setOwnSelection(null);
-        notify?.({ entryId: null });
+        setGone({ id });
       }),
     [store],
   );
+  // Declared after the effect refreshing `latest`, so it reads this render's
+  // callback; keyed on `gone` only, so a new callback identity never repeats
+  // the announcement.
+  useEffect(() => {
+    if (gone === null) return;
+    try {
+      latest.current.onSelectionChange?.({ entryId: null });
+    } catch (error) {
+      reportHostError(error);
+    }
+  }, [gone]);
 
   const className = props.className === undefined ? "oot-viewer" : `oot-viewer ${props.className}`;
   return (
