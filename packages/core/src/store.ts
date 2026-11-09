@@ -1,8 +1,9 @@
 import type { Unsubscribe } from "./adapter.ts";
 import type { EntryId, ViewerEntry } from "./entry.ts";
 import { coreWeight, metadataWeight } from "./store-estimate.ts";
-import { checkItem, mergeMetadata, normalizeAddedEntry } from "./store-ingest.ts";
+import { checkItem, mergeMetadata, normalizeAddedEntry, STORE_ID_PREFIX } from "./store-ingest.ts";
 import { createListeners } from "./store-listeners.ts";
+import { createSlotQueue, type Slot } from "./store-queue.ts";
 import type { EntryMetadataPatch, EntryUpdate } from "./update.ts";
 
 /** Default {@link ViewerStoreOptions.maxEntries}. */
@@ -11,7 +12,7 @@ export const DEFAULT_MAX_ENTRIES = 10_000;
 /** Default {@link ViewerStoreOptions.maxBytes}: 64 MiB. */
 export const DEFAULT_MAX_BYTES: number = 64 * 1024 * 1024;
 
-export { STORE_ID_PREFIX } from "./store-ingest.ts";
+export { STORE_ID_PREFIX };
 
 /**
  * Bounds of a viewer store. Each limit is an integer >= 1; any other value
@@ -111,6 +112,36 @@ export interface ViewerStore {
    * its own idempotent {@link Unsubscribe}, even for the same function.
    */
   subscribe(listener: (change: ViewerStoreChange) => void): Unsubscribe;
+  /**
+   * Stops listing new entries: adds go to a pending queue (oldest first),
+   * while updates keep applying to listed and pending entries, and a pending
+   * id counts as held for rules 2 and 6. The queue has its own budget equal
+   * to the configured limits, an oversized entry being kept alone as in the
+   * list: past it, the oldest pending entries are dropped and counted in
+   * {@link ViewerStoreStats.droppedPending}. A dropped entry is gone: a later
+   * update for it is unknown, a later add for it is a new entry. No effect
+   * when already paused.
+   */
+  pause(): void;
+  /**
+   * Lists the pending entries in arrival order, after a store gap
+   * (`reason: "dropped"`, id {@link STORE_ID_PREFIX}`gap:<n>`, `missedCount`
+   * the entries dropped during this pause) when some were dropped; the list
+   * bounds then apply as for any add, so the gap is evicted like any entry.
+   * One notification. No effect when not paused.
+   */
+  resume(): void;
+  /** Whether adds currently go to the pending queue. */
+  readonly paused: boolean;
+  /** Whether `id` is held in the pending queue. */
+  isPending(id: EntryId): boolean;
+  /**
+   * Removes every listed and pending entry and resets every counter to 0,
+   * keeping {@link paused} and the gap numbering. Notifies `cleared: true`
+   * with no `evicted`. Afterwards an update for an old id is unknown and an
+   * add for it is a new entry.
+   */
+  clear(): void;
 }
 
 /**
@@ -137,25 +168,10 @@ export interface ViewerStoreChange {
   readonly cleared: boolean;
 }
 
-interface Slot {
-  /** Replaced by each update that changes the metadata. */
-  entry: ViewerEntry;
-  /** Position in the listing sequence; the listed index is `seq - headSeq`. */
-  readonly seq: number;
-  /** Cached weight of the record or raw frame, computed once at add. */
-  readonly coreBytes: number;
-  /** Cached weight of the metadata, recomputed when it changes. */
-  metadataBytes: number;
-  /** Revision watermark (rule 1), none until a revised update applies. */
-  revision: number | undefined;
-}
-
-/** The backing array is compacted once this many evicted slots precede the head. */
-const COMPACT_THRESHOLD = 1024;
-
 interface StoreInternals {
   indexSize(): number;
   backingLength(): number;
+  pendingBackingLength(): number;
 }
 
 const internals = new WeakMap<ViewerStore, StoreInternals>();
@@ -175,67 +191,79 @@ function checkLimit(name: string, value: number | undefined, fallback: number): 
   return value;
 }
 
+function zeroCounters() {
+  return {
+    evicted: 0,
+    droppedPending: 0,
+    duplicates: 0,
+    unknownUpdates: 0,
+    staleUpdates: 0,
+    invalid: 0,
+  };
+}
+
 /** Creates an empty viewer store. */
 export function createViewerStore(options: ViewerStoreOptions = {}): ViewerStore {
   const maxEntries = checkLimit("maxEntries", options.maxEntries, DEFAULT_MAX_ENTRIES);
   const maxBytes = checkLimit("maxBytes", options.maxBytes, DEFAULT_MAX_BYTES);
 
+  // Listed and pending slots, both indexed by id.
   const index = new Map<EntryId, Slot>();
-  // Listed slots live at listed[head..]; evicted ones are cleared, and the
-  // array is compacted occasionally instead of shifted per eviction.
-  let listed: (Slot | undefined)[] = [];
-  let head = 0;
+  const listed = createSlotQueue();
+  const pending = createSlotQueue();
+  // Sequence of the oldest listed slot, and of the next slot to list.
   let headSeq = 0;
   let nextSeq = 0;
-  let listedBytes = 0;
-  const counters = { evicted: 0, duplicates: 0, unknownUpdates: 0, staleUpdates: 0, invalid: 0 };
+  let paused = false;
+  let droppedThisPause = 0;
+  let gaps = 0;
+  let counters = zeroCounters();
   const listeners = createListeners<ViewerStoreChange>();
   let version = 0;
   let stats: ViewerStoreStats | undefined;
-  // State of the batch being applied: whether anything changed, the first
-  // sequence number it lists, and the ids listed before it that it evicted.
+  // State of the change being made: whether anything changed, whether the
+  // list was cleared, the first sequence it lists, the ids listed before it
+  // that it evicted, and the ids it updated.
   let changed = false;
+  let cleared = false;
   let batchSeq = 0;
   let batchEvicted: EntryId[] = [];
   const batchUpdated = new Set<EntryId>();
 
-  const slotAt = (position: number): Slot | undefined => listed[head + position];
-  const listedCount = (): number => listed.length - head;
-
-  const evictOldest = (): void => {
-    const slot = listed[head];
-    if (slot === undefined) return;
-    listed[head] = undefined;
-    head++;
-    headSeq++;
-    index.delete(slot.entry.id);
-    listedBytes -= slot.coreBytes + slot.metadataBytes;
-    counters.evicted++;
-    if (slot.seq < batchSeq) batchEvicted.push(slot.entry.id);
-    if (head >= COMPACT_THRESHOLD && head * 2 >= listed.length) {
-      listed = listed.slice(head);
-      head = 0;
-    }
-  };
-
   const enforceBounds = (): void => {
-    while (listedCount() > maxEntries || (listedBytes > maxBytes && listedCount() > 1)) {
-      evictOldest();
+    while (listed.overLimits(maxEntries, maxBytes)) {
+      const slot = listed.shift() as Slot;
+      headSeq++;
+      index.delete(slot.entry.id);
+      counters.evicted++;
+      if (slot.seq < batchSeq) batchEvicted.push(slot.entry.id);
+    }
+    while (pending.overLimits(maxEntries, maxBytes)) {
+      index.delete((pending.shift() as Slot).entry.id);
+      counters.droppedPending++;
+      droppedThisPause++;
     }
   };
 
-  const append = (added: ViewerEntry): void => {
+  const list = (slot: Slot): void => {
+    slot.seq = nextSeq++;
+    listed.push(slot);
+    enforceBounds();
+  };
+
+  /** Holds a new entry: listed, or pending while paused. */
+  const admit = (added: ViewerEntry): void => {
     const entry = normalizeAddedEntry(added);
     const slot: Slot = {
       entry,
-      seq: nextSeq++,
+      seq: -1,
       coreBytes: coreWeight(entry, maxBytes),
       metadataBytes: metadataWeight(entry, maxBytes),
       revision: undefined,
     };
     index.set(entry.id, slot);
-    listed.push(slot);
-    listedBytes += slot.coreBytes + slot.metadataBytes;
+    if (!paused) return list(slot);
+    pending.push(slot);
     enforceBounds();
   };
 
@@ -255,7 +283,7 @@ export function createViewerStore(options: ViewerStoreOptions = {}): ViewerStore
     if (metadata === undefined) return false;
     slot.entry = { ...slot.entry, metadata } as ViewerEntry;
     const bytes = metadataWeight(slot.entry, maxBytes);
-    listedBytes += bytes - slot.metadataBytes;
+    (slot.seq < 0 ? pending : listed).reweigh(bytes - slot.metadataBytes);
     slot.metadataBytes = bytes;
     batchUpdated.add(slot.entry.id);
     enforceBounds();
@@ -268,7 +296,7 @@ export function createViewerStore(options: ViewerStoreOptions = {}): ViewerStore
       counters.invalid++;
     } else if (checked.type === "add") {
       if (index.has(checked.entry.id)) counters.duplicates++;
-      else append(checked.entry);
+      else admit(checked.entry);
     } else {
       const slot = index.get(checked.id);
       if (slot === undefined) counters.unknownUpdates++;
@@ -277,25 +305,29 @@ export function createViewerStore(options: ViewerStoreOptions = {}): ViewerStore
     changed = true;
   };
 
-  /** Applies `items` as one batch, then notifies its net delta, if any. */
-  const runBatch = (items: Iterable<unknown>): void => {
+  /** Runs `body` as one change, then notifies its net delta, if anything changed. */
+  const transact = (body: () => void): void => {
     changed = false;
+    cleared = false;
     batchSeq = nextSeq;
     batchEvicted = [];
-    for (const item of items) ingest(item);
+    batchUpdated.clear();
+    body();
     if (!changed) return;
-    // Entries listed by this batch and still listed: a suffix of the list.
+    // Entries listed by this change and still listed: a suffix of the list.
     const added: EntryId[] = [];
     for (
       let position = Math.max(headSeq, batchSeq) - headSeq;
-      position < listedCount();
+      position < listed.length;
       position++
     ) {
-      const slot = slotAt(position);
-      if (slot !== undefined) added.push(slot.entry.id);
+      added.push((listed.at(position) as Slot).entry.id);
     }
-    // Updated ids still listed from before this batch.
-    const updated = [...batchUpdated].filter((id) => (index.get(id)?.seq ?? batchSeq) < batchSeq);
+    // Updated ids still listed from before this change.
+    const updated = [...batchUpdated].filter((id) => {
+      const seq = index.get(id)?.seq ?? -1;
+      return seq >= 0 && seq < batchSeq;
+    });
     version++;
     stats = undefined;
     const change: ViewerStoreChange = Object.freeze({
@@ -303,11 +335,17 @@ export function createViewerStore(options: ViewerStoreOptions = {}): ViewerStore
       added: Object.freeze(added),
       updated: Object.freeze(updated),
       evicted: Object.freeze(batchEvicted),
-      cleared: false,
+      cleared,
     });
     batchEvicted = [];
     batchUpdated.clear();
     listeners.emit(change);
+  };
+
+  const runBatch = (items: Iterable<unknown>): void => {
+    transact(() => {
+      for (const item of items) ingest(item);
+    });
   };
 
   const store: ViewerStore = {
@@ -318,24 +356,23 @@ export function createViewerStore(options: ViewerStoreOptions = {}): ViewerStore
       runBatch(entries.map((entry) => ({ type: "add", entry })));
     },
     get size() {
-      return listedCount();
+      return listed.length;
     },
     at(position) {
       if (!Number.isInteger(position) || position < 0) return undefined;
-      return slotAt(position)?.entry;
+      return listed.at(position)?.entry;
     },
     indexOf(id) {
-      const slot = index.get(id);
-      return slot === undefined ? -1 : slot.seq - headSeq;
+      const seq = index.get(id)?.seq ?? -1;
+      return seq < 0 ? -1 : seq - headSeq;
     },
     get(id) {
       return index.get(id)?.entry;
     },
     toArray() {
       const entries: ViewerEntry[] = [];
-      for (let position = head; position < listed.length; position++) {
-        const slot = listed[position];
-        if (slot !== undefined) entries.push(slot.entry);
+      for (let position = 0; position < listed.length; position++) {
+        entries.push((listed.at(position) as Slot).entry);
       }
       return entries;
     },
@@ -344,12 +381,11 @@ export function createViewerStore(options: ViewerStoreOptions = {}): ViewerStore
     },
     getStats() {
       stats ??= Object.freeze({
-        listed: listedCount(),
-        listedBytes,
-        pending: 0,
-        pendingBytes: 0,
-        paused: false,
-        droppedPending: 0,
+        listed: listed.length,
+        listedBytes: listed.bytes,
+        pending: pending.length,
+        pendingBytes: pending.bytes,
+        paused,
         ...counters,
       });
       return stats;
@@ -357,7 +393,50 @@ export function createViewerStore(options: ViewerStoreOptions = {}): ViewerStore
     subscribe(listener) {
       return listeners.subscribe(listener);
     },
+    pause() {
+      if (paused) return;
+      transact(() => {
+        paused = true;
+        droppedThisPause = 0;
+        changed = true;
+      });
+    },
+    resume() {
+      if (!paused) return;
+      transact(() => {
+        paused = false;
+        changed = true;
+        if (droppedThisPause > 0) {
+          const id = `${STORE_ID_PREFIX}gap:${++gaps}`;
+          admit({ kind: "gap", id, reason: "dropped", missedCount: droppedThisPause });
+        }
+        droppedThisPause = 0;
+        for (const slot of pending.drain()) list(slot);
+      });
+    },
+    get paused() {
+      return paused;
+    },
+    isPending(id) {
+      return index.get(id)?.seq === -1;
+    },
+    clear() {
+      transact(() => {
+        index.clear();
+        listed.drain();
+        pending.drain();
+        headSeq = nextSeq;
+        droppedThisPause = 0;
+        counters = zeroCounters();
+        changed = true;
+        cleared = true;
+      });
+    },
   };
-  internals.set(store, { indexSize: () => index.size, backingLength: () => listed.length });
+  internals.set(store, {
+    indexSize: () => index.size,
+    backingLength: () => listed.backingLength,
+    pendingBackingLength: () => pending.backingLength,
+  });
   return store;
 }
