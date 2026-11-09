@@ -1,7 +1,7 @@
 import type { Unsubscribe } from "./adapter.ts";
 import { type CallNode, createCallIndex, type Direction } from "./correlation-index.ts";
 import type { EntryId, ViewerEntry } from "./entry.ts";
-import { createListeners } from "./store-listeners.ts";
+import { createListeners, firstError, reportAsync } from "./store-listeners.ts";
 import type { ViewerStore, ViewerStoreChange, ViewerStoreStats } from "./store.ts";
 
 /**
@@ -162,9 +162,7 @@ export interface Correlator {
 
 /** Creates a {@link Correlator}; see {@link CorrelationScope}. */
 export function createCorrelator(options?: CorrelatorOptions): Correlator {
-  return createCorrelatorWith(options, (error) => {
-    void Promise.reject(error);
-  });
+  return createCorrelatorWith(options, reportAsync);
 }
 
 interface ReadRecord {
@@ -433,14 +431,11 @@ export function createCorrelatorWith(
         if (connected !== connection) return;
         const removed: EntryId[] = [];
         const changed = new Set<EntryId>();
-        let failure: { error: unknown } | undefined;
-        try {
-          follow(change, removed, changed);
-        } catch (error) {
-          // Never leave silent partial state: emit what was applied.
-          failure = { error };
-          lists = undefined;
-        }
+        const errors = firstError();
+        errors.run(() => follow(change, removed, changed));
+        const { failure } = errors;
+        // Never leave silent partial state: emit what was applied.
+        if (failure !== undefined) lists = undefined;
         emit([...changed], removed, change.cleared);
         if (failure !== undefined) report(failure.error);
       }

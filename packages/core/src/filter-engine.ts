@@ -13,7 +13,7 @@ import {
   type TraceStats,
 } from "./filter-stats.ts";
 import type { ViewerStore, ViewerStoreChange } from "./store.ts";
-import { createListeners } from "./store-listeners.ts";
+import { createListeners, reportAsync } from "./store-listeners.ts";
 
 /** Options of {@link createFilterEngine}. */
 export interface FilterEngineOptions {
@@ -416,7 +416,5 @@ export function createFilterEngineWith(
 
 /** Creates a {@link FilterEngine} listing every entry until a filter is set. */
 export function createFilterEngine(options?: FilterEngineOptions): FilterEngine {
-  return createFilterEngineWith(options, (error) => {
-    void Promise.reject(error);
-  });
+  return createFilterEngineWith(options, reportAsync);
 }

@@ -3,7 +3,7 @@ import { connectAdapter } from "./store-connect.ts";
 import type { EntryId, GapEntry, ViewerEntry } from "./entry.ts";
 import { coreWeight, metadataWeight } from "./store-estimate.ts";
 import { checkItem, mergeMetadata, normalizeAddedEntry, STORE_ID_PREFIX } from "./store-ingest.ts";
-import { createListeners } from "./store-listeners.ts";
+import { createListeners, firstError, type FirstError } from "./store-listeners.ts";
 import { createSlotQueue, type Slot } from "./store-queue.ts";
 import type { EntryMetadataPatch, EntryUpdate } from "./update.ts";
 
@@ -421,27 +421,17 @@ export function createViewerStore(options: ViewerStoreOptions = {}): ViewerStore
   /**
    * Runs `body` as one change, then notifies its net delta, if anything
    * changed. When `body` throws (a throwing batch iterator), what it applied
-   * is still notified. Returns the first error, the body's before a
+   * is still notified. Its errors go to `errors`, the body's before a
    * listener's.
    */
-  const runChange = (body: () => void): { readonly error: unknown } | undefined => {
+  const runChange = (body: () => void, errors: FirstError): void => {
     changed = false;
     cleared = false;
     batchSeq = nextSeq;
     batchEvicted = [];
     batchUpdated.clear();
-    let failure: { readonly error: unknown } | undefined;
-    try {
-      body();
-    } catch (error) {
-      failure = { error };
-    }
-    try {
-      notify();
-    } catch (error) {
-      failure ??= { error };
-    }
-    return failure;
+    errors.run(body);
+    errors.run(notify);
   };
 
   // Changes requested while another one runs or notifies, in call order.
@@ -462,18 +452,17 @@ export function createViewerStore(options: ViewerStoreOptions = {}): ViewerStore
       return;
     }
     running = true;
-    let failure: { readonly error: unknown } | undefined;
+    const errors = firstError();
     try {
-      failure = runChange(body);
+      runChange(body, errors);
+      // Every queued change runs, even after an error.
       for (let next = queued.shift(); next !== undefined; next = queued.shift()) {
-        // Every queued change runs, even after an error.
-        const error = runChange(next);
-        failure ??= error;
+        runChange(next, errors);
       }
     } finally {
       running = false;
     }
-    if (failure !== undefined) throw failure.error;
+    errors.rethrow();
   };
 
   /** Notifies the net delta of the current change, if anything changed. */

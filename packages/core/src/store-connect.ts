@@ -1,5 +1,6 @@
 import type { Unsubscribe, ViewerAdapter } from "./adapter.ts";
 import type { ViewerEntry } from "./entry.ts";
+import { firstError } from "./store-listeners.ts";
 import type { EntryUpdate } from "./update.ts";
 
 /** What {@link connectAdapter} needs from the store. */
@@ -76,7 +77,9 @@ export function connectAdapter(target: ConnectTarget, adapter: ViewerAdapter): U
     unsubscribe?.();
   };
 
-  const hold = (pending: (readonly EntryUpdate[] | undefined)[], batch: readonly EntryUpdate[]) => {
+  /** Buffers `batch`; only called while the buffer is defined. */
+  const hold = (batch: readonly EntryUpdate[]) => {
+    const pending = buffer!;
     pending.push(batch);
     if (settling) return;
     const count = itemCount(batch);
@@ -106,37 +109,31 @@ export function connectAdapter(target: ConnectTarget, adapter: ViewerAdapter): U
   const settle = (snapshot: unknown): void => {
     if (stopped) return;
     settling = true;
-    const pending = buffer ?? [];
-    let failure: { readonly error: unknown } | undefined;
-    const attempt = (step: () => void): void => {
-      try {
-        step();
-      } catch (error) {
-        failure ??= { error };
-      }
-    };
+    // Defined: it is cleared only by `stop` or at the end of the one settle.
+    const pending = buffer!;
+    const errors = firstError();
     try {
-      attempt(() => {
+      errors.run(() => {
         if (Array.isArray(snapshot)) target.load(snapshot);
         else target.snapshotFailed();
       });
-      if (dropped && !stopped) attempt(() => target.bufferDropped(droppedAdds));
+      if (dropped && !stopped) errors.run(() => target.bufferDropped(droppedAdds));
       // Batches emitted during the replay join the same buffer, in order.
       for (let position = head; !stopped && position < pending.length; position++) {
         const batch = pending[position] as readonly EntryUpdate[];
         pending[position] = undefined;
-        attempt(() => target.apply(batch));
+        errors.run(() => target.apply(batch));
       }
     } finally {
       buffer = undefined;
     }
-    if (failure !== undefined) throw failure.error;
+    errors.rethrow();
   };
 
   unsubscribe = adapter.subscribe((batch) => {
     if (stopped) return;
     if (buffer === undefined) target.apply(batch);
-    else hold(buffer, batch);
+    else hold(batch);
   });
   let snapshot: unknown;
   try {
