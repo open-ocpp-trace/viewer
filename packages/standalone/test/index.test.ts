@@ -7,7 +7,7 @@ describe("@open-ocpp-trace/viewer-standalone", () => {
     expect(VIEWER_STANDALONE_VERSION).toBe("0.0.0");
   });
 
-  it("reports the React version it bundles", () => {
+  it("reports the React version it uses", () => {
     expect(bundledReactVersion()).toMatch(/^19\./);
   });
 });

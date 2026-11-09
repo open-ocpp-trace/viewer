@@ -30,3 +30,15 @@ Not decided yet (#13). The committed [`.npmrc`](.npmrc) maps the whole
 packages would resolve there too unless the mapping is split: publishing to
 GitHub Packages like the SDK is the default, npmjs.com would need a
 narrower mapping.
+
+## Before the first publication (#13)
+
+The packed tarballs are not publishable yet. #13 must:
+
+- strip the `@open-ocpp-trace/viewer-source` export condition from the
+  packed `package.json`: it points at `./src/index.ts`, which is not in
+  the tarball;
+- include `LICENSE` in each tarball, as the SDK's pack-release script does;
+- remove `"private": true` from the published packages;
+- decide the registry (see [Registry](#registry)): the scope currently
+  maps to GitHub Packages.
