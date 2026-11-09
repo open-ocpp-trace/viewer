@@ -9,6 +9,7 @@ import {
 } from "@open-ocpp-trace/viewer-core";
 
 import { compileFilter, type TraceFilter } from "../src/filter-model.ts";
+import { SEARCH_BUDGET } from "../src/filter-search.ts";
 import { all, context, record, select, simulator } from "./filter-fixtures.ts";
 import { add, deepFreeze } from "./store-fixtures.ts";
 
@@ -188,5 +189,47 @@ describe("payload search limits", () => {
     );
     expect(found([hostile, keys, "needle"])).toBe(true);
     expect(found([hostile, keys])).toBe(false);
+  });
+
+  it("walks a huge array by index, never listing its keys", () => {
+    const items: unknown[] = Array.from({ length: 1_000_000 }, () => 0);
+    items[999_999] = "needle";
+    let listed = 0;
+    let reads = 0;
+    const counted = new Proxy(items, {
+      ownKeys(target) {
+        listed += 1;
+        return Reflect.ownKeys(target);
+      },
+      get(target, key, receiver) {
+        reads += 1;
+        return Reflect.get(target, key, receiver);
+      },
+    });
+    const start = performance.now();
+    expect(found(counted)).toBe(false);
+    expect(listed).toBe(0);
+    expect(reads).toBeLessThanOrEqual(SEARCH_BUDGET + 1);
+    expect(found(items)).toBe(false);
+    expect(performance.now() - start).toBeLessThan(1_000);
+    expect(found(["a", ["b", "needle"]])).toBe(true);
+  });
+
+  it("survives a hostile array length or item", () => {
+    const length = new Proxy(["needle"], {
+      get(target, key, receiver) {
+        if (key === "length") throw new Error("length");
+        return Reflect.get(target, key, receiver);
+      },
+    });
+    const item = new Proxy(["x", "needle"], {
+      get(target, key, receiver) {
+        if (key === "0") throw new Error("item");
+        return Reflect.get(target, key, receiver);
+      },
+    });
+    expect(found([length, "tail"])).toBe(false);
+    expect(found([length, "needle"])).toBe(true);
+    expect(found(item)).toBe(true);
   });
 });

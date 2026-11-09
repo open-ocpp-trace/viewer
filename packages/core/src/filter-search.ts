@@ -89,18 +89,31 @@ function walk(roots: readonly unknown[], needle: string, budget: Budget): boolea
     visited.add(value);
     budget.remaining -= 1;
     if (depth >= SEARCH_DEPTH) continue;
-    let keys: string[];
-    try {
-      keys = Object.keys(value);
-    } catch {
-      continue;
-    }
-    const count = Math.min(keys.length, budget.remaining);
-    for (let i = count - 1; i >= 0; i -= 1) {
+    const keys = childKeys(value, budget.remaining);
+    for (let i = keys.length - 1; i >= 0; i -= 1) {
       stack.push({ value: read(value, keys[i]!), depth: depth + 1 });
     }
   }
   return false;
+}
+
+/**
+ * The first `limit` keys of an object; empty when listing them throws.
+ * An array yields its indices, so a huge one costs only what the budget
+ * allows. A plain object still lists every own key first: `for...in`
+ * would also walk inherited keys.
+ */
+function childKeys(value: object, limit: number): string[] {
+  try {
+    if (Array.isArray(value)) {
+      const length = read(value, "length");
+      const count = typeof length === "number" ? Math.min(length, limit) : 0;
+      return Array.from({ length: Math.max(count, 0) }, (_, i) => String(i));
+    }
+    return Object.keys(value).slice(0, limit);
+  } catch {
+    return [];
+  }
 }
 
 /**
