@@ -8,24 +8,32 @@ nor `react-dom`, and there is no second DOM renderer to keep in sync.
 ## Usage
 
 The package ships one self-contained ES module, `dist/index.js`. Serve it
-with your page and load it as a module:
+with your page and import it from your own module script:
 
 ```html
 <div id="trace" style="height: 600px"></div>
-<script type="module">
-  import { mount } from "/assets/viewer-standalone/index.js";
-
-  const viewer = mount(document.getElementById("trace"), {
-    entries: initialEntries, // optional snapshot
-    onSelectionChange: (selection, entry) => console.log(selection, entry),
-  });
-
-  viewer.ingest(moreEntries); // more entries; ids already held are ignored
-  viewer.update([{ type: "update", id: "a", metadata: { tenant: "acme" } }]);
-  viewer.setOptions({ theme: { colorScheme: "dark" } });
-  viewer.unmount();
-</script>
+<script type="module" src="./app.js"></script>
 ```
+
+```js
+// app.js
+import { mount } from "/assets/viewer-standalone/index.js";
+
+const viewer = mount(document.getElementById("trace"), {
+  entries: initialEntries, // optional snapshot
+  onSelectionChange: (selection, entry) => console.log(selection, entry),
+});
+
+viewer.ingest(moreEntries); // more entries; ids already held are ignored
+viewer.update([{ type: "update", id: "a", metadata: { tenant: "acme" } }]);
+viewer.setOptions({ theme: { colorScheme: "dark" } });
+viewer.unmount();
+```
+
+Keeping the host code in a file lets `script-src 'self'` cover it (see
+[CSP](#csp)); an inline `<script type="module">` needs a nonce or a hash in
+`script-src`. [`examples/standalone`](../../examples/standalone) is a
+complete page built this way.
 
 From TypeScript, import it the same way (or from the package name with a
 bundler); `dist/index.d.ts` declares every type the API uses, including the
@@ -76,12 +84,20 @@ React-only prop: the viewer's store and correlator are its own.
   `ingest`, `update` and `setOptions` render before returning too. Changes
   from the adapter and from user interaction render asynchronously, as React
   schedules them.
+- Called from inside a viewer callback, `setOptions` and `unmount` may take
+  effect after they return rather than before: React does not render
+  synchronously while it is already rendering. A controlled `selection`
+  updated from `onSelectionChange`, for instance when an eviction drops the
+  selected entry, renders once React finishes the current update.
 - `mount` appends a `<div data-oot-standalone>` container to `element` and
   attaches an open shadow root to it, so the host's own children stay in
   place. Mounting again in an element that holds a live viewer throws.
 - `unmount()` unmounts React, unsubscribes the adapter, disconnects the
   correlator and removes the container. Calling it again does nothing; any
   other method throws once unmounted. The element can be mounted again.
+- Always call `unmount()` before discarding a viewer. Removing the container
+  some other way, such as `element.innerHTML = ""`, leaves React mounted and
+  the adapter and correlator connected: the instance leaks.
 - Each `mount` has its own store, correlator, selection, filter, theme and
   shadow root: several viewers can share a page.
 
@@ -99,8 +115,10 @@ pass `theme: { colorScheme, tokens }`, which applies to that viewer only.
 ## CSP
 
 - Scripts: the module is a plain ES module from your origin, so
-  `script-src 'self'` is enough. It contains no `eval` or `new Function`, and
-  needs no `'unsafe-eval'` or `'unsafe-inline'`.
+  `script-src 'self'` is enough when the host code that imports it is a file
+  from your origin too, as in [Usage](#usage). It contains no `eval` or
+  `new Function`, and needs no `'unsafe-eval'` or `'unsafe-inline'`. An
+  inline host script needs a nonce or a hash in `script-src`.
 - Styles: where the browser supports constructable stylesheets, the viewer
   adopts one (`new CSSStyleSheet()`, `replaceSync`, `adoptedStyleSheets`)
   instead of writing a `<style>` element. MDN states that no browser
