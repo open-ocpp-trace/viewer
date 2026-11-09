@@ -95,6 +95,9 @@ export default defineConfig({
           setupFiles: ["packages/react/test/setup.ts"],
         },
       },
+      // The DebugKit integration example (examples/debugkit/**/*.test.{ts,tsx}),
+      // configured by its own vite.config.ts.
+      "examples/debugkit",
       {
         // The same React tests against React 18. The workspace package in
         // REACT_18 installs React 18 with its own copies of the packages that
