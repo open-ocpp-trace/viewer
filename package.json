@@ -1,0 +1,25 @@
+{
+  "name": "open-ocpp-trace-viewer",
+  "private": true,
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "type": "module",
+  "scripts": {
+    "check": "vp check",
+    "test": "vp test",
+    "pack": "vp run -r pack"
+  },
+  "devDependencies": {
+    "@arethetypeswrong/cli": "0.18.5",
+    "@types/node": "22.20.5",
+    "publint": "0.3.25",
+    "typescript": "6.0.3",
+    "vite-plus": "1.5.0"
+  },
+  "engines": {
+    "node": "^22.18 || ^24.11 || >=26"
+  },
+  "packageManager": "bun@1.4.4"
+}
