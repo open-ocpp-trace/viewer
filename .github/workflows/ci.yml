@@ -12,10 +12,6 @@ on:
 
 permissions:
   contents: read
-  # The SDK packages (@open-ocpp-trace/core, @open-ocpp-trace/jsonl) are
-  # installed from GitHub Packages with the workflow token. Their package
-  # settings must grant this repository read access.
-  packages: read
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -79,6 +75,12 @@ jobs:
     needs: changes
     if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      # The SDK packages (@open-ocpp-trace/core, @open-ocpp-trace/jsonl)
+      # are installed from GitHub Packages with the workflow token. Their
+      # package settings must grant this repository read access.
+      packages: read
     strategy:
       fail-fast: false
       matrix:
@@ -126,6 +128,10 @@ jobs:
     needs: changes
     if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      # Installs the SDK packages from GitHub Packages, like `checks`.
+      packages: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -153,11 +159,12 @@ jobs:
       - run: bun install --frozen-lockfile
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      # Packs the three packages, installs them with npm into projects
-      # outside the workspace, one with React 18 and one with React 19,
-      # imports viewer-core under Node.js and Bun, checks that viewer-react
-      # uses the consumer's single React copy, and loads the standalone
-      # asset without bare specifiers. This is `vp run smoke`, called
+      # Packs the three packages, checks the tarballs with publint and
+      # attw, installs them with npm into projects outside the workspace,
+      # one with React 18 and one with React 19, imports viewer-core under
+      # Node.js and Bun, checks that viewer-react uses the consumer's single
+      # React copy, type-checks a TypeScript consumer, and loads the
+      # standalone asset without bare specifiers or Node.js globals. This is `vp run smoke`, called
       # directly so that the consumer runs on the `node` checked above
       # rather than on a Node.js that `vp run` may manage itself.
       - run: sh scripts/smoke-consumer.sh

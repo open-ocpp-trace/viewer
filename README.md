@@ -73,15 +73,19 @@ vp run @open-ocpp-trace/viewer-playground#build   # build the playground
 `vp check --fix` applies formatting and safe lint fixes.
 
 `vp run smoke` runs [`scripts/smoke-consumer.sh`](scripts/smoke-consumer.sh).
-It builds and packs the three packages, then installs the tarballs with npm
-into throwaway projects outside the workspace, one with React 18 and one
-with React 19, and:
+It builds and packs the three packages, checks each tarball with
+`publint --strict` and `attw --profile esm-only`, then installs the tarballs
+with npm into throwaway projects outside the workspace, one with React 18
+and one with React 19, and:
 
 - imports `viewer-core` under Node.js and Bun;
 - checks that `viewer-react` uses the consumer's React and that the project
   holds a single React copy;
+- type-checks a TypeScript consumer of the three packages with
+  `tsc --noEmit`, under the `bundler` and `nodenext` module resolutions;
 - loads the `viewer-standalone` asset by file URL from a directory without
-  `node_modules`, so a bare import left in the asset fails.
+  `node_modules`, with `process` removed from the global scope, so a bare
+  import or a Node.js-only reference left in the asset fails.
 
 `SMOKE_KEEP=1` keeps the temporary directory.
 

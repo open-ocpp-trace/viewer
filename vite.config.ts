@@ -15,7 +15,10 @@ export default defineConfig({
     },
   },
   lint: {
-    ignorePatterns: ["**/dist/**", "**/node_modules/**"],
+    // The smoke consumer imports the packed packages, which only exist in
+    // the throwaway projects of scripts/smoke-consumer.sh; that script
+    // type-checks it there with tsc.
+    ignorePatterns: ["**/dist/**", "**/node_modules/**", "scripts/smoke-consumer/consumer.ts"],
     options: { typeAware: true, typeCheck: true },
   },
   fmt: {
