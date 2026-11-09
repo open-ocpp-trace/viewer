@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vite-plus/test";
+import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 
 import type { ColumnDefinition } from "@open-ocpp-trace/viewer-core";
 import { mount, type MountOptions } from "@open-ocpp-trace/viewer-standalone";
@@ -16,6 +16,10 @@ import {
 } from "./helpers.ts";
 
 stubLayout();
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
 
 function button(element: Element, text: string): HTMLButtonElement {
   const found = Array.from(shadowOf(element).querySelectorAll("button")).find(
@@ -162,6 +166,78 @@ describe("a mounted viewer", () => {
     expect(() => instance.setOptions(changes)).toThrow(`"${key}"`);
     instance.ingest([]);
     expect(shadowOf(element).textContent).toContain("Loading entries");
+  });
+
+  it("reports a throwing onSelectionChange and keeps working", async () => {
+    const report = vi.fn();
+    vi.stubGlobal("reportError", report);
+    const failure = new Error("host failure");
+    const element = host();
+    const instance = track(
+      mount(element, {
+        maxEntries: 2,
+        entries: [sdkEntry("a"), sdkEntry("b")],
+        defaultSelection: { entryId: "a" },
+        onSelectionChange: () => {
+          throw failure;
+        },
+      }),
+    );
+
+    // Evicting the selected entry announces an empty selection.
+    instance.update([add(sdkEntry("c"))]);
+    await vi.waitFor(() => {
+      expect(report).toHaveBeenCalledWith(failure);
+    });
+    instance.ingest([sdkEntry("d")]);
+
+    expect(listedIds(element)).toEqual(["c", "d"]);
+  });
+
+  it("reports a throwing toolbar action and keeps working", () => {
+    const report = vi.fn();
+    vi.stubGlobal("reportError", report);
+    const failure = new Error("action failure");
+    const element = host();
+    const instance = track(
+      mount(element, {
+        entries: [sdkEntry("a")],
+        toolbarActions: [
+          {
+            id: "mark",
+            label: "Mark",
+            run: () => {
+              throw failure;
+            },
+          },
+        ],
+      }),
+    );
+
+    button(element, "Mark").click();
+    instance.ingest([sdkEntry("b")]);
+
+    expect(report).toHaveBeenCalledExactlyOnceWith(failure);
+    expect(listedIds(element)).toEqual(["a", "b"]);
+    expect(button(element, "Mark")).toBeDefined();
+  });
+
+  it("passes maxEntries to the store", () => {
+    const element = host();
+    const instance = track(mount(element, { maxEntries: 1, entries: [sdkEntry("a")] }));
+
+    instance.ingest([sdkEntry("b")]);
+
+    expect(listedIds(element)).toEqual(["b"]);
+  });
+
+  it("passes maxBytes to the store", () => {
+    const element = host();
+    const instance = track(mount(element, { maxBytes: 1, entries: [sdkEntry("a")] }));
+
+    instance.ingest([sdkEntry("b")]);
+
+    expect(listedIds(element)).toEqual(["b"]);
   });
 
   it("throws from setOptions once unmounted", () => {
