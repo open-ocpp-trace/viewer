@@ -16,6 +16,12 @@ export { FilterPanel } from "./FilterPanel.tsx";
 export type { FilterPanelProps } from "./FilterPanel.tsx";
 export { useFilterEngine } from "./hooks.ts";
 export { defaultSensitiveKeys } from "./inspect-format.ts";
+export type {
+  FilterControl,
+  FilterControlContext,
+  ToolbarAction,
+  ViewerActionContext,
+} from "./slots.tsx";
 export { defaultStrings } from "./strings.ts";
 export type { PartialViewerStrings, TranslateFunction, ViewerStrings } from "./strings.ts";
 export { themeTokens } from "./theme.ts";

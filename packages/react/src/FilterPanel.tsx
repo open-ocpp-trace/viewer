@@ -18,6 +18,7 @@ import {
 } from "./filter-controls.tsx";
 import { useEngineVersion } from "./hooks.ts";
 import { sameFilter } from "./same-filter.ts";
+import { type FilterControl, SlotContent } from "./slots.tsx";
 import type { PartialViewerStrings, TranslateFunction } from "./strings.ts";
 import { StringsContext, useViewerStrings } from "./strings-context.ts";
 
@@ -66,6 +67,8 @@ export interface FilterPanelProps {
   strings?: PartialViewerStrings;
   /** Translates the strings, as `TraceViewerProps.translate`. */
   translate?: TranslateFunction;
+  /** Host controls, rendered after the built-in groups. */
+  filterControls?: readonly FilterControl[];
   className?: string;
 }
 
@@ -249,6 +252,12 @@ export function FilterPanel(props: FilterPanelProps): ReactElement {
             }}
           />
         </Group>
+        {props.filterControls?.map((control) => (
+          <fieldset key={control.id} className="oot-filter-group oot-filter-group--host">
+            <legend className="oot-filter-legend">{control.label}</legend>
+            <SlotContent slot={control} context={{ filter: current, setFilter: change }} />
+          </fieldset>
+        ))}
       </div>
     </StringsContext.Provider>
   );

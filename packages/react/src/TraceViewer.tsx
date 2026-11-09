@@ -26,6 +26,7 @@ import { exportJsonl, type JsonlExport } from "./export-jsonl.ts";
 import { FilterPanel } from "./FilterPanel.tsx";
 import { useFilterEngine } from "./hooks.ts";
 import { reportHostError } from "./report-error.ts";
+import type { FilterControl, ToolbarAction, ViewerActionContext } from "./slots.tsx";
 import type { PartialViewerStrings, TranslateFunction } from "./strings.ts";
 import { StringsContext, useViewerStrings } from "./strings-context.ts";
 import { themeStyle, type ViewerTheme } from "./theme.ts";
@@ -110,6 +111,10 @@ export interface TraceViewerProps {
    * reported and the string falls back.
    */
   translate?: TranslateFunction;
+  /** Host buttons, rendered after the built-in toolbar buttons. */
+  toolbarActions?: readonly ToolbarAction[];
+  /** Host controls of the filter panel, as `FilterPanelProps.filterControls`. */
+  filterControls?: readonly FilterControl[];
   className?: string;
 }
 
@@ -124,6 +129,30 @@ function* listed(engine: FilterEngine): Generator<ViewerEntry> {
     const entry = engine.at(index);
     if (entry !== undefined) yield entry;
   }
+}
+
+/** A host toolbar button; a throw of `disabled` disables it. */
+function HostAction(props: { action: ToolbarAction; context: ViewerActionContext }): ReactElement {
+  const { action, context } = props;
+  let disabled = false;
+  try {
+    disabled = action.disabled?.(context) === true;
+  } catch (error) {
+    reportHostError(error);
+    disabled = true;
+  }
+  const run = (): void => {
+    try {
+      action.run(context);
+    } catch (error) {
+      reportHostError(error);
+    }
+  };
+  return (
+    <button type="button" className="oot-toolbar-button" disabled={disabled} onClick={run}>
+      {action.label}
+    </button>
+  );
 }
 
 /** The store's version, re-rendering the component on every change. */
@@ -220,6 +249,14 @@ export function TraceViewer(props: TraceViewerProps): ReactElement {
     onExport?.(exported, scope);
   };
 
+  const actionContext: ViewerActionContext = {
+    store,
+    selection: { entryId: selectedId },
+    selectedEntry,
+    listed: () => [...listed(engine)],
+    select: (entryId) => (entryId === null ? select(null) : navigate(entryId)),
+  };
+
   const className = props.className === undefined ? "oot-viewer" : `oot-viewer ${props.className}`;
   return (
     <StringsContext.Provider value={allStrings}>
@@ -268,6 +305,9 @@ export function TraceViewer(props: TraceViewerProps): ReactElement {
               </span>
             </>
           )}
+          {props.toolbarActions?.map((action) => (
+            <HostAction key={action.id} action={action} context={actionContext} />
+          ))}
         </div>
         <div
           className="oot-viewer-body"
@@ -280,6 +320,7 @@ export function TraceViewer(props: TraceViewerProps): ReactElement {
             {...(props.onFilterChange !== undefined && { onFilterChange: props.onFilterChange })}
             {...(fields !== undefined && { fields })}
             {...(payloadSearch !== undefined && { payloadSearch })}
+            {...(props.filterControls !== undefined && { filterControls: props.filterControls })}
           />
           <div className="oot-viewer-list" style={{ flex: "1 1 auto" }}>
             <TraceList
