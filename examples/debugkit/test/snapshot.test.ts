@@ -106,6 +106,25 @@ describe("buildSnapshot", () => {
     expect(snapshot.truncated).toBe(1);
   });
 
+  it("counts a record the writer rejects as invalid, unless it is older than the cut", () => {
+    const entries = [1, 2, 3, 4, 5].map((n) =>
+      trace(`e${n}`, `m-${n}`, `2024-01-15T11:00:0${n}.000Z`),
+    );
+    // e1 is older than the cut, right behind it, e4 newer: e4 is invalid, e1 truncated.
+    const rejected = (entry: ViewerEntry): ViewerEntry =>
+      entry.kind === "trace"
+        ? { ...entry, record: { ...entry.record, timestamp: "not a timestamp" } }
+        : entry;
+    const [e1, e2, e3, e4, e5] = entries;
+    const mixed = [rejected(e1!), e2!, e3!, rejected(e4!), e5!];
+
+    const snapshot = buildSnapshot(mixed, { maxLines: 3, maxBytes: 1_000_000 });
+
+    expect(snapshot.entryIds).toEqual(["e2", "e3", "e5"]);
+    expect(snapshot.skipped.invalid).toBe(1);
+    expect(snapshot.truncated).toBe(1);
+  });
+
   it("is empty for a store without trace entries", () => {
     const snapshot = buildSnapshot([{ kind: "gap", id: "g", reason: "unknown" }]);
 

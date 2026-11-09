@@ -43,6 +43,20 @@ describe("AnalysisStatus", () => {
     expect(warnings).toEqual(analysis.warnings.map((warning) => warning.message));
     expect(warnings).toHaveLength(4);
     expect(text).not.toContain("truncated");
+    expect(text).not.toContain("artifacts of the truncation");
+  });
+
+  it("warns that failures near the cut may be artifacts of the truncation", () => {
+    const entries = [heartbeat(1, "a"), heartbeat(2, "b"), heartbeat(3, "c")];
+    const analysis = analyzeSnapshot(
+      buildSnapshot(entries, { maxLines: 2, maxBytes: 1024 * 1024 }),
+    );
+
+    render(<AnalysisStatus analysis={analysis} stale={false} />);
+
+    expect(statusText()).toContain(
+      "Failures near the start of the snapshot (orphan responses, sessions without a start) may be artifacts of the truncation.",
+    );
   });
 
   it("says when the snapshot was truncated and when it is stale", () => {

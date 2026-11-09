@@ -42,10 +42,13 @@ export interface AnalysisSnapshot {
     readonly unparsed: number;
     /** Gap markers: not records. */
     readonly gap: number;
-    /** Trace records the SDK writer rejected. */
+    /** Trace records the SDK writer rejected (only those newer than the cut). */
     readonly invalid: number;
   };
-  /** The oldest trace entries left out to stay within the limits. */
+  /**
+   * The oldest trace entries left out to stay within the limits, whether or
+   * not the SDK writer would accept them: they are never written.
+   */
   readonly truncated: number;
 }
 
@@ -74,7 +77,9 @@ export function buildSnapshot(
       skipped[entry.kind] += 1;
       continue;
     }
-    if (truncated > 0) {
+    // Past the cut every trace entry counts as truncated, even one the
+    // writer would reject: it is never written, so never counted invalid.
+    if (truncated > 0 || kept.length >= limits.maxLines) {
       truncated += 1;
       continue;
     }
@@ -87,7 +92,7 @@ export function buildSnapshot(
       continue;
     }
     const size = encoder.encode(text).length;
-    if (kept.length >= limits.maxLines || bytes + size > limits.maxBytes) {
+    if (bytes + size > limits.maxBytes) {
       truncated = 1;
       continue;
     }

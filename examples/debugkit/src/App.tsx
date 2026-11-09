@@ -16,7 +16,8 @@ const NOT_ANALYZED: Record<NotAnalyzedReason, string> = {
   pending: "pending: not analyzed yet (no analysis has run since this entry was added)",
   rejected: "rejected: DebugKit rejected the whole snapshot",
   "mapping-broken": "mapping dropped: DebugKit's events did not fit the snapshot",
-  "not-sent": "not sent: outside the analyzed snapshot (limits, or newer than it)",
+  "not-sent":
+    "not sent: the SDK writer rejected it, the snapshot limits left it out, or it is newer than the analysis",
   ambiguous: "ambiguous: several entries could be the source of one event, none is guessed",
   ignored: "ignored: DebugKit dropped this record (see its warnings)",
 };

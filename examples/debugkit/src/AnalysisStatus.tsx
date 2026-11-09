@@ -41,6 +41,12 @@ function Details({ analysis }: { readonly analysis: Analysis }): ReactElement {
           `; the ${snapshot.truncated} oldest trace entries were left out (snapshot limits)`}
         .
       </p>
+      {snapshot.truncated > 0 && (
+        <p>
+          Failures near the start of the snapshot (orphan responses, sessions without a start) may
+          be artifacts of the truncation.
+        </p>
+      )}
       <p>
         Not sent: {unparsed} unparsed, {gap} gaps, {invalid} invalid.
       </p>

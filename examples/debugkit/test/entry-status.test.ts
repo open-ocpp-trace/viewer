@@ -74,6 +74,26 @@ describe("entryStatus", () => {
     expect(entryStatus(analysis, heartbeat)).toEqual({ reason: "not-sent" });
   });
 
+  it("reports a rejected record as not sent, whether or not it is older than the cut", () => {
+    const rejected = (id: string, messageId: string): ViewerEntry => ({
+      kind: "trace",
+      id,
+      record: { ...HEARTBEAT, messageId, timestamp: "not a timestamp" },
+    });
+    const old = rejected("old", "r-1");
+    const recent = rejected("recent", "r-2");
+    const kept = { ...heartbeat, id: "kept" };
+    const snapshot = buildSnapshot([old, kept, recent], { maxLines: 1, maxBytes: 1_000_000 });
+    // The one rule: older than the cut is truncated, newer and rejected is invalid.
+    expect(snapshot.truncated).toBe(1);
+    expect(snapshot.skipped.invalid).toBe(1);
+
+    const analysis = analyzeSnapshot(snapshot);
+
+    expect(entryStatus(analysis, old)).toEqual({ reason: "not-sent" });
+    expect(entryStatus(analysis, recent)).toEqual({ reason: "not-sent" });
+  });
+
   it("treats a re-added id as pending until the next analysis", () => {
     const analysis = analyzeSnapshot(buildSnapshot([heartbeat]));
     expect(entryStatus(analysis, heartbeat)).toHaveProperty("eventId");

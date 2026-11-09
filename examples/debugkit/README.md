@@ -57,7 +57,10 @@ comes from entry _k_).
   the SDK writer rejects are counted and left out too.
 - **Bounded:** at most 5,000 lines and 4 MiB, well below DebugKit's limits
   (10,000 events, 10 MiB). Beyond them the oldest entries are left out and
-  the status area says how many.
+  the status area says how many. Failures DebugKit reports near the start of a
+  truncated snapshot (orphan responses, sessions without a start) may be
+  artifacts of the cut. An entry older than the cut counts as truncated, never
+  as invalid, even when the SDK writer would reject it.
 - **Equivalent, not byte-identical:** for the loaded fixtures the snapshot
   carries the same records, in the same order, as their conformant lines
   (`test/snapshot.test.ts`); the SDK writer may serialize them differently
@@ -89,7 +92,8 @@ why:
 - **mapping broken:** the events do not fit the snapshot, so nothing is
   mapped and the status area gives the reason;
 - also **pending**, **rejected** (DebugKit threw a `ParseError` on the whole
-  snapshot) and **not sent** (left out by the snapshot limits).
+  snapshot) and **not sent** (rejected by the SDK writer, left out by the
+  snapshot limits, or newer than the analysis).
 
 DebugKit's warnings are shown verbatim for the whole analysis. Their `index`
 refers to different spaces (JSONL line, parsed value, schema-valid record),

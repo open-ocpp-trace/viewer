@@ -150,6 +150,22 @@ describe("the DebugKit example", () => {
     expect(within(detailPanel()).getByText(/unparsed/)).toBeDefined();
   });
 
+  it("explains that a record the SDK writer rejected was never sent", async () => {
+    const { store } = await renderExample();
+    const live = LIVE_HEARTBEAT.entry;
+    if (live.kind !== "trace") throw new Error("expected a trace entry");
+    act(() => {
+      store.apply([
+        { type: "add", entry: { ...live, record: { ...live.record, timestamp: "not a time" } } },
+      ]);
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Analyze now" }));
+
+    fireEvent.click(row(live.id));
+
+    expect(within(detailPanel()).getByText(/the SDK writer rejected it/)).toBeDefined();
+  });
+
   it("leaves the selection alone and says why for an event with no single entry", async () => {
     const { analysis } = await renderExample();
     const unmatched = analysis.mapping.unmatchedEventIds[0];
