@@ -6,7 +6,7 @@
 // Usage: node react.mjs <expected React major>
 
 import assert from "node:assert/strict";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { createElement, version as hostVersion } from "react";
@@ -16,6 +16,7 @@ import {
   EntryInspector,
   TraceViewer,
   VIEWER_REACT_VERSION,
+  exportJsonl,
   hostReactVersion,
 } from "@open-ocpp-trace/viewer-react";
 
@@ -62,5 +63,19 @@ const details = renderToString(createElement(EntryInspector, { store: inspected,
 for (const text of ["Entry details", "DataTransfer", "smoke-inspected-payload"]) {
   assert.ok(details.includes(text), `the server-rendered inspector lacks "${text}"`);
 }
+
+// The export goes through the SDK writer, which the package imports from
+// the installed @open-ocpp-trace/jsonl rather than bundling it.
+const exported = exportJsonl([{ kind: "trace", id: "t", record }]);
+assert.equal(exported.text, `${JSON.stringify(record)}\n`, "exportJsonl wrote another line");
+assert.equal(exported.recordCount, 1);
+const entry = readFileSync(
+  fileURLToPath(import.meta.resolve("@open-ocpp-trace/viewer-react")),
+  "utf8",
+);
+assert.ok(
+  entry.includes('from "@open-ocpp-trace/jsonl/writer"'),
+  "viewer-react bundles the SDK writer instead of importing @open-ocpp-trace/jsonl/writer",
+);
 
 console.log(`viewer-react ${VIEWER_REACT_VERSION}: uses the host's React ${hostVersion}`);

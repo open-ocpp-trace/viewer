@@ -13,7 +13,9 @@ import {
 import {
   EntryInspector,
   type EntryInspectorProps,
+  type ExportScope,
   FilterPanel,
+  type JsonlExport,
   type FilterPanelProps,
   TraceList,
   type TraceListProps,
@@ -21,6 +23,7 @@ import {
   type TraceViewerProps,
   VIEWER_REACT_VERSION,
   defaultSensitiveKeys,
+  exportJsonl,
   hostReactVersion,
   useFilterEngine,
 } from "@open-ocpp-trace/viewer-react";
@@ -45,7 +48,10 @@ const viewerProps: TraceViewerProps = {
   store: createViewerStore(),
   defaultSelection: { entryId: null },
   onSelectionChange: (selection) => selection.entryId,
+  onExport: (exported: JsonlExport, scope: ExportScope) => `${scope}:${exported.recordCount}`,
 };
+
+export const emptyExport: JsonlExport = exportJsonl([]);
 export const viewer: ReactElement = createElement(TraceViewer, viewerProps);
 
 export type InspectorProps = EntryInspectorProps;
