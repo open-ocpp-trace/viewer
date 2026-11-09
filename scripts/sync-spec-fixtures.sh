@@ -50,12 +50,10 @@ out="$work/out"
 mkdir "$out"
 for dir in "${fixtures[@]}"; do
   name=$(basename "$dir")
-  for file in trace.jsonl expected.json; do
-    if [[ ! -f $dir$file ]]; then
-      echo "fixture $name has no $file" >&2
-      exit 1
-    fi
-  done
+  if [[ ! -f ${dir}trace.jsonl || ! -f ${dir}expected.json ]]; then
+    echo "fixture $name needs trace.jsonl and expected.json" >&2
+    exit 1
+  fi
   mkdir "$out/$name"
   cp "${dir}trace.jsonl" "${dir}expected.json" "$out/$name/"
 done

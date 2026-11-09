@@ -74,6 +74,27 @@ step() {
   printf '\nsmoke: %s\n' "$1"
 }
 
+# new_consumer <dir> <package name>: creates a throwaway ESM project that
+# installs from the same registries as the workspace.
+new_consumer() {
+  mkdir "$1"
+  cp "$workspace/.npmrc" "$1/.npmrc"
+  cat > "$1/package.json" <<EOF
+{
+  "name": "$2",
+  "private": true,
+  "type": "module"
+}
+EOF
+}
+
+# npm_install <dir> <spec>...: installs the specs into that project.
+npm_install() {
+  dir=$1
+  shift
+  (cd "$dir" && npm install --no-audit --no-fund --ignore-scripts "$@")
+}
+
 step "build every package"
 (cd "$workspace" && vp run -r pack)
 
@@ -106,24 +127,16 @@ for react_version in $react_versions; do
   esac
 
   step "install the tarballs with React $react_version into a project outside the workspace"
-  mkdir "$consumer"
+  new_consumer "$consumer" open-ocpp-trace-viewer-smoke-consumer
   cp "$fixtures/core.mjs" "$fixtures/react.mjs" "$fixtures/consumer.ts" \
     "$fixtures"/tsconfig.*.json "$consumer/"
-  cp "$workspace/.npmrc" "$consumer/.npmrc"
-  cat > "$consumer/package.json" <<'EOF'
-{
-  "name": "open-ocpp-trace-viewer-smoke-consumer",
-  "private": true,
-  "type": "module"
-}
-EOF
   # One install for every tarball: viewer-react depends on the exact
   # viewer-core version, which only the local tarball provides.
-  (cd "$consumer" && npm install --no-audit --no-fund --ignore-scripts \
+  npm_install "$consumer" \
     "react@$react_version" "react-dom@$react_version" "$types_react" "$types_react_dom" \
     "$tmp"/tarballs/open-ocpp-trace-viewer-core-*.tgz \
     "$tmp"/tarballs/open-ocpp-trace-viewer-react-*.tgz \
-    "$tmp"/tarballs/open-ocpp-trace-viewer-standalone-*.tgz)
+    "$tmp"/tarballs/open-ocpp-trace-viewer-standalone-*.tgz
 
   step "import viewer-core under Node.js and Bun (React $major consumer)"
   (cd "$consumer" && node core.mjs)
@@ -146,18 +159,12 @@ done
 
 consumer="$tmp/consumer-standalone"
 step "install only the viewer-standalone tarball into a React-free project"
-mkdir "$consumer"
+new_consumer "$consumer" open-ocpp-trace-viewer-smoke-standalone
 cp "$fixtures/standalone/consumer.ts" "$fixtures"/standalone/tsconfig.*.json "$consumer/"
-cp "$workspace/.npmrc" "$consumer/.npmrc"
-cat > "$consumer/package.json" <<'EOF'
-{
-  "name": "open-ocpp-trace-viewer-smoke-standalone",
-  "private": true,
-  "type": "module"
-}
-EOF
-(cd "$consumer" && npm install --no-audit --no-fund --ignore-scripts \
-  "$tmp"/tarballs/open-ocpp-trace-viewer-standalone-*.tgz)
+# The standalone configs extend the base pair one directory up, as in
+# the repository.
+cp "$fixtures"/tsconfig.*.json "$tmp/"
+npm_install "$consumer" "$tmp"/tarballs/open-ocpp-trace-viewer-standalone-*.tgz
 for absent in react react-dom @types/react @types/react-dom \
   @open-ocpp-trace/viewer-react @open-ocpp-trace/viewer-core; do
   if [ -e "$consumer/node_modules/$absent" ]; then

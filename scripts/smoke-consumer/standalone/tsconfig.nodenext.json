@@ -1,14 +1,7 @@
 {
+  "extends": "../tsconfig.nodenext.json",
   "compilerOptions": {
-    "target": "ES2022",
-    "lib": ["ES2022", "DOM"],
-    "types": [],
-    "module": "NodeNext",
-    "moduleResolution": "NodeNext",
-    "strict": true,
-    "exactOptionalPropertyTypes": true,
-    "noEmit": true,
-    "skipLibCheck": false
+    "lib": ["ES2022", "DOM"]
   },
   "files": ["consumer.ts"]
 }

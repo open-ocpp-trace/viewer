@@ -1,14 +1,7 @@
 {
+  "extends": "../tsconfig.bundler.json",
   "compilerOptions": {
-    "target": "ES2022",
-    "lib": ["ES2022", "DOM"],
-    "types": [],
-    "module": "ESNext",
-    "moduleResolution": "Bundler",
-    "strict": true,
-    "exactOptionalPropertyTypes": true,
-    "noEmit": true,
-    "skipLibCheck": false
+    "lib": ["ES2022", "DOM"]
   },
   "files": ["consumer.ts"]
 }
