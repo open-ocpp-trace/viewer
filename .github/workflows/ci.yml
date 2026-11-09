@@ -122,6 +122,9 @@ jobs:
       - run: vp run -r pack
       - name: Build the playground
         run: vp run @open-ocpp-trace/viewer-playground#build
+      # Imports the packed viewer-standalone dist/, so it runs after the pack.
+      - name: Build the standalone example
+        run: vp run @open-ocpp-trace/viewer-example-standalone#build
 
   smoke:
     name: Clean-consumer smoke test (React 18 and 19)

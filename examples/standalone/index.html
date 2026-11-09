@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Open OCPP Trace Viewer standalone example</title>
+  </head>
+  <body>
+    <main class="page">
+      <h1>Standalone viewer, no React on the page</h1>
+      <p id="version"></p>
+      <div class="page__controls">
+        <button id="add" type="button">Add a heartbeat</button>
+        <button id="update" type="button">Tag the boot entry</button>
+        <button id="toggle" type="button">Unmount</button>
+        <label><input id="dark" type="checkbox" /> Dark left viewer</label>
+      </div>
+      <div class="page__viewers">
+        <section>
+          <h2>Fed by ingest() and update()</h2>
+          <div id="left-viewer" class="page__viewer"></div>
+        </section>
+        <section>
+          <h2>Fed by a ViewerAdapter</h2>
+          <div id="right-viewer" class="page__viewer"></div>
+        </section>
+      </div>
+      <section>
+        <h2>Host events</h2>
+        <ol id="events" class="page__events"></ol>
+      </section>
+    </main>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
