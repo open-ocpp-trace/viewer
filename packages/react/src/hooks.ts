@@ -39,6 +39,10 @@ export function useFilterEngine(store: ViewerStore, options?: FilterEngineOption
   return engine;
 }
 
+/** `useLayoutEffect` in a browser; `useEffect` on a server, which warns on the former. */
+export const useIsomorphicLayoutEffect: typeof useEffect =
+  typeof window === "undefined" ? useEffect : useLayoutEffect;
+
 /**
  * A function of stable identity calling the latest `callback`, so a host
  * that keeps it (in state, in an effect) never calls a stale render's one.
@@ -47,15 +51,27 @@ export function useStableCallback<A extends unknown[], R>(
   callback: (...args: A) => R,
 ): (...args: A) => R {
   const latest = useRef(callback);
-  useLayoutEffect(() => {
+  useIsomorphicLayoutEffect(() => {
     latest.current = callback;
   });
   return useCallback((...args: A) => latest.current(...args), []);
 }
 
-/** The engine's version, re-rendering the component on every change. */
-export function useEngineVersion(engine: FilterEngine): number {
-  const subscribe = useCallback((onChange: () => void) => engine.subscribe(onChange), [engine]);
-  const version = (): number => engine.version;
-  return useSyncExternalStore(subscribe, version, version);
+/** A source of change notifications carrying a version number. */
+interface VersionSource {
+  subscribe(listener: () => void): () => void;
+  readonly version: number;
+}
+
+/**
+ * The version of `source` (a store, an engine, a correlator), re-rendering
+ * the component on every change; `0` without a source.
+ */
+export function useVersion(source: VersionSource | undefined): number {
+  const subscribe = useCallback(
+    (onChange: () => void) => (source === undefined ? () => {} : source.subscribe(onChange)),
+    [source],
+  );
+  const read = (): number => source?.version ?? 0;
+  return useSyncExternalStore(subscribe, read, read);
 }

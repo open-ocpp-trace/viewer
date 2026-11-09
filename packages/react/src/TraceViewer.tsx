@@ -1,12 +1,4 @@
-import {
-  type ReactElement,
-  type ReactNode,
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-  useSyncExternalStore,
-} from "react";
+import { type ReactElement, type ReactNode, useEffect, useRef, useState } from "react";
 
 import type {
   ColumnDefinition,
@@ -24,7 +16,7 @@ import type {
 import { EntryInspector, type InspectorPart } from "./EntryInspector.tsx";
 import { exportJsonl, type JsonlExport } from "./export-jsonl.ts";
 import { FilterPanel } from "./FilterPanel.tsx";
-import { useEngineVersion, useFilterEngine, useStableCallback } from "./hooks.ts";
+import { useFilterEngine, useStableCallback, useVersion } from "./hooks.ts";
 import { reportHostError } from "./report-error.ts";
 import { ResetBoundary } from "./reset-boundary.tsx";
 import {
@@ -199,13 +191,6 @@ function HostPanel(props: { panel: DetailPanel; context: DetailPanelContext }): 
   );
 }
 
-/** The store's version, re-rendering the component on every change. */
-function useStoreVersion(store: ViewerStore): number {
-  const subscribe = useCallback((onChange: () => void) => store.subscribe(onChange), [store]);
-  const version = (): number => store.version;
-  return useSyncExternalStore(subscribe, version, version);
-}
-
 /**
  * The whole viewer: a toolbar (pause, follow), a {@link FilterPanel}, a
  * {@link TraceList} over the host's store and an {@link EntryInspector}
@@ -221,9 +206,9 @@ export function TraceViewer(props: TraceViewerProps): ReactElement {
     ...(fields !== undefined && { fields }),
     ...(payloadSearch !== undefined && { payloadSearch }),
   });
-  useStoreVersion(store);
+  useVersion(store);
   // Host actions read `listed()`: a filter change re-renders them too.
-  useEngineVersion(engine);
+  useVersion(engine);
   const { paused, pending } = store.getStats();
   const [follow, setFollow] = useState(true);
 

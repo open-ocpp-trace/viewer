@@ -1,13 +1,4 @@
-import {
-  Fragment,
-  memo,
-  type ReactElement,
-  type ReactNode,
-  useCallback,
-  useMemo,
-  useState,
-  useSyncExternalStore,
-} from "react";
+import { Fragment, memo, type ReactElement, type ReactNode, useMemo, useState } from "react";
 
 import {
   type Correlator,
@@ -27,6 +18,7 @@ import {
   formatValue,
   sensitiveKeySet,
 } from "./inspect-format.ts";
+import { useVersion } from "./hooks.ts";
 import { ResetBoundary } from "./reset-boundary.tsx";
 import type { PartialViewerStrings, TranslateFunction, ViewerStrings } from "./strings.ts";
 import { StringsContext, useStrings, useViewerStrings } from "./strings-context.ts";
@@ -81,15 +73,6 @@ export interface EntryInspectorProps {
   /** Translates the strings, as `TraceViewerProps.translate`. */
   translate?: TranslateFunction;
   className?: string;
-}
-
-function useVersion(source?: { subscribe(listener: () => void): () => void; version: number }) {
-  const subscribe = useCallback(
-    (onChange: () => void) => (source === undefined ? () => {} : source.subscribe(onChange)),
-    [source],
-  );
-  const read = (): number => source?.version ?? 0;
-  return useSyncExternalStore(subscribe, read, read);
 }
 
 /** Reads a property of untrusted data without throwing. */

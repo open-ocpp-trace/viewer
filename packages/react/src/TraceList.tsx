@@ -7,7 +7,6 @@ import {
   useCallback,
   useEffect,
   useId,
-  useLayoutEffect,
   useRef,
   useState,
 } from "react";
@@ -22,7 +21,7 @@ import {
   type ViewerEntry,
 } from "@open-ocpp-trace/viewer-core";
 
-import { useEngineVersion } from "./hooks.ts";
+import { useIsomorphicLayoutEffect, useVersion } from "./hooks.ts";
 import type { PartialViewerStrings, TranslateFunction, ViewerStrings } from "./strings.ts";
 import { useViewerStrings } from "./strings-context.ts";
 
@@ -76,9 +75,6 @@ const UNPARSED_LEADING = 4;
 const DEFAULT_ROW_HEIGHT = 28;
 const OVERSCAN = 8;
 const PREVIEW_LENGTH = 120;
-
-/** `useLayoutEffect` in a browser; `useEffect` on a server, which warns on the former. */
-const useIsomorphicLayoutEffect = typeof window === "undefined" ? useEffect : useLayoutEffect;
 
 /** Reads one property of an untrusted entry; never throws. */
 function own(entry: ViewerEntry, key: string): unknown {
@@ -201,7 +197,7 @@ export function TraceList(props: TraceListProps): ReactElement {
   const { engine, correlator, columns = [], loading = false, error = null, className } = props;
   const rowHeight = props.rowHeight ?? DEFAULT_ROW_HEIGHT;
   const strings = useViewerStrings(props.strings, props.translate);
-  const version = useEngineVersion(engine);
+  const version = useVersion(engine);
   const baseId = useId();
   const scrollRef = useRef<HTMLDivElement>(null);
   const count = engine.size;

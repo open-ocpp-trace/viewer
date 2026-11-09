@@ -16,7 +16,7 @@ import {
   type Value,
   ValueGroup,
 } from "./filter-controls.tsx";
-import { useEngineVersion, useStableCallback } from "./hooks.ts";
+import { useStableCallback, useVersion } from "./hooks.ts";
 import { ResetBoundary } from "./reset-boundary.tsx";
 import { sameFilter } from "./same-filter.ts";
 import { type FilterControl, SlotContent, useUniqueSlots } from "./slots.tsx";
@@ -91,20 +91,19 @@ export function FilterPanel(props: FilterPanelProps): ReactElement {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (sameFilter(current, engine.filter)) {
-      setError(null);
-      return;
+    let message: string | null = null;
+    if (!sameFilter(current, engine.filter)) {
+      try {
+        engine.setFilter(current);
+      } catch (caught) {
+        if (!(caught instanceof RangeError)) throw caught;
+        message = caught.message;
+      }
     }
-    try {
-      engine.setFilter(current);
-      setError(null);
-    } catch (caught) {
-      if (!(caught instanceof RangeError)) throw caught;
-      setError(caught.message);
-    }
+    setError(message);
   }, [engine, current]);
 
-  useEngineVersion(engine);
+  useVersion(engine);
   const stats = engine.getStats().buffer;
   const view: Readonly<Record<string, unknown>> = isRecord(current) ? current : {};
 
