@@ -419,6 +419,24 @@ describe("<EntryInspector> raw frame while sensitive fields are hidden", () => {
     expect(screen.queryByText(HIDDEN)).toBeNull();
   });
 
+  it("hides a raw frame that holds a sensitive key the payload lacks", () => {
+    const raw = '[2,"m-a","Authorize",{"note":"hi","IDTAG" \t: "X"}]';
+    const { root } = inspect([sdkEntry("r", { payload: { note: "hi" }, raw })], "r");
+    expectRawHidden();
+    expect(root.textContent).not.toContain('"X"');
+  });
+
+  it("shows a raw frame whose sensitive key names are not quoted keys", () => {
+    const raw = '[2,"m-a","DataTransfer",{"note":"idTag","data":"\\"idTagged\\": 1"}]';
+    inspect([sdkEntry("c", { payload: { note: "hi" }, raw })], "c");
+    expect(block("Raw frame")!.textContent).toBe(raw);
+  });
+
+  it("hides a raw frame too long to scan", () => {
+    inspect([sdkEntry("l", { payload: { note: "hi" }, raw: "r".repeat(1_000_001) })], "l");
+    expectRawHidden();
+  });
+
   it("shows the raw frame when no key is sensitive", () => {
     const entries: ViewerEntry[] = [
       sdkEntry("n", { payload: undefined, raw: SECRET_RAW }),
@@ -461,6 +479,47 @@ describe("<EntryInspector> renderPayload", () => {
         },
       });
       expect(block("Payload")!.textContent).toBe('{\n  "a": 1\n}');
+    } finally {
+      quiet.mockRestore();
+    }
+  });
+
+  it("renders again through a new renderer after a throw", () => {
+    const quiet = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const { store } = setup([entry]);
+      const throwing = () => {
+        throw new Error("highlighter");
+      };
+      const { rerender } = render(
+        <EntryInspector store={store} entryId="p" renderPayload={throwing} />,
+      );
+      expect(block("Payload")!.textContent).toBe('{\n  "a": 1\n}');
+      expect(block("Payload")!.querySelector("mark")).toBeNull();
+      const working = (text: string) => <mark>{text}</mark>;
+      rerender(<EntryInspector store={store} entryId="p" renderPayload={working} />);
+      expect(block("Payload")!.querySelector("mark")?.textContent).toBe('{\n  "a": 1\n}');
+    } finally {
+      quiet.mockRestore();
+    }
+  });
+
+  it("renders again when the printed text changes after a throw", () => {
+    const quiet = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const { store } = setup([sdkEntry("s", { payload: { idTag: "T" } })]);
+      const renderPayload = (text: string) => {
+        if (text.includes("[redacted]")) throw new Error("highlighter");
+        return <mark>{text}</mark>;
+      };
+      const { rerender } = render(
+        <EntryInspector store={store} entryId="s" renderPayload={renderPayload} />,
+      );
+      expect(block("Payload")!.querySelector("mark")).toBeNull();
+      rerender(
+        <EntryInspector store={store} entryId="s" renderPayload={renderPayload} revealSensitive />,
+      );
+      expect(block("Payload")!.querySelector("mark")?.textContent).toBe('{\n  "idTag": "T"\n}');
     } finally {
       quiet.mockRestore();
     }

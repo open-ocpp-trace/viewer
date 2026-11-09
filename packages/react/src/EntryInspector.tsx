@@ -52,7 +52,9 @@ export interface EntryInspectorProps {
   /**
    * Renders the printed payload text (syntax highlighting); its output is
    * placed in the payload block. Not used for a truncated payload; a throw
-   * falls back to the plain text. Memoize it.
+   * falls back to the plain text until the renderer or the text changes.
+   * Memoize it. `entry` is the untouched entry, sensitive fields included;
+   * render `text` to keep the redaction.
    */
   renderPayload?: (text: string, entry: TraceEntry) => ReactNode;
   /**
@@ -62,7 +64,8 @@ export interface EntryInspectorProps {
    * frame of a record only when its payload (and the error details of a
    * CALLERROR) is present and, like its meta when present, was printed in
    * full with nothing redacted, truncated, cut at the depth limit or
-   * unreadable. Value-based secrets (a `SetVariables` value whose variable
+   * unreadable, and the frame (up to 1 000 000 characters, longer ones are
+   * hidden) holds no quoted sensitive key followed by `:`. Value-based secrets (a `SetVariables` value whose variable
    * is `BasicAuthPassword`) are not detected.
    */
   revealSensitive?: boolean;
@@ -168,10 +171,29 @@ function Block({ title, printed, onMore, onCopy, total, children }: BlockProps) 
   );
 }
 
-class PayloadBoundary extends Component<{ fallback: ReactNode; children: ReactNode }> {
-  override state = { failed: false };
+interface PayloadBoundaryProps {
+  fallback: ReactNode;
+  /** A change of any of them (renderer, printed text) renders the children again. */
+  resetKeys: readonly unknown[];
+  children: ReactNode;
+}
+
+class PayloadBoundary extends Component<
+  PayloadBoundaryProps,
+  { failed: boolean; resetKeys: readonly unknown[] }
+> {
+  override state = { failed: false, resetKeys: this.props.resetKeys };
   static getDerivedStateFromError(): { failed: boolean } {
     return { failed: true };
+  }
+  static getDerivedStateFromProps(
+    props: PayloadBoundaryProps,
+    state: { resetKeys: readonly unknown[] },
+  ): { failed: boolean; resetKeys: readonly unknown[] } | null {
+    const same =
+      props.resetKeys.length === state.resetKeys.length &&
+      props.resetKeys.every((key, i) => Object.is(key, state.resetKeys[i]));
+    return same ? null : { failed: false, resetKeys: props.resetKeys };
   }
   override render(): ReactNode {
     return this.state.failed ? this.props.fallback : this.props.children;
@@ -230,6 +252,29 @@ function whole(printed: Formatted | null): boolean {
     !printed.elided &&
     !printed.unreadable
   );
+}
+
+/** Longest raw frame scanned for sensitive keys; a longer one is hidden. */
+const RAW_SCAN_MAX = 1_000_000;
+
+/**
+ * The raw frame may hold a sensitive key the decoded parts lack: it is
+ * longer than {@link RAW_SCAN_MAX}, or holds `"<key>"` followed by optional
+ * whitespace and `:`, case-insensitively. A key spelled with JSON escapes
+ * (`"idTag"`) is not detected.
+ */
+function rawMayHoldKey(raw: string, keys: ReadonlySet<string>): boolean {
+  if (raw.length > RAW_SCAN_MAX) return true;
+  const lower = raw.toLowerCase();
+  for (const key of keys) {
+    const quoted = `"${key}"`;
+    for (let at = lower.indexOf(quoted); at !== -1; at = lower.indexOf(quoted, at + 1)) {
+      let next = at + quoted.length;
+      while (/\s/.test(lower.charAt(next))) next++;
+      if (lower.charAt(next) === ":") return true;
+    }
+  }
+  return false;
 }
 
 function rawHiddenNote() {
@@ -301,14 +346,20 @@ function TraceDetails({ entry, props, keys, copy }: DetailsProps & { entry: Trac
     meta: usePrinted(values.meta, limits.limit("meta"), keys),
     custom: usePrinted(values.custom, limits.limit("custom"), keys),
   };
+  const raw = rawText(read(record, "raw"));
+  const rawHoldsKey = useMemo(
+    () => raw !== null && redacting(keys) && rawMayHoldKey(raw, keys),
+    [raw, keys],
+  );
   // Fails closed: the raw frame is shown only when every decoded part it
-  // holds was printed whole, so nothing a key would redact can hide in it.
+  // holds was printed whole, so nothing a key would redact can hide in it,
+  // and the frame itself names no sensitive key (payload and raw may differ).
   const rawHidden =
     redacting(keys) &&
-    (!whole(printed.payload) ||
+    (rawHoldsKey ||
+      !whole(printed.payload) ||
       (fields.messageType === "CALLERROR" && !whole(printed.error)) ||
       (printed.meta !== null && !whole(printed.meta)));
-  const raw = rawText(read(record, "raw"));
   const source = read(metadata, "source");
   const sourceId = text(read(source, "id"));
   const delivered = deliveriesText(read(metadata, "deliveries"));
@@ -327,7 +378,11 @@ function TraceDetails({ entry, props, keys, copy }: DetailsProps & { entry: Trac
         onCopy={part === null ? undefined : copy(() => copyText(values[name], keys), part)}
       >
         {name === "payload" && render !== undefined && !shown.truncated ? (
-          <PayloadBoundary key={limits.step(name)} fallback={plain}>
+          <PayloadBoundary
+            key={limits.step(name)}
+            fallback={plain}
+            resetKeys={[render, shown.text]}
+          >
             <Code title={title}>
               <HostPayload render={render} text={shown.text} entry={entry} />
             </Code>
