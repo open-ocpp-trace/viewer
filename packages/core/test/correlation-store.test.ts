@@ -306,6 +306,30 @@ describe("Correlator and store clear, pause and listeners", () => {
     expect(correlator.get("c1")).toMatchObject({ role: "call" });
   });
 
+  it("can connect again after seeding a store throws", () => {
+    const correlator = createCorrelator();
+    const store = createViewerStore();
+    store.apply(addAll(call("c1", "m1")));
+    const failingRead: ViewerStore = {
+      ...store,
+      toArray: () => {
+        throw new Error("toArray");
+      },
+    };
+    const failingStats: ViewerStore = {
+      ...store,
+      getStats: () => {
+        throw new Error("getStats");
+      },
+    };
+
+    expect(() => correlator.connect(failingRead)).toThrow("toArray");
+    expect(() => correlator.connect(failingStats)).toThrow("getStats");
+    correlator.connect(store);
+
+    expect(correlator.get("c1")).toMatchObject({ role: "call" });
+  });
+
   it("stops following the store once unsubscribed", () => {
     const store = createViewerStore();
     const correlator = createCorrelator();

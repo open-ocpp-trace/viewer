@@ -2,7 +2,7 @@ import type { Unsubscribe } from "./adapter.ts";
 import { type CallNode, createCallIndex, type Direction } from "./correlation-index.ts";
 import type { EntryId, ViewerEntry } from "./entry.ts";
 import { createListeners } from "./store-listeners.ts";
-import type { ViewerStore, ViewerStoreChange } from "./store.ts";
+import type { ViewerStore, ViewerStoreChange, ViewerStoreStats } from "./store.ts";
 
 /**
  * Which records may answer each other, on top of the same `messageId` and
@@ -126,7 +126,8 @@ export interface Correlator {
    * per store change: `cleared` resets (emitting `cleared: true`), `evicted` ids leave
    * every index (a response keeps its `callId` and `action`), `added` entries
    * are correlated in order, `updated` entries are not re-correlated. One
-   * store at a time: a second connect throws. The returned
+   * store at a time: a second connect throws. If reading the store throws
+   * while seeding, connect rethrows and stays disconnected. The returned
    * {@link Unsubscribe} stops following, resets the state (emitting
    * `cleared: true` if anything was correlated) and allows a new connect.
    */
@@ -368,11 +369,18 @@ export function createCorrelatorWith(
     connect(store) {
       if (connected !== undefined) throw new Error("the correlator is already connected");
       const connection = {};
-      connected = connection;
-      let seen = store.getStats();
-      incomplete = seen.evicted > 0 || seen.droppedPending > 0;
+      let seen: ViewerStoreStats;
       const seeded = new Set<EntryId>();
-      for (const entry of store.toArray()) process(entry, seeded);
+      try {
+        seen = store.getStats();
+        incomplete = seen.evicted > 0 || seen.droppedPending > 0;
+        for (const entry of store.toArray()) process(entry, seeded);
+      } catch (error) {
+        // Nothing was emitted yet: drop what was seeded and stay disconnected.
+        reset();
+        throw error;
+      }
+      connected = connection;
       emit([...seeded], [], false);
 
       function follow(change: ViewerStoreChange): void {
