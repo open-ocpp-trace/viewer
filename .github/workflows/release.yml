@@ -1,0 +1,326 @@
+name: Release
+
+# Publishes the viewer packages, viewer-core, viewer-react and
+# viewer-standalone, at one shared version, to the npm registry of GitHub
+# Packages (https://npm.pkg.github.com), then tags the release
+# `v<version>` and creates its GitHub release. Modeled on the
+# release-typescript workflow of open-ocpp-trace/sdk. Started by hand
+# only; see RELEASING.md. A run publishes nothing unless `dry-run` is
+# unticked, and the `publish` job waits for the reviewers of the
+# `github-packages` environment either way. That approval gate exists
+# only once the environment is configured with required reviewers and the
+# `main` deployment branch (RELEASING.md, prerequisites): GitHub creates a
+# missing environment unprotected on the first run that names it.
+on:
+  workflow_dispatch:
+    inputs:
+      dry-run:
+        description: Run `npm publish --dry-run` and create no tag or release
+        type: boolean
+        required: true
+        default: true
+
+permissions:
+  contents: read
+
+env:
+  REGISTRY_URL: https://npm.pkg.github.com
+  SCOPE: "@open-ocpp-trace"
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    name: Build and verify
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      # Installing the SDK packages and reading the registry to check what
+      # is already published.
+      packages: read
+    outputs:
+      version: ${{ steps.pack.outputs.version }}
+      tag: ${{ steps.pack.outputs.tag }}
+    steps:
+      # The `publish` job checks this again, and the environment's branch
+      # rule is the check a modified copy of this file cannot drop; this
+      # one only stops a doomed run before its build.
+      - name: Refuse a real release from another ref than main
+        env:
+          DRY_RUN: ${{ inputs.dry-run }}
+          REF: ${{ github.ref }}
+        run: |
+          if [ "$DRY_RUN" != true ] && [ "$REF" != refs/heads/main ]; then
+            echo "::error::a release is published from main only, not $REF"
+            exit 1
+          fi
+      # The commit the workflow runs on: `lockstep` reads src/index.ts and
+      # packages/*/package.json from this checkout.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # Bun comes from `packageManager` in package.json.
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version-file: package.json
+      - uses: voidzero-dev/setup-vp@cab1ab9eaff52d4857875f4f2c016e36af8f2c76 # v1.22.0
+        with:
+          # The lowest Node.js line the workspace supports.
+          node-version: "22"
+          package-manager: |
+            bun: false
+          run-install: false
+          # No cache in a release: an entry saved by another run, from any
+          # branch, could inject code into the published package.
+          cache: false
+      - run: bun install --frozen-lockfile
+        env:
+          # Read by .npmrc for the @open-ocpp-trace scope: the SDK packages
+          # come from GitHub Packages.
+          GITHUB_TOKEN: ${{ github.token }}
+      - run: vp check
+      - run: vp test
+      # Builds every package, packs and verifies the three of them,
+      # installs them into clean consumers and imports them under Node.js
+      # and Bun (see the header of the script).
+      - name: Smoke test
+        run: sh scripts/smoke-consumer.sh
+        env:
+          # The consumers install the SDK packages from GitHub Packages.
+          GITHUB_TOKEN: ${{ github.token }}
+      - name: Pack and verify the release tarballs
+        id: pack
+        run: |
+          # Assigned first so that a failing pack fails the step instead of
+          # yielding an empty list.
+          packed="$(sh scripts/pack-release.sh "$RUNNER_TEMP/release" core react standalone)"
+          mapfile -t tarballs <<<"$packed"
+          sh scripts/verify-packages.sh "${tarballs[@]}"
+          # One version for every package, viewer-react pins viewer-core to
+          # it, and every VIEWER_*_VERSION constant of this checkout matches.
+          version="$(node scripts/release-manifest.ts lockstep "${tarballs[@]}")"
+          {
+            echo "version=$version"
+            echo "tag=v$version"
+          } >> "$GITHUB_OUTPUT"
+          echo "packed version $version: ${tarballs[*]}"
+      - name: Extract the release notes
+        env:
+          VERSION: ${{ steps.pack.outputs.version }}
+          DRY_RUN: ${{ inputs.dry-run }}
+        run: |
+          notes="$RUNNER_TEMP/release-notes/release-notes.md"
+          mkdir -p "$RUNNER_TEMP/release-notes"
+          if sh scripts/release-notes.sh "$VERSION" > "$notes"; then
+            cat "$notes" >> "$GITHUB_STEP_SUMMARY"
+          elif [ "$DRY_RUN" = true ]; then
+            echo "::warning::a CHANGELOG.md has no [$VERSION] section; a real release would stop here"
+            rm -f -- "$notes"
+          else
+            echo "::error::every package CHANGELOG.md needs a [$VERSION] section with entries"
+            exit 1
+          fi
+      - name: Check that this version is not released yet
+        env:
+          VERSION: ${{ steps.pack.outputs.version }}
+          TAG: ${{ steps.pack.outputs.tag }}
+          DRY_RUN: ${{ inputs.dry-run }}
+          REPOSITORY_URL: ${{ github.server_url }}/${{ github.repository }}
+          # npm reads the committed .npmrc, which maps the scope to GitHub
+          # Packages with this token.
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          status=0
+          if [ "$DRY_RUN" != true ] && [ "$VERSION" = 0.0.0 ]; then
+            echo "::error::the packages are still at 0.0.0; set the release version first"
+            status=1
+          fi
+          # With --exit-code, git exits 2 when no ref matches; any other
+          # failure leaves the answer unknown, so the job stops.
+          rc=0
+          git ls-remote --exit-code --tags "$REPOSITORY_URL" "refs/tags/$TAG" >/dev/null || rc=$?
+          case "$rc" in
+            0)
+              echo "::error::tag $TAG already exists"
+              status=1
+              ;;
+            2) ;;
+            *)
+              echo "::error::cannot list the tags of $REPOSITORY_URL (git exited with $rc)"
+              exit 1
+              ;;
+          esac
+          # npm fails with E404 for an unknown package or version; any
+          # other failure (network, registry, authentication) leaves the
+          # answer unknown.
+          for package in core react standalone; do
+            name="$SCOPE/viewer-$package"
+            errors="$RUNNER_TEMP/npm-view-$package.err"
+            rc=0
+            published="$(npm view "$name@$VERSION" version 2>"$errors")" || rc=$?
+            if [ "$rc" -ne 0 ]; then
+              cat "$errors" >&2
+              if ! grep -q 'code E404' "$errors"; then
+                echo "::error::cannot query $REGISTRY_URL for $name@$VERSION (npm exited with $rc)"
+                exit 1
+              fi
+              published=
+            fi
+            if [ -n "$published" ]; then
+              echo "::error::$name@$VERSION is already on $REGISTRY_URL"
+              status=1
+            fi
+          done
+          exit "$status"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: release-tarballs
+          path: ${{ runner.temp }}/release/*.tgz
+          if-no-files-found: error
+          retention-days: 7
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: ${{ !inputs.dry-run }}
+        with:
+          name: release-notes
+          path: ${{ runner.temp }}/release-notes/release-notes.md
+          if-no-files-found: error
+          retention-days: 7
+
+  publish:
+    name: Publish to GitHub Packages${{ inputs.dry-run && ' (dry run)' || '' }}
+    needs: verify
+    runs-on: ubuntu-latest
+    # Required reviewers and the `main` branch rule are set on the
+    # environment.
+    environment: github-packages
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Refuse a real publish from another ref than main
+        env:
+          DRY_RUN: ${{ inputs.dry-run }}
+          REF: ${{ github.ref }}
+        run: |
+          if [ "$DRY_RUN" != true ] && [ "$REF" != refs/heads/main ]; then
+            echo "::error::a release is published from main only, not $REF"
+            exit 1
+          fi
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: release-tarballs
+          path: release
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "24"
+          # Writes an .npmrc that maps the scope to the registry and reads
+          # the token from NODE_AUTH_TOKEN.
+          registry-url: ${{ env.REGISTRY_URL }}
+          scope: ${{ env.SCOPE }}
+      # A pinned npm, the same for every release.
+      - name: Install npm
+        run: |
+          npm install --global npm@11.21.1
+          echo "node $(node --version), npm $(npm --version)"
+      - name: Publish version ${{ needs.verify.outputs.version }}
+        env:
+          VERSION: ${{ needs.verify.outputs.version }}
+          DRY_RUN: ${{ inputs.dry-run }}
+          NODE_AUTH_TOKEN: ${{ github.token }}
+        # viewer-core first: viewer-react depends on its exact version.
+        # viewer-standalone bundles what it needs and depends on neither.
+        # A package already on the registry is skipped, so « Re-run failed
+        # jobs » can finish a run that failed after publishing some of them.
+        # The tarballs are the ones pack-release.sh stripped of the
+        # `prepublishOnly` guard that stops a publish from a package
+        # directory.
+        # No --provenance: npm provenance is not documented for GitHub
+        # Packages. Visibility is set in the package settings, not by
+        # --access.
+        run: |
+          for package in core react standalone; do
+            name="$SCOPE/viewer-$package"
+            tarball="./release/open-ocpp-trace-viewer-$package-$VERSION.tgz"
+            if [ "$DRY_RUN" = true ]; then
+              npm publish "$tarball" --registry "$REGISTRY_URL" --dry-run
+              continue
+            fi
+            # E404 means not published; any other failure leaves the
+            # answer unknown.
+            errors="$RUNNER_TEMP/npm-view-$package.err"
+            rc=0
+            published="$(npm view "$name@$VERSION" version 2>"$errors")" || rc=$?
+            if [ "$rc" -ne 0 ]; then
+              cat "$errors" >&2
+              if ! grep -q 'code E404' "$errors"; then
+                echo "::error::cannot query $REGISTRY_URL for $name@$VERSION (npm exited with $rc)"
+                exit 1
+              fi
+              published=
+            fi
+            if [ -n "$published" ]; then
+              echo "::notice::$name@$VERSION is already on $REGISTRY_URL; not publishing it again"
+              continue
+            fi
+            npm publish "$tarball" --registry "$REGISTRY_URL"
+          done
+
+  tag:
+    name: Tag and create the GitHub release
+    needs: [verify, publish]
+    if: ${{ !inputs.dry-run }}
+    runs-on: ubuntu-latest
+    permissions:
+      # Creating the tag through the Git references API, and the release.
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      TAG: ${{ needs.verify.outputs.tag }}
+      VERSION: ${{ needs.verify.outputs.version }}
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: release-notes
+          path: release-notes
+      # Skipped when the tag already points at this commit, so a re-run
+      # can finish a run whose release step failed. A tag on another commit
+      # fails the job.
+      - name: Create ${{ needs.verify.outputs.tag }}
+        run: |
+          errors="$RUNNER_TEMP/tag.err"
+          rc=0
+          sha="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$TAG" --jq .object.sha 2>"$errors")" || rc=$?
+          if [ "$rc" -eq 0 ]; then
+            if [ "$sha" = "$GITHUB_SHA" ]; then
+              echo "::notice::tag $TAG already points at $GITHUB_SHA; not creating it again"
+              exit 0
+            fi
+            echo "::error::tag $TAG points at $sha, not at $GITHUB_SHA"
+            exit 1
+          fi
+          cat "$errors" >&2
+          if ! grep -q 'HTTP 404' "$errors"; then
+            echo "::error::cannot look up tag $TAG (gh exited with $rc)"
+            exit 1
+          fi
+          gh api --method POST "repos/$GITHUB_REPOSITORY/git/refs" \
+            -f "ref=refs/tags/$TAG" -f "sha=$GITHUB_SHA"
+      - name: Create the GitHub release
+        run: |
+          errors="$RUNNER_TEMP/release.err"
+          rc=0
+          gh api "repos/$GITHUB_REPOSITORY/releases/tags/$TAG" >/dev/null 2>"$errors" || rc=$?
+          if [ "$rc" -eq 0 ]; then
+            echo "::notice::the release of $TAG already exists; not creating it again"
+            exit 0
+          fi
+          cat "$errors" >&2
+          if ! grep -q 'HTTP 404' "$errors"; then
+            echo "::error::cannot look up the release of $TAG (gh exited with $rc)"
+            exit 1
+          fi
+          gh release create "$TAG" --verify-tag --title "Viewer $VERSION" \
+            --notes-file release-notes/release-notes.md
