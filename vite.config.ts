@@ -69,7 +69,7 @@ export default defineConfig({
       {
         test: {
           name: "node",
-          include: ["packages/*/test/**/*.test.ts"],
+          include: ["packages/*/test/**/*.test.ts", "scripts/*.test.ts"],
           exclude: [
             ...configDefaults.exclude,
             "packages/react/test/**",
