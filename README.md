@@ -144,12 +144,12 @@ is a complete page.
 
 ## Supported versions
 
-| Dependency      | Supported                                                                                                                                                       |
-| --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Runtime         | ES modules only (ES2022). The packages declare no `engines`; the smoke test imports viewer-core under Node.js 22 and Bun, and CI tests on Node.js 22 and 24.    |
-| React           | `react` and `react-dom` `^18.0.0 \|\| ^19.0.0`, peer dependencies of viewer-react. viewer-standalone bundles its own copy (`bundledReactVersion()`).            |
-| SDK             | `@open-ocpp-trace/core` and `@open-ocpp-trace/jsonl` 0.1.0, pinned exactly.                                                                                     |
-| Open OCPP Trace | Format 1.x, as the SDK 0.1.0 reads it: any `schemaVersion` `"1.<minor>"`; it writes `"1.1"`. The viewer does not check the version: it receives parsed records. |
+| Dependency      | Supported                                                                                                                                                        |
+| --------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Runtime         | ES modules only (ES2022). The packages declare no `engines`; the smoke test imports viewer-core under Node.js 22 and Bun, and CI tests on Node.js 22, 24 and 26. |
+| React           | `react` and `react-dom` `^18.0.0 \|\| ^19.0.0`, peer dependencies of viewer-react. viewer-standalone bundles its own copy (`bundledReactVersion()`).             |
+| SDK             | `@open-ocpp-trace/core` and `@open-ocpp-trace/jsonl` 0.1.0, pinned exactly.                                                                                      |
+| Open OCPP Trace | Format 1.x, as the SDK 0.1.0 reads it: any `schemaVersion` `"1.<minor>"`; it writes `"1.1"`. The viewer does not check the version: it receives parsed records.  |
 
 ## Known limitations
 
@@ -252,7 +252,7 @@ and one with React 19, and:
 
 CI ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) runs the install,
 `vp check`, `vp test`, `vp run -r pack` and the playground build on
-Node.js 22 and 24, and the smoke test on Node.js 22. It runs when a pull
+Node.js 22, 24 and 26, and the smoke test on Node.js 22. It runs when a pull
 request touches `packages/`, `apps/`, `examples/`, `scripts/`, the root
 configuration, the lockfile or the workflow, and on every push to `main`.
 
