@@ -45,6 +45,17 @@
         "@types/react-dom": "19.3.0",
       },
     },
+    "examples/gateway": {
+      "name": "@open-ocpp-trace/viewer-example-gateway",
+      "version": "0.0.0",
+      "dependencies": {
+        "@open-ocpp-trace/viewer-standalone": "workspace:*",
+      },
+      "devDependencies": {
+        "@open-ocpp-trace/viewer-core": "workspace:*",
+        "@open-ocpp-trace/viewer-react": "workspace:*",
+      },
+    },
     "examples/simulator": {
       "name": "@open-ocpp-trace/viewer-example-simulator",
       "version": "0.0.0",
@@ -163,6 +174,8 @@
     "@open-ocpp-trace/viewer-core": ["@open-ocpp-trace/viewer-core@workspace:packages/core"],
 
     "@open-ocpp-trace/viewer-example-debugkit": ["@open-ocpp-trace/viewer-example-debugkit@workspace:examples/debugkit"],
+
+    "@open-ocpp-trace/viewer-example-gateway": ["@open-ocpp-trace/viewer-example-gateway@workspace:examples/gateway"],
 
     "@open-ocpp-trace/viewer-example-simulator": ["@open-ocpp-trace/viewer-example-simulator@workspace:examples/simulator"],
 

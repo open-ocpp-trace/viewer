@@ -1,0 +1,466 @@
+[
+  {
+    "event": "hello",
+    "data": {
+      "serverTime": "2026-10-29T14:32:00.000Z",
+      "startedAt": "2026-10-29T14:00:00.000Z",
+      "maxBufferedMessages": 50
+    }
+  },
+  {
+    "event": "trace",
+    "data": {
+      "id": "trace-a1",
+      "tenantId": "tenant-a",
+      "sessionId": "session-a1",
+      "chargePointId": "CP-001",
+      "seq": 1,
+      "receivedAt": "2026-10-29T14:32:01.000Z",
+      "deliveries": [
+        {
+          "target": "csms-a",
+          "role": "primary",
+          "status": "queued",
+          "updatedAt": "2026-10-29T14:32:01.000Z"
+        },
+        {
+          "target": "csms-b",
+          "role": "secondary",
+          "status": "queued",
+          "updatedAt": "2026-10-29T14:32:01.000Z"
+        }
+      ],
+      "kind": "trace",
+      "trace": {
+        "schemaVersion": "1.1",
+        "timestamp": "2026-10-29T14:32:01.000Z",
+        "ocppVersion": "1.6",
+        "transport": "json",
+        "chargePointId": "CP-001",
+        "direction": "cp-to-csms",
+        "messageType": "CALL",
+        "messageId": "1",
+        "action": "BootNotification",
+        "payload": {
+          "chargePointVendor": "Acme",
+          "chargePointModel": "AC-22"
+        },
+        "raw": "[2,\"1\",\"BootNotification\",{\"chargePointVendor\":\"Acme\",\"chargePointModel\":\"AC-22\"}]",
+        "meta": {
+          "gateway": {
+            "traceId": "trace-a1",
+            "tenantId": "tenant-a",
+            "sessionId": "session-a1",
+            "seq": 1,
+            "source": {
+              "type": "charge-point",
+              "id": "CP-001"
+            },
+            "destinations": [
+              {
+                "target": "csms-a",
+                "role": "primary"
+              },
+              {
+                "target": "csms-b",
+                "role": "secondary"
+              }
+            ]
+          }
+        }
+      }
+    }
+  },
+  {
+    "event": "trace",
+    "data": {
+      "id": "trace-b1",
+      "tenantId": "tenant-b",
+      "sessionId": "session-b1",
+      "chargePointId": "CP-002",
+      "seq": 1,
+      "receivedAt": "2026-10-29T14:32:02.000Z",
+      "deliveries": [
+        {
+          "target": "csms-c",
+          "role": "primary",
+          "status": "queued",
+          "updatedAt": "2026-10-29T14:32:02.000Z"
+        }
+      ],
+      "kind": "trace",
+      "trace": {
+        "schemaVersion": "1.1",
+        "timestamp": "2026-10-29T14:32:02.000Z",
+        "ocppVersion": "1.6",
+        "transport": "json",
+        "chargePointId": "CP-002",
+        "direction": "cp-to-csms",
+        "messageType": "CALL",
+        "messageId": "1",
+        "action": "BootNotification",
+        "payload": {
+          "chargePointVendor": "Acme",
+          "chargePointModel": "AC-22"
+        },
+        "raw": "[2,\"1\",\"BootNotification\",{\"chargePointVendor\":\"Acme\",\"chargePointModel\":\"AC-22\"}]",
+        "meta": {
+          "gateway": {
+            "traceId": "trace-b1",
+            "tenantId": "tenant-b",
+            "sessionId": "session-b1",
+            "seq": 1,
+            "source": {
+              "type": "charge-point",
+              "id": "CP-002"
+            },
+            "destinations": [
+              {
+                "target": "csms-c",
+                "role": "primary"
+              }
+            ]
+          }
+        }
+      }
+    }
+  },
+  {
+    "event": "delivery",
+    "data": {
+      "id": "trace-a1",
+      "index": 0,
+      "delivery": {
+        "target": "csms-a",
+        "role": "primary",
+        "status": "submitted",
+        "updatedAt": "2026-10-29T14:32:02.000Z"
+      }
+    }
+  },
+  {
+    "event": "delivery",
+    "data": {
+      "id": "trace-a1",
+      "index": 0,
+      "delivery": {
+        "target": "csms-a",
+        "role": "primary",
+        "status": "written",
+        "updatedAt": "2026-10-29T14:32:03.000Z"
+      }
+    }
+  },
+  {
+    "event": "delivery",
+    "data": {
+      "id": "trace-a1",
+      "index": 1,
+      "delivery": {
+        "target": "csms-b",
+        "role": "secondary",
+        "status": "written",
+        "updatedAt": "2026-10-29T14:32:03.000Z"
+      }
+    }
+  },
+  {
+    "event": "trace",
+    "data": {
+      "id": "trace-a2",
+      "tenantId": "tenant-a",
+      "sessionId": "session-a1",
+      "chargePointId": "CP-001",
+      "seq": 2,
+      "receivedAt": "2026-10-29T14:32:04.000Z",
+      "deliveries": [
+        {
+          "target": "CP-001",
+          "role": "charge-point",
+          "status": "queued",
+          "updatedAt": "2026-10-29T14:32:04.000Z"
+        }
+      ],
+      "kind": "trace",
+      "trace": {
+        "schemaVersion": "1.1",
+        "timestamp": "2026-10-29T14:32:04.000Z",
+        "ocppVersion": "1.6",
+        "transport": "json",
+        "chargePointId": "CP-001",
+        "direction": "csms-to-cp",
+        "messageType": "CALLRESULT",
+        "messageId": "1",
+        "payload": {
+          "currentTime": "2026-10-29T14:32:04.000Z",
+          "interval": 300,
+          "status": "Accepted"
+        },
+        "raw": "[3,\"1\",{\"currentTime\":\"2026-10-29T14:32:04.000Z\",\"interval\":300,\"status\":\"Accepted\"}]",
+        "meta": {
+          "gateway": {
+            "traceId": "trace-a2",
+            "tenantId": "tenant-a",
+            "sessionId": "session-a1",
+            "seq": 2,
+            "source": {
+              "type": "csms",
+              "id": "csms-a",
+              "role": "primary"
+            },
+            "destinations": [
+              {
+                "target": "CP-001",
+                "role": "charge-point"
+              }
+            ],
+            "correlation": {
+              "callTraceId": "trace-a1",
+              "action": "BootNotification"
+            }
+          }
+        }
+      }
+    }
+  },
+  {
+    "event": "trace",
+    "data": {
+      "id": "trace-a2s",
+      "tenantId": "tenant-a",
+      "sessionId": "session-a1",
+      "chargePointId": "CP-001",
+      "seq": 3,
+      "receivedAt": "2026-10-29T14:32:04.000Z",
+      "deliveries": [],
+      "kind": "trace",
+      "trace": {
+        "schemaVersion": "1.1",
+        "timestamp": "2026-10-29T14:32:04.000Z",
+        "ocppVersion": "1.6",
+        "transport": "json",
+        "chargePointId": "CP-001",
+        "direction": "csms-to-cp",
+        "messageType": "CALLRESULT",
+        "messageId": "1",
+        "payload": {
+          "currentTime": "2026-10-29T14:32:04.000Z",
+          "interval": 600,
+          "status": "Accepted"
+        },
+        "raw": "[3,\"1\",{\"currentTime\":\"2026-10-29T14:32:04.000Z\",\"interval\":600,\"status\":\"Accepted\"}]",
+        "meta": {
+          "gateway": {
+            "traceId": "trace-a2s",
+            "tenantId": "tenant-a",
+            "sessionId": "session-a1",
+            "seq": 3,
+            "source": {
+              "type": "csms",
+              "id": "csms-b",
+              "role": "secondary"
+            },
+            "destinations": [],
+            "ignored": true,
+            "correlation": {
+              "callTraceId": "trace-a1",
+              "action": "BootNotification"
+            }
+          }
+        }
+      }
+    }
+  },
+  {
+    "event": "trace",
+    "data": {
+      "id": "trace-b2",
+      "tenantId": "tenant-b",
+      "sessionId": "session-b1",
+      "chargePointId": "CP-002",
+      "seq": 2,
+      "receivedAt": "2026-10-29T14:32:05.000Z",
+      "deliveries": [
+        {
+          "target": "CP-002",
+          "role": "charge-point",
+          "status": "queued",
+          "updatedAt": "2026-10-29T14:32:05.000Z"
+        }
+      ],
+      "kind": "trace",
+      "trace": {
+        "schemaVersion": "1.1",
+        "timestamp": "2026-10-29T14:32:05.000Z",
+        "ocppVersion": "1.6",
+        "transport": "json",
+        "chargePointId": "CP-002",
+        "direction": "csms-to-cp",
+        "messageType": "CALLERROR",
+        "messageId": "1",
+        "error": {
+          "code": "NotImplemented",
+          "description": "Unknown action",
+          "details": {}
+        },
+        "payload": {},
+        "raw": "[4,\"1\",\"NotImplemented\",\"Unknown action\",{}]",
+        "meta": {
+          "gateway": {
+            "traceId": "trace-b2",
+            "tenantId": "tenant-b",
+            "sessionId": "session-b1",
+            "seq": 2,
+            "source": {
+              "type": "csms",
+              "id": "csms-c",
+              "role": "primary"
+            },
+            "destinations": [
+              {
+                "target": "CP-002",
+                "role": "charge-point"
+              }
+            ],
+            "correlation": {
+              "callTraceId": "trace-b1",
+              "action": "BootNotification"
+            }
+          }
+        }
+      }
+    }
+  },
+  {
+    "event": "delivery",
+    "data": {
+      "id": "trace-a1",
+      "index": 0,
+      "delivery": {
+        "target": "csms-a",
+        "role": "primary",
+        "status": "queued",
+        "updatedAt": "2026-10-29T14:32:05.000Z"
+      }
+    }
+  },
+  {
+    "event": "delivery",
+    "data": {
+      "id": "trace-b1",
+      "index": 0,
+      "delivery": {
+        "target": "csms-c",
+        "role": "primary",
+        "status": "written",
+        "updatedAt": "2026-10-29T14:32:05.000Z"
+      }
+    }
+  },
+  {
+    "event": "delivery",
+    "data": {
+      "id": "trace-b2",
+      "index": 0,
+      "delivery": {
+        "target": "CP-002",
+        "role": "charge-point",
+        "status": "failed",
+        "reason": "socket closed",
+        "updatedAt": "2026-10-29T14:32:06.000Z"
+      }
+    }
+  },
+  {
+    "event": "delivery",
+    "data": {
+      "id": "trace-a2",
+      "index": 0,
+      "delivery": {
+        "target": "CP-001",
+        "role": "charge-point",
+        "status": "written",
+        "updatedAt": "2026-10-29T14:32:06.000Z"
+      }
+    }
+  },
+  {
+    "event": "trace",
+    "data": {
+      "id": "frame-a3",
+      "tenantId": "tenant-a",
+      "sessionId": "session-a1",
+      "chargePointId": "CP-001",
+      "seq": 4,
+      "receivedAt": "2026-10-29T14:32:07.000Z",
+      "deliveries": [
+        {
+          "target": "csms-a",
+          "role": "primary",
+          "status": "dropped",
+          "reason": "not-forwarded",
+          "updatedAt": "2026-10-29T14:32:07.000Z"
+        }
+      ],
+      "kind": "frame",
+      "frame": {
+        "direction": "cp-to-csms",
+        "raw": "not json",
+        "reason": "invalid-json",
+        "timestamp": "2026-10-29T14:32:07.000Z",
+        "chargePointId": "CP-001",
+        "meta": {
+          "gateway": {
+            "traceId": "frame-a3",
+            "tenantId": "tenant-a",
+            "sessionId": "session-a1",
+            "seq": 4,
+            "source": {
+              "type": "charge-point",
+              "id": "CP-001"
+            },
+            "destinations": [
+              {
+                "target": "csms-a",
+                "role": "primary"
+              }
+            ]
+          }
+        }
+      }
+    }
+  },
+  {
+    "event": "delivery",
+    "data": {
+      "id": "trace-unknown",
+      "index": 0,
+      "delivery": {
+        "target": "csms-a",
+        "role": "primary",
+        "status": "written",
+        "updatedAt": "2026-10-29T14:32:07.000Z"
+      }
+    }
+  },
+  {
+    "event": "delivery",
+    "data": {
+      "id": "trace-b1",
+      "index": 5,
+      "delivery": {
+        "target": "csms-c",
+        "role": "primary",
+        "status": "failed",
+        "reason": "boom",
+        "updatedAt": "2026-10-29T14:32:07.000Z"
+      }
+    }
+  },
+  {
+    "event": "gap",
+    "data": {
+      "dropped": 3
+    }
+  }
+]

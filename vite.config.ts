@@ -87,6 +87,14 @@ export default defineConfig({
         },
       },
       {
+        // The OCPP Gateway example: its adapter, SSE parser and transport
+        // are DOM-free, so they run under Node.js.
+        test: {
+          name: "gateway",
+          include: ["examples/gateway/test/**/*.test.ts"],
+        },
+      },
+      {
         test: {
           name: "react",
           include: ["packages/react/test/**/*.test.{ts,tsx}"],

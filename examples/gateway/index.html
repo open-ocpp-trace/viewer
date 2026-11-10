@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>OCPP Gateway live traces</title>
+  </head>
+  <body>
+    <!--
+      data-events-url: the gateway's event stream, relative to this page
+      (default "events"); data-credentials: omit, same-origin (default) or
+      include; data-headers: a JSON object of extra request headers.
+    -->
+    <main id="gateway" class="page">
+      <header class="page__header">
+        <h1>OCPP Gateway live traces</h1>
+        <p class="page__source">Events from <code id="events-url"></code></p>
+      </header>
+      <section class="page__status" aria-label="Connection">
+        <p id="status" class="status" data-state="connecting" role="status">Connecting…</p>
+        <dl class="counters">
+          <div>
+            <dt>Received</dt>
+            <dd id="count-received">0</dd>
+          </div>
+          <div>
+            <dt>Delivery updates</dt>
+            <dd id="count-delivery-updates">0</dd>
+          </div>
+          <div>
+            <dt>Ignored updates</dt>
+            <dd id="count-ignored-updates">0</dd>
+          </div>
+          <div>
+            <dt>Dropped by the gateway</dt>
+            <dd id="count-dropped-by-server">0</dd>
+          </div>
+          <div>
+            <dt>Delivery states evicted</dt>
+            <dd id="count-evicted">0</dd>
+          </div>
+          <div>
+            <dt>Invalid events</dt>
+            <dd id="count-invalid">0</dd>
+          </div>
+        </dl>
+      </section>
+      <p id="notice" class="page__notice" role="alert" hidden></p>
+      <div id="viewer" class="page__viewer"></div>
+    </main>
+    <script type="module" src="./src/main.ts"></script>
+  </body>
+</html>
