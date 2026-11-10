@@ -36,6 +36,10 @@ vp run smoke                    # pack, install and import from a clean consumer
 shellcheck scripts/*.sh         # check the shell scripts
 ```
 
+A change to `packages/react/src/styles.css` or to the markup of a control is
+also checked in Chromium against host base styles, see
+[`scripts/host-styles-check`](scripts/host-styles-check/README.md).
+
 ### What CI requires
 
 The workflow [`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs when

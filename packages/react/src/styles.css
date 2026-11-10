@@ -9,6 +9,16 @@
  * and dark defaults come from `color-scheme` (system colors adapt) and, for
  * a fallback that does not adapt, from a private `--_oot-*` property set
  * per scheme on the viewer root.
+ *
+ * The components render in the host's light DOM, where its base styles (a
+ * Tailwind preflight, flowbite's `[type='text'] { background-color: #fff }`)
+ * reach the viewer's controls. Each control, fieldset and legend the viewer
+ * renders is therefore matched by a rule that reverts every property to the
+ * browser default (`all: revert`, which skips a host's normal declarations
+ * in any layer), then sets the viewer's own. Its selector carries the
+ * component root, the element and the control's class, so it outranks the
+ * base rules of an unlayered host too: at least 0,2,1, and 0,3,1 for a
+ * checkbox (`.dark [type='checkbox']:checked` is 0,3,0).
  */
 
 .oot-viewer[data-oot-color-scheme="light"] {
@@ -68,7 +78,8 @@
   outline-offset: -2px;
 }
 
-.oot-jump {
+.oot-list button.oot-jump {
+  all: revert;
   align-self: end;
   margin: 0.25em 0.5em;
   font: inherit;
@@ -124,11 +135,12 @@
   border-bottom: 1px solid var(--oot-border-color, rgb(128 128 128 / 30%));
 }
 
-.oot-toolbar-button {
+.oot-toolbar button.oot-toolbar-button {
+  all: revert;
   font: inherit;
 }
 
-.oot-toolbar-button[aria-pressed="true"] {
+.oot-toolbar button.oot-toolbar-button[aria-pressed="true"] {
   font-weight: 600;
 }
 
@@ -164,14 +176,21 @@
   background: var(--oot-background, Canvas);
 }
 
-.oot-filter-group {
+.oot-filter fieldset.oot-filter-group {
+  all: revert;
   margin: 0;
   padding: 0.25em 0.5em 0.5em;
   border: 1px solid var(--oot-border-color, rgb(128 128 128 / 30%));
 }
 
-.oot-filter-legend {
+.oot-filter legend.oot-filter-legend {
+  all: revert;
   font-weight: 600;
+}
+
+.oot-filter input.oot-filter-input,
+.oot-filter-option input.oot-filter-checkbox[type="checkbox"] {
+  all: revert;
 }
 
 .oot-filter-options {
@@ -187,8 +206,9 @@
   overflow-wrap: anywhere;
 }
 
-.oot-filter-clear,
-.oot-filter-reset {
+.oot-filter button.oot-filter-clear,
+.oot-filter button.oot-filter-reset {
+  all: revert;
   justify-self: start;
   margin-top: 0.25em;
   font: inherit;
@@ -241,6 +261,11 @@
 .oot-inspector__note {
   margin: 0.5em;
   font-style: italic;
+}
+
+.oot-inspector button.oot-inspector__button,
+.oot-inspector button.oot-inspector__link {
+  all: revert;
 }
 
 .oot-inspector__link[aria-disabled="true"] {

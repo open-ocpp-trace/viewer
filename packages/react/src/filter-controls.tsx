@@ -85,6 +85,7 @@ export function ValueGroup(props: {
             >
               <input
                 type="checkbox"
+                className="oot-filter-checkbox"
                 checked={checked}
                 onChange={() => onChange(next.length === 0 ? undefined : next)}
               />
@@ -120,6 +121,7 @@ export function DraftInput(props: {
       {props.label}
       <input
         type="text"
+        className="oot-filter-input"
         value={draft}
         onChange={(event) => setDraft(event.currentTarget.value)}
         onBlur={commit}
