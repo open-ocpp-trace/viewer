@@ -291,6 +291,13 @@ describe("the committed package manifests", () => {
     }
   });
 
+  it("can be published to GitHub Packages", () => {
+    for (const manifest of manifests) {
+      expect(manifest).not.toHaveProperty("private");
+      expect(manifest.publishConfig).toEqual({ registry: "https://npm.pkg.github.com" });
+    }
+  });
+
   it("lose every development-only condition once stripped", () => {
     for (const manifest of manifests) {
       expect(JSON.stringify(manifest.exports)).toContain('"@open-ocpp-trace/viewer-source"');
