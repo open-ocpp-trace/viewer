@@ -1,7 +1,14 @@
 import { describe, expect, it } from "vite-plus/test";
 
 import { defaultSensitiveKeys } from "../src/index.ts";
-import { type FormatOptions, formatValue, sensitiveKeySet } from "../src/inspect-format.ts";
+import {
+  type FormatOptions,
+  formatValue,
+  holdsSensitiveKey,
+  redactValue,
+  sensitiveKeyMatcher,
+  sensitiveKeySet,
+} from "../src/inspect-format.ts";
 
 const OPEN: FormatOptions = { maxChars: 100_000, maxDepth: 64, sensitiveKeys: null };
 
@@ -223,5 +230,89 @@ describe("defaultSensitiveKeys", () => {
       "password",
       "basicAuthPassword",
     ]);
+  });
+});
+
+describe("redactValue", () => {
+  const matcher = sensitiveKeyMatcher(sensitiveKeySet(defaultSensitiveKeys));
+
+  it("replaces sensitive values case-insensitively at any depth, arrays walked", () => {
+    const value = {
+      IDTAG: "A",
+      nested: [{ idTag: "B", other: "C" }, [{ password: { deep: "D" } }]],
+      keep: { x: 1 },
+    };
+    expect(redactValue(value, matcher)).toEqual({
+      IDTAG: "[redacted]",
+      nested: [{ idTag: "[redacted]", other: "C" }, [{ password: "[redacted]" }]],
+      keep: { x: 1 },
+    });
+  });
+
+  it("returns the same references where nothing is redacted", () => {
+    const keep = { x: [1, 2] };
+    const value = { keep, list: [keep], hit: { idTag: "A" } };
+    const redacted = redactValue(value, matcher) as typeof value;
+    expect(redacted).not.toBe(value);
+    expect(redacted.keep).toBe(keep);
+    expect(redacted.list).toBe(value.list);
+    expect(redactValue(keep, matcher)).toBe(keep);
+    expect(redactValue("idTag", matcher)).toBe("idTag");
+  });
+
+  it("never mutates its input", () => {
+    const value = Object.freeze({ a: Object.freeze([Object.freeze({ idTag: "A" })]) });
+    expect(redactValue(value, matcher)).toEqual({ a: [{ idTag: "[redacted]" }] });
+    expect(value.a[0]!.idTag).toBe("A");
+  });
+
+  it("does not read the value of a redacted key", () => {
+    const value = {
+      get password(): never {
+        throw new Error("read");
+      },
+    };
+    expect(redactValue(value, matcher)).toEqual({ password: "[redacted]" });
+  });
+
+  it("keeps a __proto__ key as an own property", () => {
+    const value = JSON.parse('{"__proto__":{"idTag":"A"},"b":1}') as unknown;
+    const redacted = redactValue(value, matcher);
+    expect(JSON.stringify(redacted)).toBe('{"__proto__":{"idTag":"[redacted]"},"b":1}');
+    expect(Object.getPrototypeOf(redacted)).toBe(Object.prototype);
+  });
+
+  it("walks 100 000 levels without throwing", () => {
+    let value: unknown = { idTag: "A" };
+    for (let i = 0; i < 100_000; i++) value = { a: value };
+    let redacted = redactValue(value, matcher) as { a?: unknown; idTag?: unknown };
+    while (redacted.a !== undefined) redacted = redacted.a as typeof redacted;
+    expect(redacted).toEqual({ idTag: "[redacted]" });
+    expect(() => redactValue(deepObject(100_000), matcher)).not.toThrow();
+  });
+
+  it("leaves a cycle in place rather than looping", () => {
+    const value: Record<string, unknown> = { idTag: "A" };
+    value["self"] = value;
+    const redacted = redactValue(value, matcher) as Record<string, unknown>;
+    expect(redacted["idTag"]).toBe("[redacted]");
+    expect(redacted["self"]).toBe(value);
+  });
+
+  it("redacts nothing with an empty key list", () => {
+    const value = { idTag: "A" };
+    expect(redactValue(value, sensitiveKeyMatcher(sensitiveKeySet([])))).toBe(value);
+  });
+});
+
+describe("holdsSensitiveKey", () => {
+  const matcher = sensitiveKeyMatcher(sensitiveKeySet(defaultSensitiveKeys));
+
+  it("finds a sensitive key at any depth, in arrays, case-insensitively", () => {
+    expect(holdsSensitiveKey([2, "m", "Authorize", { IdTag: "A" }], matcher)).toBe(true);
+    expect(holdsSensitiveKey({ a: [[{ b: { parentidtag: 1 } }]] }, matcher)).toBe(true);
+    expect(holdsSensitiveKey([2, "m", "Heartbeat", { idTagX: "A" }], matcher)).toBe(false);
+    expect(holdsSensitiveKey("idTag", matcher)).toBe(false);
+    expect(holdsSensitiveKey(deepObject(100_000), matcher)).toBe(false);
   });
 });

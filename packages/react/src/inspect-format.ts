@@ -39,6 +39,85 @@ export const REDACTED: string = defaultStrings.inspector.markers.redacted;
 /** Longest raw frame checked for sensitive keys; a longer one is hidden or dropped. */
 export const RAW_SCAN_MAX = 1_000_000;
 
+/** A container being walked by {@link walkSensitive}. */
+interface WalkFrame {
+  readonly source: object;
+  /** Own enumerable keys of an object; null for an array. */
+  readonly keys: readonly string[] | null;
+  readonly length: number;
+  index: number;
+  /** The values of the copy, in key order, filled as children close. */
+  readonly values: unknown[];
+  changed: boolean;
+}
+
+/**
+ * Walks `value` iteratively (any depth is safe), testing each property name
+ * with `isSensitive`. Redact mode returns a copy-on-write copy in which the
+ * value of each sensitive property is {@link REDACTED}, never read; a
+ * container holding nothing sensitive is returned as is. Detect mode stops at
+ * the first sensitive property and returns `true`, else `false`. A cycle is
+ * left in place, not walked again. A throwing getter or proxy throws.
+ */
+function walkSensitive(value: unknown, isSensitive: (key: string) => boolean, detect: boolean) {
+  if (typeof value !== "object" || value === null) return detect ? false : value;
+  const ancestors = new Set<object>();
+  const open = (source: object): WalkFrame => {
+    ancestors.add(source);
+    if (Array.isArray(source)) {
+      return { source, keys: null, length: source.length, index: 0, values: [], changed: false };
+    }
+    const keys = Object.keys(source);
+    return { source, keys, length: keys.length, index: 0, values: [], changed: false };
+  };
+  const stack: WalkFrame[] = [open(value)];
+  for (;;) {
+    const frame = stack[stack.length - 1]!;
+    if (frame.index === frame.length) {
+      stack.pop();
+      ancestors.delete(frame.source);
+      let result: unknown = frame.source;
+      if (frame.changed) {
+        const { keys, values } = frame;
+        // fromEntries defines own properties: a "__proto__" key stays a key.
+        result = keys === null ? values : Object.fromEntries(keys.map((k, i) => [k, values[i]]));
+      }
+      const parent = stack[stack.length - 1];
+      if (parent === undefined) return detect ? false : result;
+      parent.values.push(result);
+      parent.changed ||= frame.changed;
+      continue;
+    }
+    const index = frame.index++;
+    const key = frame.keys === null ? index : frame.keys[index]!;
+    if (typeof key === "string" && isSensitive(key)) {
+      if (detect) return true;
+      frame.values.push(REDACTED);
+      frame.changed = true;
+      continue;
+    }
+    const item: unknown = (frame.source as Readonly<Record<string | number, unknown>>)[key];
+    if (typeof item === "object" && item !== null && !ancestors.has(item)) stack.push(open(item));
+    else frame.values.push(item);
+  }
+}
+
+/**
+ * A copy of `value` in which the value of every property `isSensitive`
+ * matches, at any depth and inside arrays, is {@link REDACTED}. Never
+ * mutates `value`; parts holding nothing sensitive are shared, and `value`
+ * itself is returned when nothing matched. Iterative, so any depth is safe.
+ * A cycle is left in place. A throwing getter or proxy throws.
+ */
+export function redactValue(value: unknown, isSensitive: (key: string) => boolean): unknown {
+  return walkSensitive(value, isSensitive, false);
+}
+
+/** Whether `value` holds a property `isSensitive` matches, at any depth. */
+export function holdsSensitiveKey(value: unknown, isSensitive: (key: string) => boolean): boolean {
+  return walkSensitive(value, isSensitive, true) === true;
+}
+
 /** Default depth past which containers print as `{…}` / `[…]`. */
 export const DEFAULT_MAX_DEPTH = 64;
 
