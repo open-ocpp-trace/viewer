@@ -10,15 +10,17 @@
 //                                                           if not in lockstep
 //
 // `lockstep` also takes the committed packages/*/package.json files (any
-// argument ending in `.json`), to check the versions before packing. It
-// also checks that the `VIEWER_*_VERSION` literal in each package's
+// argument ending in `.json`), to check the versions before packing; only
+// there may a viewer dependency still be `workspace:*`. The arguments must
+// name every package under packages/, each once. It also checks that the
+// `VIEWER_*_VERSION` literal in each package's
 // src/index.ts, found in this workspace through `repository.directory`,
 // is the shared version.
 // `strip` is only ever run on the copy extracted from a tarball, never on
 // a committed package.json.
 
 import { execFileSync } from "node:child_process";
-import { readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
@@ -124,14 +126,29 @@ const SCOPE_PREFIX = "@open-ocpp-trace/viewer-";
  */
 const WORKSPACE_EXACT = "workspace:*";
 
+/** How {@link lockstepProblems} reads its manifests. */
+export interface LockstepOptions {
+  /**
+   * The manifests are the committed package.json files, where
+   * `workspace:*` is expected because packing pins it. In packed manifests
+   * (the default) a leftover `workspace:*` means packing failed.
+   */
+  readonly committed?: boolean;
+}
+
 /**
  * Lists why packages cannot be released together at one version: every
  * manifest must carry the same `version`, and every
  * `@open-ocpp-trace/viewer-*` dependency must be one of these packages,
- * pinned to that exact version (or to `workspace:*`, which packing pins).
- * An empty list means the packages are in lockstep.
+ * pinned to that exact version (or, in committed manifests only, to
+ * `workspace:*`, which packing pins). An empty list means the packages
+ * are in lockstep.
  */
-export function lockstepProblems(manifests: readonly Manifest[]): string[] {
+export function lockstepProblems(
+  manifests: readonly Manifest[],
+  options: LockstepOptions = {},
+): string[] {
+  const acceptsWorkspaceExact = options.committed === true;
   if (manifests.length === 0) return ["no package to release"];
   const problems: string[] = [];
   const nameOf = (manifest: Manifest): string => String(manifest.name);
@@ -155,13 +172,56 @@ export function lockstepProblems(manifests: readonly Manifest[]): string[] {
         const where = `${nameOf(manifest)} ${field}[${JSON.stringify(name)}]`;
         if (!names.has(name)) {
           problems.push(`${where} is not released with the other packages`);
-        } else if (typeof version === "string" && spec !== version && spec !== WORKSPACE_EXACT) {
+        } else if (
+          typeof version === "string" &&
+          spec !== version &&
+          !(acceptsWorkspaceExact && spec === WORKSPACE_EXACT)
+        ) {
           problems.push(`${where} is ${String(spec)}, not ${version}`);
         }
       }
     }
   }
   return problems;
+}
+
+/**
+ * Lists why the packages `given` (by name) are not exactly the workspace
+ * packages `expected`: a release ships every one of them, once. An empty
+ * list means the set is complete.
+ */
+export function releaseSetProblems(
+  given: readonly string[],
+  expected: readonly string[],
+): string[] {
+  const problems: string[] = [];
+  const seen = new Set<string>();
+  for (const name of given) {
+    if (seen.has(name)) problems.push(`${name} is given more than once`);
+    seen.add(name);
+  }
+  for (const name of expected) {
+    if (!seen.has(name)) problems.push(`${name} is a workspace package missing from the release`);
+  }
+  for (const name of seen) {
+    if (!expected.includes(name)) problems.push(`${name} is not a workspace package`);
+  }
+  return problems;
+}
+
+/** Directory of this workspace, the parent of scripts/. */
+function workspaceDirectory(): string {
+  return resolve(fileURLToPath(import.meta.url), "..", "..");
+}
+
+/** Names of the packages under packages/ in this workspace. */
+function workspacePackageNames(): string[] {
+  const packages = resolve(workspaceDirectory(), "packages");
+  return readdirSync(packages, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => resolve(packages, entry.name, "package.json"))
+    .filter((path) => existsSync(path))
+    .map((path) => String(readManifest(path).name));
 }
 
 /**
@@ -199,7 +259,7 @@ export function versionConstantProblems(
  * manifest's `repository.directory`.
  */
 function versionConstantsInWorkspace(manifests: readonly Manifest[], version: string): string[] {
-  const workspace = resolve(fileURLToPath(import.meta.url), "..", "..");
+  const workspace = workspaceDirectory();
   const problems: string[] = [];
   for (const manifest of manifests) {
     const repository = manifest.repository;
@@ -256,7 +316,15 @@ function main(args: readonly string[]): number {
       if (isObject(manifest)) manifests.push(manifest);
       else problems.push(`${source}: package.json is not a JSON object`);
     }
-    problems.push(...lockstepProblems(manifests));
+    problems.push(
+      ...releaseSetProblems(
+        manifests.map((manifest) => String(manifest.name)),
+        workspacePackageNames(),
+      ),
+    );
+    // `workspace:*` is only expected before packing.
+    const committed = sources.every((source) => source.endsWith(".json"));
+    problems.push(...lockstepProblems(manifests, { committed }));
     const version = manifests[0]?.version;
     if (typeof version === "string") {
       problems.push(...versionConstantsInWorkspace(manifests, version));

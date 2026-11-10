@@ -1,4 +1,4 @@
-import { spawnSync } from "node:child_process";
+import { spawnSync, type SpawnSyncReturns } from "node:child_process";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -10,6 +10,7 @@ import { describe, expect, it } from "vite-plus/test";
 import {
   inspectPackage,
   lockstepProblems,
+  releaseSetProblems,
   SOURCE_CONDITION,
   stripSourceCondition,
   versionConstantProblems,
@@ -35,6 +36,17 @@ const workspaceManifest = {
 };
 
 const publishedManifest = stripSourceCondition(workspaceManifest);
+
+const script = fileURLToPath(new URL("release-manifest.ts", import.meta.url));
+const workspaceRoot = fileURLToPath(new URL("..", import.meta.url));
+
+/** Runs `release-manifest.ts lockstep` from the workspace root. */
+function runLockstep(paths: readonly string[]): SpawnSyncReturns<string> {
+  return spawnSync(process.execPath, [script, "lockstep", ...paths], {
+    cwd: workspaceRoot,
+    encoding: "utf8",
+  });
+}
 
 const publishedFiles = [
   "package.json",
@@ -167,12 +179,22 @@ describe("lockstepProblems", () => {
     expect(lockstepProblems([core, react, standalone])).toEqual([]);
   });
 
-  it("accepts a workspace:* viewer dependency, which packing pins to the version", () => {
+  it("accepts a workspace:* viewer dependency in a committed manifest, which packing pins", () => {
     const manifest = {
       ...react,
       dependencies: { ...react.dependencies, "@open-ocpp-trace/viewer-core": "workspace:*" },
     };
-    expect(lockstepProblems([core, manifest, standalone])).toEqual([]);
+    expect(lockstepProblems([core, manifest, standalone], { committed: true })).toEqual([]);
+  });
+
+  it("reports a workspace:* viewer dependency left in a packed manifest", () => {
+    const manifest = {
+      ...react,
+      dependencies: { ...react.dependencies, "@open-ocpp-trace/viewer-core": "workspace:*" },
+    };
+    expect(lockstepProblems([core, manifest, standalone])).toEqual([
+      '@open-ocpp-trace/viewer-react dependencies["@open-ocpp-trace/viewer-core"] is workspace:*, not 0.2.0',
+    ]);
   });
 
   it("reports a workspace range, which packing turns into a range", () => {
@@ -213,6 +235,32 @@ describe("lockstepProblems", () => {
   });
 });
 
+describe("releaseSetProblems", () => {
+  const workspace = ["@open-ocpp-trace/viewer-core", "@open-ocpp-trace/viewer-react"];
+
+  it("accepts every workspace package, in any order", () => {
+    expect(releaseSetProblems([...workspace].reverse(), workspace)).toEqual([]);
+  });
+
+  it("reports a missing and an extra package", () => {
+    expect(
+      releaseSetProblems(
+        ["@open-ocpp-trace/viewer-core", "@open-ocpp-trace/viewer-model"],
+        workspace,
+      ),
+    ).toEqual([
+      "@open-ocpp-trace/viewer-react is a workspace package missing from the release",
+      "@open-ocpp-trace/viewer-model is not a workspace package",
+    ]);
+  });
+
+  it("reports a package given twice", () => {
+    expect(releaseSetProblems([...workspace, "@open-ocpp-trace/viewer-core"], workspace)).toEqual([
+      "@open-ocpp-trace/viewer-core is given more than once",
+    ]);
+  });
+});
+
 describe("versionConstantProblems", () => {
   const core = { name: "@open-ocpp-trace/viewer-core", version: "0.2.0" };
   const source = (literal: string): string =>
@@ -247,10 +295,7 @@ describe("versionConstantProblems", () => {
         writeFileSync(path, JSON.stringify(manifest));
         return path;
       });
-      const script = fileURLToPath(new URL("release-manifest.ts", import.meta.url));
-      const result = spawnSync(process.execPath, [script, "lockstep", ...paths], {
-        encoding: "utf8",
-      });
+      const result = runLockstep(paths);
       expect(result.status).toBe(1);
       expect(result.stderr).toMatch(/VIEWER_CORE_VERSION is \S+, not 9\.9\.9/);
       expect(result.stderr).toMatch(/VIEWER_REACT_VERSION is \S+, not 9\.9\.9/);
@@ -277,7 +322,28 @@ describe("the committed package manifests", () => {
   );
 
   it("are in lockstep", () => {
-    expect(lockstepProblems(manifests)).toEqual([]);
+    expect(lockstepProblems(manifests, { committed: true })).toEqual([]);
+  });
+
+  it("pass the lockstep command, which prints their version", () => {
+    const result = runLockstep(
+      ["core", "react", "standalone"].map((name) => `packages/${name}/package.json`),
+    );
+    expect(result.stderr).toBe("");
+    expect(result.status).toBe(0);
+    expect(result.stdout.trim()).toBe(String(manifests[0]?.version));
+  });
+
+  it("fail the lockstep command when one of them is left out", () => {
+    const result = runLockstep(["packages/core/package.json"]);
+    expect(result.status).toBe(1);
+    expect(result.stdout).toBe("");
+    expect(result.stderr).toContain(
+      "lockstep: @open-ocpp-trace/viewer-react is a workspace package missing from the release",
+    );
+    expect(result.stderr).toContain(
+      "lockstep: @open-ocpp-trace/viewer-standalone is a workspace package missing from the release",
+    );
   });
 
   it("declare a VIEWER_*_VERSION constant at their version", () => {
