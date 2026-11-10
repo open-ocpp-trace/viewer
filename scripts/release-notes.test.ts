@@ -23,8 +23,8 @@ All notable changes are documented in this file.
 `;
 
 describe("release-notes.sh on the committed changelogs", () => {
-  it("prints the Unreleased section of every package", () => {
-    const result = run(script, ["Unreleased"]);
+  it("prints the 0.1.0 section of every package", () => {
+    const result = run(script, ["0.1.0"]);
     expect(result.stderr).toBe("");
     expect(result.status).toBe(0);
     for (const name of ["core", "react", "standalone"]) {
@@ -32,7 +32,7 @@ describe("release-notes.sh on the committed changelogs", () => {
     }
     expect(result.stdout).toContain("### Added");
     // The section ends before the reference link definitions.
-    expect(result.stdout).not.toMatch(/^\[unreleased\]: /m);
+    expect(result.stdout).not.toMatch(/^\[0\.1\.0\]: /m);
   });
 });
 

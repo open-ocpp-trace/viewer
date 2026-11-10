@@ -8,6 +8,8 @@ and this package adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-11-10
+
 First release of the Open OCPP Trace viewer for pages that do not use React.
 
 ### Added
@@ -45,4 +47,5 @@ First release of the Open OCPP Trace viewer for pages that do not use React.
 - `THIRD_PARTY_NOTICES.md`, the versions, licenses and license texts of
   the packages bundled into `dist/index.js`.
 
-[unreleased]: https://github.com/open-ocpp-trace/viewer/commits/main/packages/standalone
+[unreleased]: https://github.com/open-ocpp-trace/viewer/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/open-ocpp-trace/viewer/releases/tag/v0.1.0

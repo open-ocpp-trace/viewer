@@ -1,5 +1,5 @@
 /** Version of the `@open-ocpp-trace/viewer-core` package. */
-export const VIEWER_CORE_VERSION: string = "0.0.0";
+export const VIEWER_CORE_VERSION: string = "0.1.0";
 
 export type { Unsubscribe, ViewerAdapter } from "./adapter.ts";
 export { createCorrelator } from "./correlation.ts";

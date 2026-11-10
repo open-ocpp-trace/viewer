@@ -1,6 +1,6 @@
 {
   "name": "@open-ocpp-trace/viewer-core",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Framework-neutral model of the Open OCPP Trace viewer.",
   "license": "Apache-2.0",
   "repository": {
