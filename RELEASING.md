@@ -70,6 +70,59 @@ The changelogs are added by a separate pull request of
 merged, `scripts/release-notes.sh` finds no `CHANGELOG.md`: a dry run
 warns and a real run stops.
 
+## Third-party notices
+
+`viewer-standalone` bundles its dependencies into `dist/index.js`, so it
+ships their licenses in `packages/standalone/THIRD_PARTY_NOTICES.md`.
+`packages/standalone/test/third-party-notices.test.ts` fails when that
+file drifts from what the pack bundles: a package added to or removed
+from `pack.deps.onlyBundle` in `packages/standalone/vite.config.ts`, or
+a bundled package bumped to another version, license or license text.
+Update the file by hand, then run the test again.
+
+The file keeps its introduction (what is bundled and why, the SDK and
+viewer packages being under the Apache License 2.0) and has one section
+per package of `onlyBundle`, in that order:
+
+````markdown
+## <package name>
+
+- Version: <version of its package.json>
+- License: <license of its package.json>
+
+```text
+<its LICENSE file, verbatim, without trailing blank lines>
+```
+````
+
+Each value comes from the installed copy that the pack bundles, found
+the way the test finds it (its `IMPORTED_FROM` table): `react` and
+`react-dom` from `packages/standalone`, `scheduler` from `react-dom`,
+`@tanstack/react-virtual` and `@open-ocpp-trace/jsonl` from
+`packages/react`, `@tanstack/virtual-core` from
+`@tanstack/react-virtual`, `@open-ocpp-trace/core` from `packages/core`.
+After `bun install`, from the repository root:
+
+```sh
+dir() { (cd "$1" && node -p "require('node:path').dirname(require.resolve('$2/package.json'))"); }
+react_dom=$(dir packages/standalone react-dom)
+react_virtual=$(dir packages/react @tanstack/react-virtual)
+for d in "$(dir packages/standalone react)" "$react_dom" \
+  "$(dir "$react_dom" scheduler)" "$react_virtual" \
+  "$(dir "$react_virtual" @tanstack/virtual-core)" \
+  "$(dir packages/core @open-ocpp-trace/core)" \
+  "$(dir packages/react @open-ocpp-trace/jsonl)"; do
+  node -p "const m = require('$d/package.json'); m.name + ' ' + m.version + ' ' + m.license"
+  cat "$d/LICENSE"
+done
+vp test packages/standalone/test/third-party-notices.test.ts
+```
+
+A new bundled package also needs an entry in `IMPORTED_FROM`, naming the
+workspace package or the bundled package that depends on it. The test
+compares only the `LICENSE` file: when a bundled package also ships a
+`NOTICE` file, check by hand what its license asks for before releasing.
+
 ## Tags
 
 A release creates one lightweight tag, `v<version>`, for example
