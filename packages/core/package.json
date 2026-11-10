@@ -25,7 +25,8 @@
     "registry": "https://npm.pkg.github.com"
   },
   "scripts": {
-    "pack": "vp pack"
+    "pack": "vp pack",
+    "prepublishOnly": "echo 'Publish the tarball from scripts/pack-release.sh, not this directory.' >&2; exit 1"
   },
   "dependencies": {
     "@open-ocpp-trace/core": "0.1.0"

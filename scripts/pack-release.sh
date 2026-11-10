@@ -12,8 +12,9 @@
 #      development-only export condition itself);
 #   2. the tarball is extracted to a staging directory, where
 #      scripts/release-manifest.ts removes the
-#      `@open-ocpp-trace/viewer-source` export condition from the copied
-#      package.json and the repository LICENSE is added;
+#      `@open-ocpp-trace/viewer-source` export condition and the
+#      `prepublishOnly` guard from the copied package.json, and the
+#      repository LICENSE is added;
 #   3. `npm pack` repacks the staged directory into <destination>.
 # The committed package.json is never modified. Prints the path of every
 # tarball written; check them with scripts/verify-packages.sh.
