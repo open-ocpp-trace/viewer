@@ -30,8 +30,22 @@ import { fileURLToPath } from "node:url";
 /** Development-only export condition that points at `src/` (see vite.config.ts). */
 export const SOURCE_CONDITION = "@open-ocpp-trace/viewer-source";
 
+/**
+ * Licenses of the third-party code a package bundles into `dist/`, which
+ * the package must ship with that code.
+ */
+export const THIRD_PARTY_NOTICES = "THIRD_PARTY_NOTICES.md";
+
+/** Packages whose `dist/` bundles third-party code (see their vite.config.ts). */
+const BUNDLING_PACKAGES: readonly string[] = ["@open-ocpp-trace/viewer-standalone"];
+
 /** Files a published package may contain besides `dist/`. */
-const TOP_LEVEL_FILES: readonly string[] = ["package.json", "README.md", "LICENSE"];
+const TOP_LEVEL_FILES: readonly string[] = [
+  "package.json",
+  "README.md",
+  "LICENSE",
+  THIRD_PARTY_NOTICES,
+];
 
 const DEPENDENCY_FIELDS: readonly string[] = [
   "dependencies",
@@ -105,7 +119,9 @@ export function inspectPackage(manifest: Manifest, files: readonly string[]): st
   const problems: string[] = [];
   const present = new Set(files);
 
-  for (const file of ["LICENSE", "README.md"]) {
+  const required = ["LICENSE", "README.md"];
+  if (BUNDLING_PACKAGES.includes(String(manifest.name))) required.push(THIRD_PARTY_NOTICES);
+  for (const file of required) {
     if (!present.has(file)) problems.push(`${file} is missing`);
   }
   for (const file of files) {
