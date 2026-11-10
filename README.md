@@ -121,7 +121,7 @@ resolve `dist/`.
 ## Documentation
 
 - [Contributing](CONTRIBUTING.md): checks, tests, commits and pull requests.
-- [Releasing](RELEASING.md): versioning conventions.
+- [Releasing](RELEASING.md): versioning, prerequisites and the release workflow.
 
 ## License
 
