@@ -14,6 +14,7 @@ import {
   releaseSetProblems,
   SOURCE_CONDITION,
   stripSourceCondition,
+  THIRD_PARTY_NOTICES,
   toPublishedManifest,
   versionConstantProblems,
 } from "./release-manifest.ts";
@@ -109,17 +110,35 @@ describe("inspectPackage", () => {
     expect(inspectPackage(publishedManifest, publishedFiles)).toEqual([]);
   });
 
+  const standalone = {
+    name: "@open-ocpp-trace/viewer-standalone",
+    version: "1.2.3",
+    exports: {
+      ".": { types: "./dist/index.d.ts", default: "./dist/index.js" },
+      "./package.json": "./package.json",
+    },
+  };
+  const standaloneFiles = [
+    "package.json",
+    "README.md",
+    "LICENSE",
+    THIRD_PARTY_NOTICES,
+    "dist/index.d.ts",
+    "dist/index.js",
+  ];
+
   it("accepts a package without dependencies", () => {
-    const standalone = {
-      name: "@open-ocpp-trace/viewer-standalone",
-      version: "1.2.3",
-      exports: {
-        ".": { types: "./dist/index.d.ts", default: "./dist/index.js" },
-        "./package.json": "./package.json",
-      },
-    };
-    const files = ["package.json", "README.md", "LICENSE", "dist/index.d.ts", "dist/index.js"];
-    expect(inspectPackage(standalone, files)).toEqual([]);
+    expect(inspectPackage(standalone, standaloneFiles)).toEqual([]);
+  });
+
+  it("requires the third-party notices in the package that bundles dependencies", () => {
+    const files = standaloneFiles.filter((file) => file !== THIRD_PARTY_NOTICES);
+    expect(inspectPackage(standalone, files)).toEqual([`${THIRD_PARTY_NOTICES} is missing`]);
+  });
+
+  it("does not require the notices in a package that bundles nothing", () => {
+    expect(publishedFiles).not.toContain(THIRD_PARTY_NOTICES);
+    expect(inspectPackage(publishedManifest, publishedFiles)).toEqual([]);
   });
 
   it("reports the source condition and its dangling target", () => {

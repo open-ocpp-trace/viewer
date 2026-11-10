@@ -42,5 +42,7 @@ First release of the Open OCPP Trace viewer for pages that do not use React.
   the viewer keeps running.
 - `VIEWER_STANDALONE_VERSION`, the version of this package, and
   `bundledReactVersion()`, the version of the bundled React copy.
+- `THIRD_PARTY_NOTICES.md`, the versions, licenses and license texts of
+  the packages bundled into `dist/index.js`.
 
 [unreleased]: https://github.com/open-ocpp-trace/viewer/commits/main/packages/standalone
