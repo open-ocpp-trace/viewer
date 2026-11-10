@@ -18,6 +18,7 @@ import {
   type FormatMarkers,
   type Formatted,
   formatValue,
+  RAW_SCAN_MAX,
   sensitiveKeySet,
 } from "./inspect-format.ts";
 import { useVersion } from "./hooks.ts";
@@ -213,9 +214,6 @@ function whole(printed: Formatted | null): boolean {
     !printed.unreadable
   );
 }
-
-/** Longest raw frame scanned for sensitive keys; a longer one is hidden. */
-const RAW_SCAN_MAX = 1_000_000;
 
 /**
  * The raw frame may hold a sensitive key the decoded parts lack: it is
