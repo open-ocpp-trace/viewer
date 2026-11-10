@@ -10,9 +10,11 @@ import { describe, expect, it } from "vite-plus/test";
 import {
   inspectPackage,
   lockstepProblems,
+  PUBLISH_GUARD,
   releaseSetProblems,
   SOURCE_CONDITION,
   stripSourceCondition,
+  toPublishedManifest,
   versionConstantProblems,
 } from "./release-manifest.ts";
 
@@ -79,6 +81,26 @@ describe("stripSourceCondition", () => {
     expect(publishedManifest.dependencies).toEqual(workspaceManifest.dependencies);
     expect(publishedManifest.files).toEqual(["dist"]);
     expect(workspaceManifest.exports["."]).toHaveProperty(SOURCE_CONDITION);
+  });
+});
+
+describe("toPublishedManifest", () => {
+  const guarded = {
+    ...workspaceManifest,
+    scripts: { pack: "vp pack", [PUBLISH_GUARD]: "exit 1" },
+  };
+
+  it("removes the publish guard and keeps the other scripts", () => {
+    expect(toPublishedManifest(guarded).scripts).toEqual({ pack: "vp pack" });
+  });
+
+  it("removes the source condition too", () => {
+    expect(toPublishedManifest(guarded).exports).toEqual(publishedManifest.exports);
+  });
+
+  it("leaves a manifest without scripts alone and does not mutate its input", () => {
+    expect(toPublishedManifest(workspaceManifest)).not.toHaveProperty("scripts");
+    expect(guarded.scripts).toHaveProperty(PUBLISH_GUARD);
   });
 });
 
@@ -151,6 +173,13 @@ describe("inspectPackage", () => {
     };
     expect(inspectPackage(manifest, publishedFiles)).toEqual([
       'dependencies["@open-ocpp-trace/viewer-core"] is workspace:*, not a published version',
+    ]);
+  });
+
+  it("reports a publish guard left in the manifest", () => {
+    const manifest = { ...publishedManifest, scripts: { [PUBLISH_GUARD]: "exit 1" } };
+    expect(inspectPackage(manifest, publishedFiles)).toEqual([
+      `scripts.${PUBLISH_GUARD} is the workspace publish guard, which refuses this tarball too`,
     ]);
   });
 });
@@ -361,6 +390,16 @@ describe("the committed package manifests", () => {
     for (const manifest of manifests) {
       expect(manifest).not.toHaveProperty("private");
       expect(manifest.publishConfig).toEqual({ registry: "https://npm.pkg.github.com" });
+    }
+  });
+
+  it("refuse to be published from their directory, and lose the guard once stripped", () => {
+    for (const manifest of manifests) {
+      const scripts = manifest.scripts as Record<string, unknown> | undefined;
+      expect(scripts?.[PUBLISH_GUARD]).toBe(
+        "echo 'Publish the tarball from scripts/pack-release.sh, not this directory.' >&2; exit 1",
+      );
+      expect(toPublishedManifest(manifest).scripts).not.toHaveProperty(PUBLISH_GUARD);
     }
   });
 

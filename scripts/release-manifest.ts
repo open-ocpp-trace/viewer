@@ -17,7 +17,9 @@
 // src/index.ts, found in this workspace through `repository.directory`,
 // is the shared version.
 // `strip` is only ever run on the copy extracted from a tarball, never on
-// a committed package.json.
+// a committed package.json. It drops the development-only export
+// condition and the `prepublishOnly` guard that stops a publish from a
+// package directory; `inspect` rejects a tarball that still has either.
 
 import { execFileSync } from "node:child_process";
 import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -59,6 +61,29 @@ export function stripSourceCondition<T extends Manifest>(manifest: T): T {
   return { ...manifest, exports: withoutSourceCondition(manifest.exports) } as T;
 }
 
+/**
+ * Script of the committed package.json files that fails `npm publish` and
+ * `bun publish` run in a package directory, whose manifest still points at
+ * `src/` and ships no LICENSE. Only the tarballs written by
+ * scripts/pack-release.sh are published, and they no longer carry it.
+ */
+export const PUBLISH_GUARD = "prepublishOnly";
+
+/**
+ * Returns the published form of a workspace `manifest`: without the source
+ * export condition and without the publish guard. Other fields, other
+ * scripts included, are kept as they are.
+ */
+export function toPublishedManifest<T extends Manifest>(manifest: T): T {
+  const published: Manifest = stripSourceCondition(manifest);
+  const scripts = published.scripts;
+  if (isObject(scripts) && PUBLISH_GUARD in scripts) {
+    const { [PUBLISH_GUARD]: _guard, ...rest } = scripts;
+    published.scripts = rest;
+  }
+  return published as T;
+}
+
 function exportTargets(value: unknown, path: string, out: [string, string][]): void {
   if (typeof value === "string") {
     out.push([path, value]);
@@ -98,6 +123,13 @@ export function inspectPackage(manifest: Manifest, files: readonly string[]): st
     if (!present.has(target.replace(/^\.\//, ""))) {
       problems.push(`${path} points to ${target}, which is not in the package`);
     }
+  }
+
+  const scripts = manifest.scripts;
+  if (isObject(scripts) && PUBLISH_GUARD in scripts) {
+    problems.push(
+      `scripts.${PUBLISH_GUARD} is the workspace publish guard, which refuses this tarball too`,
+    );
   }
 
   for (const field of DEPENDENCY_FIELDS) {
@@ -335,7 +367,7 @@ function main(args: readonly string[]): number {
     return 0;
   }
   if (command === "strip" && path !== undefined) {
-    writeFileSync(path, `${JSON.stringify(stripSourceCondition(readManifest(path)), null, 2)}\n`);
+    writeFileSync(path, `${JSON.stringify(toPublishedManifest(readManifest(path)), null, 2)}\n`);
     return 0;
   }
   if (command === "inspect" && path !== undefined) {
