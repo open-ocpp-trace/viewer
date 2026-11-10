@@ -1,0 +1,10 @@
+{
+  // As in examples/standalone: `vp check` type-checks the page against the
+  // package sources (the inherited `@open-ocpp-trace/viewer-source`
+  // condition), while the build resolves the built asset (vite.config.ts).
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["ES2022", "DOM", "DOM.Iterable"]
+  },
+  "include": ["src"]
+}

@@ -1,0 +1,149 @@
+[
+  {
+    "event": "hello",
+    "data": {
+      "serverTime": "2026-10-29T14:32:20.000Z",
+      "startedAt": "2026-10-29T14:00:00.000Z",
+      "maxBufferedMessages": 50
+    }
+  },
+  {
+    "event": "trace",
+    "data": {
+      "id": "trace-a4",
+      "tenantId": "tenant-a",
+      "sessionId": "session-a1",
+      "chargePointId": "CP-001",
+      "seq": 8,
+      "receivedAt": "2026-10-29T14:32:21.000Z",
+      "deliveries": [
+        {
+          "target": "csms-a",
+          "role": "primary",
+          "status": "queued",
+          "updatedAt": "2026-10-29T14:32:21.000Z"
+        },
+        {
+          "target": "csms-b",
+          "role": "secondary",
+          "status": "queued",
+          "updatedAt": "2026-10-29T14:32:21.000Z"
+        }
+      ],
+      "kind": "trace",
+      "trace": {
+        "schemaVersion": "1.1",
+        "timestamp": "2026-10-29T14:32:21.000Z",
+        "ocppVersion": "1.6",
+        "transport": "json",
+        "chargePointId": "CP-001",
+        "direction": "cp-to-csms",
+        "messageType": "CALL",
+        "messageId": "2",
+        "action": "Heartbeat",
+        "payload": {},
+        "raw": "[2,\"2\",\"Heartbeat\",{}]",
+        "meta": {
+          "gateway": {
+            "traceId": "trace-a4",
+            "tenantId": "tenant-a",
+            "sessionId": "session-a1",
+            "seq": 8,
+            "source": {
+              "type": "charge-point",
+              "id": "CP-001"
+            },
+            "destinations": [
+              {
+                "target": "csms-a",
+                "role": "primary"
+              },
+              {
+                "target": "csms-b",
+                "role": "secondary"
+              }
+            ]
+          }
+        }
+      }
+    }
+  },
+  {
+    "event": "delivery",
+    "data": {
+      "id": "trace-a4",
+      "index": 0,
+      "delivery": {
+        "target": "csms-a",
+        "role": "primary",
+        "status": "written",
+        "updatedAt": "2026-10-29T14:32:22.000Z"
+      }
+    }
+  },
+  {
+    "event": "delivery",
+    "data": {
+      "id": "trace-a4",
+      "index": 1,
+      "delivery": {
+        "target": "csms-b",
+        "role": "secondary",
+        "status": "dropped",
+        "reason": "queue-overflow",
+        "updatedAt": "2026-10-29T14:32:22.000Z"
+      }
+    }
+  },
+  {
+    "event": "trace",
+    "data": {
+      "id": "trace-n1",
+      "tenantId": null,
+      "sessionId": "session-n1",
+      "chargePointId": "CP-003",
+      "seq": 1,
+      "receivedAt": "2026-10-29T14:32:23.000Z",
+      "deliveries": [
+        {
+          "target": "csms-a",
+          "role": "primary",
+          "status": "queued",
+          "updatedAt": "2026-10-29T14:32:23.000Z"
+        }
+      ],
+      "kind": "trace",
+      "trace": {
+        "schemaVersion": "1.1",
+        "timestamp": "2026-10-29T14:32:23.000Z",
+        "ocppVersion": "1.6",
+        "transport": "json",
+        "chargePointId": "CP-003",
+        "direction": "cp-to-csms",
+        "messageType": "CALL",
+        "messageId": "1",
+        "action": "Heartbeat",
+        "payload": {},
+        "raw": "[2,\"1\",\"Heartbeat\",{}]",
+        "meta": {
+          "gateway": {
+            "traceId": "trace-n1",
+            "tenantId": null,
+            "sessionId": "session-n1",
+            "seq": 1,
+            "source": {
+              "type": "charge-point",
+              "id": "CP-003"
+            },
+            "destinations": [
+              {
+                "target": "csms-a",
+                "role": "primary"
+              }
+            ]
+          }
+        }
+      }
+    }
+  }
+]

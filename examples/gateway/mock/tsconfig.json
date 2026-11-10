@@ -1,0 +1,10 @@
+{
+  // The mock server runs on Node.js with type stripping: erasable syntax
+  // only, and no DOM.
+  "extends": "../../../tsconfig.base.json",
+  "compilerOptions": {
+    "types": ["node"],
+    "erasableSyntaxOnly": true
+  },
+  "include": ["."]
+}

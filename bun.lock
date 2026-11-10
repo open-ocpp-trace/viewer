@@ -27,6 +27,54 @@
         "@types/react-dom": "19.3.0",
       },
     },
+    "examples/debugkit": {
+      "name": "@open-ocpp-trace/viewer-example-debugkit",
+      "version": "0.0.0",
+      "dependencies": {
+        "@ocpp-debugkit/toolkit": "0.4.8",
+        "@open-ocpp-trace/core": "0.1.0",
+        "@open-ocpp-trace/jsonl": "0.1.0",
+        "@open-ocpp-trace/viewer-core": "workspace:*",
+        "@open-ocpp-trace/viewer-react": "workspace:*",
+        "react": "19.3.1",
+        "react-dom": "19.3.1",
+      },
+      "devDependencies": {
+        "@testing-library/react": "16.3.3",
+        "@types/react": "19.3.0",
+        "@types/react-dom": "19.3.0",
+      },
+    },
+    "examples/gateway": {
+      "name": "@open-ocpp-trace/viewer-example-gateway",
+      "version": "0.0.0",
+      "dependencies": {
+        "@open-ocpp-trace/viewer-standalone": "workspace:*",
+      },
+      "devDependencies": {
+        "@open-ocpp-trace/viewer-core": "workspace:*",
+        "@open-ocpp-trace/viewer-react": "workspace:*",
+      },
+    },
+    "examples/simulator": {
+      "name": "@open-ocpp-trace/viewer-example-simulator",
+      "version": "0.0.0",
+      "dependencies": {
+        "@open-ocpp-trace/core": "0.1.0",
+        "@open-ocpp-trace/jsonl": "0.1.0",
+        "@open-ocpp-trace/viewer-core": "workspace:*",
+        "@open-ocpp-trace/viewer-react": "workspace:*",
+        "react": "19.3.1",
+        "react-dom": "19.3.1",
+      },
+      "devDependencies": {
+        "@testing-library/dom": "10.4.2",
+        "@testing-library/react": "16.3.3",
+        "@testing-library/user-event": "14.6.8",
+        "@types/react": "19.3.0",
+        "@types/react-dom": "19.3.0",
+      },
+    },
     "examples/standalone": {
       "name": "@open-ocpp-trace/viewer-example-standalone",
       "version": "0.0.0",
@@ -117,11 +165,19 @@
 
     "@loaderkit/resolve": ["@loaderkit/resolve@1.0.6", "", { "dependencies": { "@braidai/lang": "^1.0.0" } }, "sha512-G8FdIoF5CypfwmD9rl8BXod5HDn8JqB0CCNBXDTaRZ+yRYhARrrSToX1zg1zy9jX3zLqigsELwhT4gNtkdQAUg=="],
 
+    "@ocpp-debugkit/toolkit": ["@ocpp-debugkit/toolkit@0.4.8", "", { "dependencies": { "commander": "^13.0.0", "zod": "^4.4.3" }, "peerDependencies": { "react": "^18.0.0 || ^19.0.0", "react-dom": "^18.0.0 || ^19.0.0" }, "optionalPeers": ["react", "react-dom"], "bin": { "ocpp-debugkit": "dist/cli/index.js" } }, "sha512-EfuJfvWj4kA2XiOZIQ+mJNO4uO42uQ6eZayqpM+iLp1jdY/qlY1U/F5JO8vvEM04TpsAR5d8iai+IrKPSidoAw=="],
+
     "@open-ocpp-trace/core": ["@open-ocpp-trace/core@0.1.0", "https://npm.pkg.github.com/download/@open-ocpp-trace/core/0.1.0/cad243682df917fdea1fcf29884f7947c2f02c35", {}, "sha512-US6bZlqZepowCAdf6XuuEoXeI1MKBkxxaPXqbkYh+xlRBkz+unBl15gEW5mbYEmh3AXUIqh6ROzwgm9DnknWiw=="],
 
     "@open-ocpp-trace/jsonl": ["@open-ocpp-trace/jsonl@0.1.0", "https://npm.pkg.github.com/download/@open-ocpp-trace/jsonl/0.1.0/3a89a30b2490f6a70e14bc5a12428d18b13ef0f7", { "dependencies": { "@open-ocpp-trace/core": "0.1.0" } }, "sha512-d2s/ZGevHcpNRZCMAYbXVWnm7NtunzjgHvLT0Ljv1SD6j7E9/H3xwJcDDm966vYfAXP0fVNw+Ikiavljc+NmrA=="],
 
     "@open-ocpp-trace/viewer-core": ["@open-ocpp-trace/viewer-core@workspace:packages/core"],
+
+    "@open-ocpp-trace/viewer-example-debugkit": ["@open-ocpp-trace/viewer-example-debugkit@workspace:examples/debugkit"],
+
+    "@open-ocpp-trace/viewer-example-gateway": ["@open-ocpp-trace/viewer-example-gateway@workspace:examples/gateway"],
+
+    "@open-ocpp-trace/viewer-example-simulator": ["@open-ocpp-trace/viewer-example-simulator@workspace:examples/simulator"],
 
     "@open-ocpp-trace/viewer-example-standalone": ["@open-ocpp-trace/viewer-example-standalone@workspace:examples/standalone"],
 
@@ -587,7 +643,11 @@
 
     "yuku-parser": ["yuku-parser@0.19.0", "", { "dependencies": { "@yuku-toolchain/types": "^0.19.0", "yuku-core": "0.19.0" } }, "sha512-XrBh9ZiQK5mJVRxZBAvD6LwRyAYrK3MFtH3+onyuxFL5hFD44EC3QOmIC1FjTj6H2MMwq46/NAI+NZxLZPZgxg=="],
 
+    "zod": ["zod@4.6.7", "", {}, "sha512-g8W2D2kU6a8untc053fX1uVBKzM7yqAxW/3zwk83+6RyF2+SKOuV+c0wBDhUwzV1PaGapmZH+rmcUzPf+3CGwg=="],
+
     "@arethetypeswrong/core/typescript": ["typescript@5.6.1-rc", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-E3b2+1zEFu84jB0YQi9BORDjz9+jGbwwy1Zi3G0LUNw7a7cePUrHMRNy8aPh53nXpkFGVHSxIZo5vKTfYaFiBQ=="],
+
+    "@ocpp-debugkit/toolkit/commander": ["commander@13.1.0", "", {}, "sha512-/rFeCpNJQbhSZjGVwO9RFV3xPqbnERS8MmIQzCtD/zl6gpJuV/bMLuN92oG3F7d8oDEHHRrujSXNUr8fpjntKw=="],
 
     "@open-ocpp-trace/viewer-react-18-test/react": ["react@18.3.1", "", { "dependencies": { "loose-envify": "^1.1.0" } }, "sha512-wS+hAgJShR0KhEvPJArfuPVN1+Hz1t0Y6n5jLrGQbkb4urgPE/0Rve+1kMB1v/oWgHgm4WIcV+i7F2pTVj+2iQ=="],
 

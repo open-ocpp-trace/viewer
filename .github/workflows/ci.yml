@@ -125,6 +125,12 @@ jobs:
       # Imports the packed viewer-standalone dist/, so it runs after the pack.
       - name: Build the standalone example
         run: vp run @open-ocpp-trace/viewer-example-standalone#build
+      # Imports the packed viewer-core and viewer-react dist/, after the pack.
+      - name: Build the simulator example
+        run: vp run @open-ocpp-trace/viewer-example-simulator#build
+      # Imports the packed viewer-standalone dist/ too.
+      - name: Build the gateway example
+        run: vp run @open-ocpp-trace/viewer-example-gateway#build
 
   smoke:
     name: Clean-consumer smoke test (React 18 and 19)

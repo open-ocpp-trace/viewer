@@ -1,0 +1,20 @@
+{
+  "name": "@open-ocpp-trace/viewer-example-gateway",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Vanilla page that feeds the built viewer-standalone asset from the OCPP Gateway's viewer server-sent events.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vp dev",
+    "build": "vp build",
+    "mock": "node --experimental-strip-types mock/server.ts"
+  },
+  "dependencies": {
+    "@open-ocpp-trace/viewer-standalone": "workspace:*"
+  },
+  "devDependencies": {
+    "@open-ocpp-trace/viewer-core": "workspace:*",
+    "@open-ocpp-trace/viewer-react": "workspace:*"
+  }
+}

@@ -87,12 +87,42 @@ export default defineConfig({
         },
       },
       {
+        // The OCPP Gateway example: its adapter, SSE parser and transport
+        // are DOM-free, so they run under Node.js.
+        test: {
+          name: "gateway",
+          include: ["examples/gateway/test/**/*.test.ts"],
+          exclude: [...configDefaults.exclude, "examples/gateway/test/**/*.dom.test.ts"],
+        },
+      },
+      {
+        // The gateway page's counters against a mounted viewer-standalone.
+        test: {
+          name: "gateway-dom",
+          include: ["examples/gateway/test/**/*.dom.test.ts"],
+          environment: "happy-dom",
+        },
+      },
+      {
         test: {
           name: "react",
           include: ["packages/react/test/**/*.test.{ts,tsx}"],
           exclude: [...configDefaults.exclude, "packages/react/test/react-18.test.tsx"],
           environment: "happy-dom",
           setupFiles: ["packages/react/test/setup.ts"],
+        },
+      },
+      // The DebugKit integration example (examples/debugkit/**/*.test.{ts,tsx}),
+      // configured by its own vite.config.ts.
+      "examples/debugkit",
+      {
+        // The simulator example: its adapter against the captured fixture,
+        // and a render of its page.
+        test: {
+          name: "example-simulator",
+          include: ["examples/simulator/test/**/*.test.{ts,tsx}"],
+          environment: "happy-dom",
+          setupFiles: ["examples/simulator/test/setup.ts"],
         },
       },
       {

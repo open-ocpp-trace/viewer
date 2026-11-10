@@ -1,0 +1,77 @@
+[
+  {
+    "event": "hello",
+    "data": {
+      "serverTime": "2026-10-29T14:32:40.000Z",
+      "startedAt": "2026-10-29T14:32:30.000Z",
+      "maxBufferedMessages": 50
+    }
+  },
+  {
+    "event": "trace",
+    "data": {
+      "id": "trace-b5",
+      "tenantId": "tenant-b",
+      "sessionId": "session-b2",
+      "chargePointId": "CP-002",
+      "seq": 1,
+      "receivedAt": "2026-10-29T14:32:41.000Z",
+      "deliveries": [
+        {
+          "target": "csms-c",
+          "role": "primary",
+          "status": "queued",
+          "updatedAt": "2026-10-29T14:32:41.000Z"
+        }
+      ],
+      "kind": "trace",
+      "trace": {
+        "schemaVersion": "1.1",
+        "timestamp": "2026-10-29T14:32:41.000Z",
+        "ocppVersion": "1.6",
+        "transport": "json",
+        "chargePointId": "CP-002",
+        "direction": "cp-to-csms",
+        "messageType": "CALL",
+        "messageId": "1",
+        "action": "BootNotification",
+        "payload": {
+          "chargePointVendor": "Acme",
+          "chargePointModel": "AC-22"
+        },
+        "raw": "[2,\"1\",\"BootNotification\",{\"chargePointVendor\":\"Acme\",\"chargePointModel\":\"AC-22\"}]",
+        "meta": {
+          "gateway": {
+            "traceId": "trace-b5",
+            "tenantId": "tenant-b",
+            "sessionId": "session-b2",
+            "seq": 1,
+            "source": {
+              "type": "charge-point",
+              "id": "CP-002"
+            },
+            "destinations": [
+              {
+                "target": "csms-c",
+                "role": "primary"
+              }
+            ]
+          }
+        }
+      }
+    }
+  },
+  {
+    "event": "delivery",
+    "data": {
+      "id": "trace-b5",
+      "index": 0,
+      "delivery": {
+        "target": "csms-c",
+        "role": "primary",
+        "status": "submitted",
+        "updatedAt": "2026-10-29T14:32:42.000Z"
+      }
+    }
+  }
+]

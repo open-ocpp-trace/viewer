@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>OCPP Gateway live traces</title>
+  </head>
+  <body>
+    <!--
+      data-events-url: the gateway's event stream, relative to this page
+      (default "events"); data-credentials: omit, same-origin (default) or
+      include; data-headers: a JSON object of extra request headers.
+    -->
+    <main id="gateway" class="page">
+      <header class="page__header">
+        <h1>OCPP Gateway live traces</h1>
+        <p class="page__source">Events from <code id="events-url"></code></p>
+      </header>
+      <section class="page__status" aria-label="Connection">
+        <p id="status" class="status" data-state="connecting" role="status">Connecting…</p>
+        <dl class="counters" aria-label="Adapter">
+          <div>
+            <dt>Received</dt>
+            <dd id="count-received">0</dd>
+          </div>
+          <div>
+            <dt>Delivery updates</dt>
+            <dd id="count-delivery-updates">0</dd>
+          </div>
+          <div>
+            <dt>Ignored updates</dt>
+            <dd id="count-ignored-updates">0</dd>
+          </div>
+          <div>
+            <dt>Dropped by the gateway</dt>
+            <dd id="count-dropped-by-server">0</dd>
+          </div>
+          <div>
+            <dt>Delivery states evicted</dt>
+            <dd id="count-delivery-states-evicted">0</dd>
+          </div>
+          <div>
+            <dt>Invalid events</dt>
+            <dd id="count-invalid">0</dd>
+          </div>
+        </dl>
+        <dl class="counters" aria-label="Viewer">
+          <div>
+            <dt>Listed</dt>
+            <dd id="viewer-listed">0</dd>
+          </div>
+          <div>
+            <dt>Pending (paused)</dt>
+            <dd id="viewer-pending">0</dd>
+          </div>
+          <div>
+            <dt>Rows evicted</dt>
+            <dd id="viewer-evicted">0</dd>
+          </div>
+          <div>
+            <dt>Pending dropped</dt>
+            <dd id="viewer-dropped-pending">0</dd>
+          </div>
+          <div>
+            <dt>Unknown updates</dt>
+            <dd id="viewer-unknown-updates">0</dd>
+          </div>
+          <div>
+            <dt>Stale updates</dt>
+            <dd id="viewer-stale-updates">0</dd>
+          </div>
+          <div>
+            <dt>Invalid updates</dt>
+            <dd id="viewer-invalid">0</dd>
+          </div>
+        </dl>
+      </section>
+      <p id="notice" class="page__notice" role="alert" hidden></p>
+      <div id="viewer" class="page__viewer"></div>
+    </main>
+    <script type="module" src="./src/main.ts"></script>
+  </body>
+</html>
