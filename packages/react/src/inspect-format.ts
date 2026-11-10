@@ -21,6 +21,24 @@ export function sensitiveKeySet(keys: readonly string[]): ReadonlySet<string> {
   return new Set(keys.map((key) => key.toLowerCase()));
 }
 
+/**
+ * Whether a property name is one of `keys` (see {@link sensitiveKeySet}),
+ * case-insensitively; null matches nothing. Shared by the inspector and the
+ * redacted export, so both hide the same properties.
+ */
+export function sensitiveKeyMatcher(keys: ReadonlySet<string> | null): (key: string) => boolean {
+  if (keys === null || keys.size === 0) return () => false;
+  let longestKey = 0;
+  for (const key of keys) longestKey = Math.max(longestKey, key.length);
+  return (key) => key.length <= longestKey && keys.has(key.toLowerCase());
+}
+
+/** The value written in place of a sensitive property's value, in the export. */
+export const REDACTED: string = defaultStrings.inspector.markers.redacted;
+
+/** Longest raw frame checked for sensitive keys; a longer one is hidden or dropped. */
+export const RAW_SCAN_MAX = 1_000_000;
+
 /** Default depth past which containers print as `{…}` / `[…]`. */
 export const DEFAULT_MAX_DEPTH = 64;
 
@@ -78,8 +96,7 @@ type Task =
 export function formatValue(value: unknown, options: FormatOptions): Formatted {
   const { maxChars, maxDepth, sensitiveKeys } = options;
   const markers = options.markers ?? defaultStrings.inspector.markers;
-  let longestKey = 0;
-  for (const key of sensitiveKeys ?? []) longestKey = Math.max(longestKey, key.length);
+  const isSensitive = sensitiveKeyMatcher(sensitiveKeys);
   const out: string[] = [];
   let length = 0;
   let truncated = false;
@@ -105,8 +122,6 @@ export function formatValue(value: unknown, options: FormatOptions): Formatted {
     emit(JSON.stringify(text.length > room ? text.slice(0, room) : text));
   };
   const indent = (depth: number): string => `\n${"  ".repeat(depth)}`;
-  const isSensitive = (key: string): boolean =>
-    sensitiveKeys !== null && key.length <= longestKey && sensitiveKeys.has(key.toLowerCase());
 
   const open = (item: object, depth: number): Task | null => {
     if (ancestors.has(item)) {
