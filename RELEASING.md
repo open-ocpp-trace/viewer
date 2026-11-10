@@ -86,7 +86,9 @@ its publish job then runs without approval from any branch.
    Environments): required reviewers (the maintainers) and deployment
    branches restricted to `main`. The publish job of every run, dry runs
    included, waits for a reviewer and, with that branch rule, runs only
-   from `main`; on another branch only the `verify` job runs. Enable
+   from `main`. On another branch the environment rejects the `publish`
+   job, so a dry run there checks `verify` only and the run ends
+   failed. Enable
    « Prevent self-review » only when at least two people are required
    reviewers, otherwise the person who starts a run can never approve it.
 
