@@ -50,8 +50,9 @@ jobs:
               case "$path" in
                 packages/* | apps/* | examples/* | scripts/*) code=true ;;
                 package.json | bun.lock | .npmrc | tsconfig.base.json | vite.config.ts) code=true ;;
-                # scripts/release-workflow.test.ts checks release.yml.
-                .github/workflows/ci.yml | .github/workflows/release.yml) code=true ;;
+                # actionlint lints every workflow; scripts/release-workflow.test.ts
+                # checks release.yml.
+                .github/workflows/*) code=true ;;
               esac
             done <<EOF
           $changed
@@ -70,6 +71,32 @@ jobs:
         with:
           persist-credentials: false
       - run: shellcheck --version && shellcheck scripts/*.sh
+
+  actionlint:
+    name: Lint the workflows
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # The release tarball is checked against the sha256 published in
+      # actionlint_1.7.12_checksums.txt of rhysd/actionlint v1.7.12.
+      # actionlint also runs the shellcheck preinstalled on the runner
+      # over the `run:` scripts.
+      - name: Install actionlint 1.7.12
+        env:
+          VERSION: 1.7.12
+          SHA256: 8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8
+        run: |
+          tarball="actionlint_${VERSION}_linux_amd64.tar.gz"
+          curl -fsSL -o "$RUNNER_TEMP/$tarball" \
+            "https://github.com/rhysd/actionlint/releases/download/v${VERSION}/${tarball}"
+          echo "$SHA256  $RUNNER_TEMP/$tarball" | sha256sum --check --strict
+          tar -xzf "$RUNNER_TEMP/$tarball" -C "$RUNNER_TEMP" actionlint
+          echo "$RUNNER_TEMP" >> "$GITHUB_PATH"
+      - run: actionlint --version && actionlint
 
   checks:
     name: Check, test and build (Node.js ${{ matrix.node }})
@@ -182,7 +209,7 @@ jobs:
 
   ci-result:
     name: ci-result
-    needs: [changes, shellcheck, checks, smoke]
+    needs: [changes, shellcheck, actionlint, checks, smoke]
     if: always()
     runs-on: ubuntu-latest
     steps:
