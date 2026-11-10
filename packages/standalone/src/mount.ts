@@ -92,6 +92,8 @@ export interface LiveOptions {
   readonly revealSensitive?: boolean | undefined;
   /** Property names the detail panel redacts. */
   readonly sensitiveKeys?: readonly string[] | undefined;
+  /** Redacts the exports with `sensitiveKeys`; default false. */
+  readonly redactExport?: boolean | undefined;
   /** Receives an export the user asked for; the export buttons show only with it. */
   readonly onExport?: ((exported: JsonlExport, scope: ExportScope) => void) | undefined;
   /** The color scheme and token overrides of this viewer. */
@@ -164,6 +166,7 @@ const LIVE_KEYS = Object.keys({
   onCopy: true,
   revealSensitive: true,
   sensitiveKeys: true,
+  redactExport: true,
   onExport: true,
   theme: true,
   strings: true,

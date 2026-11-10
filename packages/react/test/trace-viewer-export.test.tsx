@@ -123,3 +123,51 @@ describe("<TraceViewer> export actions", () => {
     expect(screen.getByText("Exported 3 records (1 skipped)")).toBeTruthy();
   });
 });
+
+describe("<TraceViewer redactExport>", () => {
+  const SECRET: ViewerEntry[] = [
+    sdkEntry("s", { action: "Authorize", payload: { idTag: "SECRET-1", token: "SECRET-2" } }),
+  ];
+
+  function exportBoth(props: Partial<Parameters<typeof TraceViewer>[0]>): JsonlExport[] {
+    const onExport = vi.fn();
+    render(
+      <TraceViewer
+        store={storeWith(SECRET)}
+        defaultSelection={{ entryId: "s" }}
+        onExport={onExport}
+        {...props}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Export selection" }));
+    fireEvent.click(screen.getByRole("button", { name: "Export filtered" }));
+    expect(onExport).toHaveBeenCalledTimes(2);
+    return onExport.mock.calls.map((call) => call[0] as JsonlExport);
+  }
+
+  it("exports records unmodified by default, even when the panel redacts", () => {
+    for (const exported of exportBoth({})) {
+      expect(exported.text).toContain("SECRET-1");
+      expect(exported.text).not.toContain("redaction");
+    }
+  });
+
+  it("redacts both exports with the default sensitive keys", () => {
+    for (const exported of exportBoth({ redactExport: true })) {
+      expect(exported.text).not.toContain("SECRET-1");
+      expect(exported.text).toContain("SECRET-2");
+      expect(JSON.parse(exported.text).meta.redaction).toEqual({
+        by: "@open-ocpp-trace/viewer-react",
+        rawDropped: false,
+      });
+    }
+  });
+
+  it("redacts with the sensitiveKeys prop, whatever revealSensitive says", () => {
+    const props = { redactExport: true, sensitiveKeys: ["token"], revealSensitive: true };
+    for (const exported of exportBoth(props)) {
+      expect(exported.text).toContain("SECRET-1");
+      expect(exported.text).not.toContain("SECRET-2");
+    }
+  });
+});

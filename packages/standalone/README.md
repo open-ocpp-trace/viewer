@@ -67,9 +67,18 @@ Live options have the meaning of the `<TraceViewer>` props of the same name
 (see the viewer-react README): `fields`, `payloadSearch`, `columns`, `filter`,
 `defaultFilter`, `onFilterChange`, `selection`, `defaultSelection`,
 `onSelectionChange(selection, entry)`, `loading`, `error`, `onCopy`,
-`revealSensitive`, `sensitiveKeys`, `onExport`, `theme`, `strings`,
-`translate`, `toolbarActions` and `onError`. Callbacks are read when called: a
-new function passed to `setOptions` never re-runs an earlier change.
+`revealSensitive`, `sensitiveKeys`, `redactExport`, `onExport`, `theme`,
+`strings`, `translate`, `toolbarActions` and `onError`. Callbacks are read
+when called: a new function passed to `setOptions` never re-runs an earlier
+change.
+
+`redactExport: true` makes both export buttons write a redacted export (see
+the viewer-react README, § Redacted export): the value of every property
+named in `sensitiveKeys` (default `defaultSensitiveKeys`) becomes
+`"[redacted]"`, a `raw` frame that holds one, or cannot be checked (SOAP, not
+JSON, over 1 000 000 characters), is dropped, and each record gets
+`meta.redaction = { by: "@open-ocpp-trace/viewer-react", rawDropped }`. It is
+off by default: exports are faithful, sensitive fields included.
 
 `onError(error, context)` receives the errors of host callbacks and of the
 viewer's own store, correlator and filter engine, with a `ViewerErrorContext`

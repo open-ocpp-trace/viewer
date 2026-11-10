@@ -51,6 +51,7 @@ export function Traces(): ReactElement {
 | `payloadSearch`                                               | Lets the text search read payloads                                          |
 | `loading`, `error`                                            | Host status, shown in the list                                              |
 | `onExport`                                                    | Shows the export buttons and receives the JSONL text built by `exportJsonl` |
+| `redactExport`                                                | Redacts the exports ([Redacted export](#redacted-export))                   |
 | `onCopy`, `renderPayload`, `revealSensitive`, `sensitiveKeys` | Inspector behaviour                                                         |
 | `theme`                                                       | Color scheme and tokens of this viewer ([Theming](#theming))                |
 | `strings`, `translate`                                        | Localization ([Localization](#localization))                                |
@@ -272,6 +273,32 @@ action or the panel is disabled or hidden, and the viewer stays mounted.
 - `onExport(exported, scope)`: receives the JSONL export of the selection or of the filtered entries.
 
 `onSelectionChange` is read at call time: a new function per render is never called for an earlier change.
+
+## Redacted export
+
+Exports are faithful by default: records are written unmodified, sensitive fields included. A host that hands
+exports to third parties sets `redactExport` on `<TraceViewer>`; both export buttons then call
+`exportJsonl(entries, { redact: true, sensitiveKeys })` with the `sensitiveKeys` prop (default
+`defaultSensitiveKeys`). `revealSensitive` only affects the detail panel, never the export. The viewer shows no
+control for it: the host decides the policy.
+
+- The value of every property whose name is a sensitive key, case-insensitively, at any depth and inside arrays,
+  becomes `"[redacted]"`, as in the detail panel. This applies to `payload`, `error` (all but `code`), `meta` and
+  unknown top-level fields; schema fields (`messageId`, `action`, `timestamp`…) are never touched. The redaction
+  works on the record's JSON form (every `toJSON` applied, every getter read once), so what is written is exactly
+  what was checked.
+- `raw` is kept verbatim when it is a JSON frame of at most 1 000 000 characters whose parse holds no sensitive
+  key. Otherwise it is dropped, never rewritten: a frame holding a sensitive key, a SOAP frame, a frame that is
+  not JSON or a larger one.
+- Each record gets `meta.redaction = { by: "@open-ocpp-trace/viewer-react", rawDropped }`, added after `meta`
+  itself is redacted and replacing any producer value under that key. `rawDropped` is true when the record had
+  a `raw` that was dropped. The marker names no key and no value.
+- A record the redaction cannot read or serialize (a throwing getter or proxy, a cycle, too deep a nesting) is
+  counted in `skipped.invalid`, never written unredacted, and so is a record whose `meta` is `null`, as in the
+  faithful export. The input entries are never mutated.
+
+Matching is by property name only: a secret carried as a value, such as the value of a `SetVariables` entry
+whose variable is `BasicAuthPassword`, is not detected.
 
 ## Error reporting
 
