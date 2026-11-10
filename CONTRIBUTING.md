@@ -48,13 +48,13 @@ a pull request touches `packages/`, `apps/`, `examples/`, `scripts/`, the root
 configuration, the lockfile or the workflow itself, and on every push to
 `main`. Its jobs are:
 
-| Job                                                                        | Runs                                                                      |
-| -------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
-| `Shellcheck shell scripts`                                                 | `shellcheck scripts/*.sh`                                                 |
-| `Lint the workflows`                                                       | `actionlint` 1.7.12 over every workflow, shellcheck on the `run:` steps   |
-| `Check, test and build (Node.js 22)`, `Check, test and build (Node.js 24)` | install, `vp check`, `vp test`, `vp run -r pack`, the playground build    |
-| `Clean-consumer smoke test (React 18 and 19)`                              | `scripts/smoke-consumer.sh` (`vp run smoke`) on Node.js 22                |
-| `ci-result`                                                                | succeeds when every job above succeeded or was skipped by the path filter |
+| Job                                                                                                              | Runs                                                                      |
+| ---------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| `Shellcheck shell scripts`                                                                                       | `shellcheck scripts/*.sh`                                                 |
+| `Lint the workflows`                                                                                             | `actionlint` 1.7.12 over every workflow, shellcheck on the `run:` steps   |
+| `Check, test and build (Node.js 22)`, `Check, test and build (Node.js 24)`, `Check, test and build (Node.js 26)` | install, `vp check`, `vp test`, `vp run -r pack`, the playground build    |
+| `Clean-consumer smoke test (React 18 and 19)`                                                                    | `scripts/smoke-consumer.sh` (`vp run smoke`) on Node.js 22                |
+| `ci-result`                                                                                                      | succeeds when every job above succeeded or was skipped by the path filter |
 
 `ci-result` is the only required check. It always reports, so a
 documentation-only pull request gets a green check without running the
