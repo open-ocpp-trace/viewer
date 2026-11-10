@@ -38,10 +38,10 @@ It has no DOM or React dependency.
   `TraceFilter` up to date with their counts: kinds, time range, charge
   points, connectors, OCPP versions, directions, message types, actions,
   message ids, sessions, tenants, sources, delivery statuses, host-defined
-  fields (`FilterFieldDefinition`) and a metadata text search. Payloads,
-  raw frames and error details are searched only on an engine created with
-  `payloadSearch: true`. A malformed filter is rejected with a
-  `RangeError`.
+  fields (`FilterFieldDefinition`) and a metadata text search. An engine
+  created with `payloadSearch: true` allows a filter with
+  `searchPayloads: true`, which also searches payloads, raw frames and
+  error details. A malformed filter is rejected with a `RangeError`.
 - `computeStats`, which counts the observed values of entries to build
   filter choices, and `readEntryFields`, which reads the display values of
   an entry as a filter reads them.

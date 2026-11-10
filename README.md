@@ -166,11 +166,14 @@ is a complete page.
   `correlation`, `adapter`, `entries` and `nonce` are mount-only options:
   `setOptions` throws a `TypeError` for them. Unmount and mount again to
   change them.
-- **Payload search is opt-in.** The text search reads metadata only, unless
-  the filter engine is created with `payloadSearch: true` (the
+- **Payload search is opt-in, in two steps.** The text search reads
+  metadata only. Creating the filter engine with `payloadSearch: true` (the
   `payloadSearch` prop of `<TraceViewer>`, or the live option of
-  viewer-standalone). Only then does it read payloads, raw frames and error
-  details.
+  viewer-standalone) only allows payload search: in the UI it shows a
+  "Search payloads" checkbox. The search reads payloads, raw frames and
+  error details once the filter sets `searchPayloads: true`, or the user
+  ticks that checkbox. Without the option, `setFilter` rejects
+  `searchPayloads: true` with a `RangeError`.
 - **Redacted export.** Exports are faithful by default; `redactExport`
   replaces the value of each sensitive key with `"[redacted]"`. It drops the
   `raw` frame of a record when the frame holds a sensitive key or cannot be

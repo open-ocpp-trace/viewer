@@ -75,7 +75,7 @@ The component props are exported as `TraceViewerProps`, `TraceListProps`, `Filte
 | `store`                                                       | The entries to show (required)                                              |
 | `filter` / `defaultFilter` / `onFilterChange`                 | Controlled or uncontrolled `TraceFilter`                                    |
 | `selection` / `defaultSelection` / `onSelectionChange`        | Controlled or uncontrolled `ViewerSelection`                                |
-| `payloadSearch`                                               | Lets the text search read payloads                                          |
+| `payloadSearch`                                               | Shows a "Search payloads" checkbox that extends the text search to payloads |
 | `loading`, `error`                                            | Host status, shown in the list                                              |
 | `onExport`                                                    | Shows the export buttons and receives the JSONL text built by `exportJsonl` |
 | `redactExport`                                                | Redacts the exports ([Redacted export](#redacted-export))                   |
