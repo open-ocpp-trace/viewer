@@ -87,6 +87,28 @@ function runBodies(lines: readonly string[]): readonly string[] {
   return bodies;
 }
 
+/** The lines of the step named `name`, from its `- name:` line on. */
+function stepOf(lines: readonly string[], name: string): readonly string[] {
+  const start = lines.findIndex((line) => line.trim() === `- name: ${name}`);
+  if (start === -1) return [];
+  const indent = indentOf(lines[start] ?? "");
+  const step = [lines[start] ?? ""];
+  for (let index = start + 1; index < lines.length; index += 1) {
+    const line = lines[index] ?? "";
+    if (!isBlankOrComment(line) && indentOf(line) <= indent) break;
+    step.push(line);
+  }
+  return step;
+}
+
+/** The trimmed, non-blank lines of a shell body. */
+function shellLines(body: string): readonly string[] {
+  return body
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => line !== "");
+}
+
 function text(lines: readonly string[]): string {
   return lines.join("\n");
 }
@@ -180,6 +202,30 @@ describe("release workflow", () => {
     expect(verify).toContain('git ls-remote --exit-code --tags "$REPOSITORY_URL" "refs/tags/$TAG"');
     expect(verify).toContain(`for package in ${PACKAGES.join(" ")}; do`);
     expect(verify).toContain("grep -q 'code E404'");
+    expect(publish).toContain("grep -q 'code E404'");
+  });
+
+  it("fails the job on every error it reports", () => {
+    const errors = runBodies(readWorkflow()).flatMap((body) => {
+      const lines = shellLines(body);
+      return lines.flatMap((line, index) =>
+        line.includes("::error::") ? [{ error: line, then: lines[index + 1] }] : [],
+      );
+    });
+    expect(errors.length).toBeGreaterThan(0);
+    for (const { error, then } of errors) {
+      expect({ error, then }).toEqual({
+        error,
+        then: expect.stringMatching(/^(status=1|exit 1)$/),
+      });
+    }
+  });
+
+  it("checks every condition of a release before failing on any", () => {
+    const step = stepOf(readWorkflow(), "Check that this version is not released yet");
+    const lines = shellLines(runBodies(step).join("\n"));
+    expect(lines.at(0)).toBe("status=0");
+    expect(lines.at(-1)).toBe('exit "$status"');
   });
 
   it("packs, verifies, then checks the lockstep of the three packages", () => {
