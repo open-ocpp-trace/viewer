@@ -50,7 +50,8 @@ jobs:
               case "$path" in
                 packages/* | apps/* | examples/* | scripts/*) code=true ;;
                 package.json | bun.lock | .npmrc | tsconfig.base.json | vite.config.ts) code=true ;;
-                .github/workflows/ci.yml) code=true ;;
+                # scripts/release-workflow.test.ts checks release.yml.
+                .github/workflows/ci.yml | .github/workflows/release.yml) code=true ;;
               esac
             done <<EOF
           $changed
