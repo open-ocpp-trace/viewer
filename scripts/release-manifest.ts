@@ -10,7 +10,10 @@
 //                                                           if not in lockstep
 //
 // `lockstep` also takes the committed packages/*/package.json files (any
-// argument ending in `.json`), to check the versions before packing.
+// argument ending in `.json`), to check the versions before packing. It
+// also checks that the `VIEWER_*_VERSION` literal in each package's
+// src/index.ts, found in this workspace through `repository.directory`,
+// is the shared version.
 // `strip` is only ever run on the copy extracted from a tarball, never on
 // a committed package.json.
 
@@ -161,6 +164,63 @@ export function lockstepProblems(manifests: readonly Manifest[]): string[] {
   return problems;
 }
 
+/**
+ * Name of the constant through which a package exposes its own version:
+ * `@open-ocpp-trace/viewer-core` declares `VIEWER_CORE_VERSION`.
+ */
+function versionConstantName(manifest: Manifest): string {
+  const suffix = String(manifest.name).slice(SCOPE_PREFIX.length);
+  return `VIEWER_${suffix.toUpperCase().replace(/-/g, "_")}_VERSION`;
+}
+
+/**
+ * Lists why the `src/index.ts` of a package (its text in `source`) does not
+ * expose `version`: it must declare its `VIEWER_*_VERSION` constant as a
+ * string literal equal to the shared version. An empty list means it does.
+ */
+export function versionConstantProblems(
+  manifest: Manifest,
+  version: string,
+  source: string,
+): string[] {
+  const constant = versionConstantName(manifest);
+  const declaration = new RegExp(`export const ${constant}(?:: string)? = "([^"]*)";`);
+  const literal = declaration.exec(source)?.[1];
+  const name = String(manifest.name);
+  if (literal === undefined) {
+    return [`${name} src/index.ts declares no ${constant} string literal`];
+  }
+  return literal === version ? [] : [`${name} ${constant} is ${literal}, not ${version}`];
+}
+
+/**
+ * Checks the `VIEWER_*_VERSION` constant of each package against `version`,
+ * reading `src/index.ts` from the workspace directory named by the
+ * manifest's `repository.directory`.
+ */
+function versionConstantsInWorkspace(manifests: readonly Manifest[], version: string): string[] {
+  const workspace = resolve(fileURLToPath(import.meta.url), "..", "..");
+  const problems: string[] = [];
+  for (const manifest of manifests) {
+    const repository = manifest.repository;
+    const directory = isObject(repository) ? repository.directory : undefined;
+    if (typeof directory !== "string") {
+      problems.push(`${String(manifest.name)} has no repository.directory`);
+      continue;
+    }
+    const path = resolve(workspace, directory, "src", "index.ts");
+    let source: string;
+    try {
+      source = readFileSync(path, "utf8");
+    } catch {
+      problems.push(`${String(manifest.name)} has no ${path}`);
+      continue;
+    }
+    problems.push(...versionConstantProblems(manifest, version, source));
+  }
+  return problems;
+}
+
 function readManifest(path: string): Manifest {
   const manifest: unknown = JSON.parse(readFileSync(path, "utf8"));
   if (!isObject(manifest)) throw new Error(`${path} is not a JSON object`);
@@ -197,6 +257,10 @@ function main(args: readonly string[]): number {
       else problems.push(`${source}: package.json is not a JSON object`);
     }
     problems.push(...lockstepProblems(manifests));
+    const version = manifests[0]?.version;
+    if (typeof version === "string") {
+      problems.push(...versionConstantsInWorkspace(manifests, version));
+    }
     for (const problem of problems) console.error(`lockstep: ${problem}`);
     if (problems.length > 0) return 1;
     console.log(String(manifests[0]?.version));
