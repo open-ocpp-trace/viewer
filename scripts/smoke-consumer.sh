@@ -2,10 +2,10 @@
 # Clean-consumer smoke test of the packed packages.
 #
 # Builds every package, packs viewer-core, viewer-react and
-# viewer-standalone with `bun pm pack` (which replaces `workspace:*` with
-# the real version) and checks every tarball with publint --strict and
-# attw --profile esm-only (the packages are ESM only, so CommonJS
-# resolutions are not required). Then, for React 18 and React 19, installs
+# viewer-standalone with scripts/pack-release.sh (the tarballs the release
+# publishes: `workspace:*` pinned, the development-only export condition
+# stripped, LICENSE added) and checks them with scripts/verify-packages.sh
+# (contents, publint, attw). Then, for React 18 and React 19, installs
 # the three tarballs with npm into a throwaway project outside the
 # workspace, next to that React version and its @types packages, and:
 #   1. imports viewer-core under Node.js and under Bun (no React, no DOM);
@@ -46,7 +46,6 @@ set -eu
 
 workspace=$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)
 fixtures="$workspace/scripts/smoke-consumer"
-bin="$workspace/node_modules/.bin"
 tsc="$workspace/node_modules/typescript/bin/tsc"
 
 # Exact versions, so a run is reproducible; the majors are the peer range
@@ -98,22 +97,11 @@ npm_install() {
 step "build every package"
 (cd "$workspace" && vp run -r pack)
 
-step "pack the packages"
-mkdir "$tmp/tarballs"
-for package in core react standalone; do
-  (cd "$workspace/packages/$package" && bun pm pack --destination "$tmp/tarballs" --quiet >/dev/null)
-done
-ls "$tmp/tarballs"
+step "pack the packages as published"
+sh "$workspace/scripts/pack-release.sh" "$tmp/tarballs" core react standalone
 
-step "verify the tarballs (publint, attw)"
-for tarball in "$tmp"/tarballs/*.tgz; do
-  printf '\nsmoke: verify %s\n' "$(basename -- "$tarball")"
-  "$bin/publint" --strict "$tarball"
-  # viewer-react's `./styles.css` export is a stylesheet, which has no
-  # type declarations for attw to find.
-  "$bin/attw" "$tarball" --profile esm-only --format ascii \
-    --exclude-entrypoints ./styles.css
-done
+step "verify the tarballs"
+sh "$workspace/scripts/verify-packages.sh" "$tmp"/tarballs/*.tgz
 
 for react_version in $react_versions; do
   major=${react_version%%.*}
