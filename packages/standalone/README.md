@@ -5,6 +5,27 @@ The Open OCPP Trace viewer for pages that do not use React. It is the
 bundled React copy inside a shadow root: the host installs neither `react`
 nor `react-dom`, and there is no second DOM renderer to keep in sync.
 
+## Install
+
+The package is published to GitHub Packages from 0.1.0. Map the
+`@open-ocpp-trace` scope and set a token with `read:packages` first, as the
+[root README](../../README.md#registry-setup) shows, then:
+
+```sh
+npm install @open-ocpp-trace/viewer-standalone
+pnpm add @open-ocpp-trace/viewer-standalone
+bun add @open-ocpp-trace/viewer-standalone
+```
+
+It has no dependencies: React, React DOM, the viewer packages and the SDK
+are bundled into `dist/index.js`. With a bundler, import it by its package
+name. Without one, copy
+`node_modules/@open-ocpp-trace/viewer-standalone/dist/index.js` to the
+assets your page serves, as in [Usage](#usage).
+`THIRD_PARTY_NOTICES.md`, shipped in the package, lists the versions and
+licenses of the bundled packages; keep it with the asset when you
+redistribute it.
+
 ## Usage
 
 The package ships one self-contained ES module, `dist/index.js`. Serve it
