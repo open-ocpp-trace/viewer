@@ -1,0 +1,27 @@
+{
+  "name": "@open-ocpp-trace/viewer-example-debugkit",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Host-side integration of the Open OCPP Trace viewer with OCPP DebugKit.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vp dev",
+    "build": "vp build",
+    "test": "vp test"
+  },
+  "dependencies": {
+    "@ocpp-debugkit/toolkit": "0.4.8",
+    "@open-ocpp-trace/core": "0.1.0",
+    "@open-ocpp-trace/jsonl": "0.1.0",
+    "@open-ocpp-trace/viewer-core": "workspace:*",
+    "@open-ocpp-trace/viewer-react": "workspace:*",
+    "react": "19.3.1",
+    "react-dom": "19.3.1"
+  },
+  "devDependencies": {
+    "@testing-library/react": "16.3.3",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0"
+  }
+}

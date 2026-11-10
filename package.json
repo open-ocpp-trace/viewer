@@ -5,7 +5,8 @@
     "packages/*",
     "packages/react/test/react-18",
     "apps/*",
-    "examples/standalone"
+    "examples/standalone",
+    "examples/debugkit"
   ],
   "type": "module",
   "scripts": {
