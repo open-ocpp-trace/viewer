@@ -1,0 +1,109 @@
+:root {
+  color-scheme: light dark;
+  font-family: system-ui, sans-serif;
+}
+
+body {
+  margin: 0;
+}
+
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  height: 100vh;
+  padding: 1rem;
+  box-sizing: border-box;
+}
+
+.page__header h1 {
+  margin: 0 0 0.25rem;
+  font-size: 1.4rem;
+}
+
+.page__controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.page__controls button[aria-pressed="true"] {
+  font-weight: bold;
+}
+
+.page__body {
+  display: flex;
+  flex: 1 1 auto;
+  gap: 1rem;
+  min-height: 0;
+}
+
+.page__viewer {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.page__side {
+  display: flex;
+  flex: 0 0 26rem;
+  flex-direction: column;
+  gap: 1rem;
+  overflow: auto;
+}
+
+.page__side h2 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.page__side pre {
+  font-size: 0.8rem;
+}
+
+/*
+ * Styling hooks: the viewer reads its --oot-* tokens from any ancestor, so
+ * the page sets some here; the `theme` prop sets the others on the root.
+ */
+.simulator-viewer {
+  --oot-border-color: #94a3b8;
+  --oot-focus-color: #0f766e;
+  --oot-font-size: 13px;
+}
+
+.validation {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 0.25rem 0.75rem;
+  margin: 0;
+}
+
+.validation dd {
+  margin: 0;
+}
+
+.log-panel__lines {
+  margin: 0;
+  padding-left: 0;
+  font-family: ui-monospace, monospace;
+  font-size: 0.75rem;
+  list-style: none;
+}
+
+.log-panel__line {
+  padding: 0.1rem 0;
+  border-bottom: 1px solid color-mix(in srgb, currentcolor 15%, transparent);
+}
+
+.log-panel__line--warn {
+  color: #b45309;
+}
+
+.log-panel__line--error {
+  color: #b91c1c;
+}
+
+.log-panel__level,
+.log-panel__type {
+  opacity: 0.7;
+}
