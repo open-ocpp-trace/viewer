@@ -1,4 +1,9 @@
-import { readFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import process from "node:process";
+import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vite-plus/test";
 
@@ -7,6 +12,7 @@ import {
   lockstepProblems,
   SOURCE_CONDITION,
   stripSourceCondition,
+  versionConstantProblems,
 } from "./release-manifest.ts";
 
 const workspaceManifest = {
@@ -207,6 +213,61 @@ describe("lockstepProblems", () => {
   });
 });
 
+describe("versionConstantProblems", () => {
+  const core = { name: "@open-ocpp-trace/viewer-core", version: "0.2.0" };
+  const source = (literal: string): string =>
+    `/** Version. */\nexport const VIEWER_CORE_VERSION: string = "${literal}";\n`;
+
+  it("accepts a VIEWER_*_VERSION literal at the shared version", () => {
+    expect(versionConstantProblems(core, "0.2.0", source("0.2.0"))).toEqual([]);
+  });
+
+  it("derives the constant name from a multi-word package name", () => {
+    const manifest = { name: "@open-ocpp-trace/viewer-web-component", version: "0.2.0" };
+    const text = 'export const VIEWER_WEB_COMPONENT_VERSION = "0.2.0";';
+    expect(versionConstantProblems(manifest, "0.2.0", text)).toEqual([]);
+  });
+
+  it("reports a literal that differs from the shared version", () => {
+    expect(versionConstantProblems(core, "0.2.0", source("0.1.0"))).toEqual([
+      "@open-ocpp-trace/viewer-core VIEWER_CORE_VERSION is 0.1.0, not 0.2.0",
+    ]);
+  });
+
+  it("runs from the lockstep command on the workspace sources", () => {
+    const directory = mkdtempSync(join(tmpdir(), "viewer-lockstep-"));
+    try {
+      const paths = ["core", "react", "standalone"].map((name) => {
+        const path = join(directory, `${name}.json`);
+        const manifest = {
+          name: `@open-ocpp-trace/viewer-${name}`,
+          version: "9.9.9",
+          repository: { directory: `packages/${name}` },
+        };
+        writeFileSync(path, JSON.stringify(manifest));
+        return path;
+      });
+      const script = fileURLToPath(new URL("release-manifest.ts", import.meta.url));
+      const result = spawnSync(process.execPath, [script, "lockstep", ...paths], {
+        encoding: "utf8",
+      });
+      expect(result.status).toBe(1);
+      expect(result.stderr).toMatch(/VIEWER_CORE_VERSION is \S+, not 9\.9\.9/);
+      expect(result.stderr).toMatch(/VIEWER_REACT_VERSION is \S+, not 9\.9\.9/);
+      expect(result.stderr).toMatch(/VIEWER_STANDALONE_VERSION is \S+, not 9\.9\.9/);
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
+  it("reports a source that does not declare the constant as a literal", () => {
+    const text = "export const VIEWER_CORE_VERSION: string = pkg.version;";
+    expect(versionConstantProblems(core, "0.2.0", text)).toEqual([
+      "@open-ocpp-trace/viewer-core src/index.ts declares no VIEWER_CORE_VERSION string literal",
+    ]);
+  });
+});
+
 describe("the committed package manifests", () => {
   const manifests = ["core", "react", "standalone"].map(
     (name): Record<string, unknown> =>
@@ -217,6 +278,17 @@ describe("the committed package manifests", () => {
 
   it("are in lockstep", () => {
     expect(lockstepProblems(manifests)).toEqual([]);
+  });
+
+  it("declare a VIEWER_*_VERSION constant at their version", () => {
+    for (const [index, name] of ["core", "react", "standalone"].entries()) {
+      const manifest = manifests[index] ?? {};
+      const text = readFileSync(
+        new URL(`../packages/${name}/src/index.ts`, import.meta.url),
+        "utf8",
+      );
+      expect(versionConstantProblems(manifest, String(manifest.version), text)).toEqual([]);
+    }
   });
 
   it("lose every development-only condition once stripped", () => {
