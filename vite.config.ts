@@ -92,6 +92,15 @@ export default defineConfig({
         test: {
           name: "gateway",
           include: ["examples/gateway/test/**/*.test.ts"],
+          exclude: [...configDefaults.exclude, "examples/gateway/test/**/*.dom.test.ts"],
+        },
+      },
+      {
+        // The gateway page's counters against a mounted viewer-standalone.
+        test: {
+          name: "gateway-dom",
+          include: ["examples/gateway/test/**/*.dom.test.ts"],
+          environment: "happy-dom",
         },
       },
       {

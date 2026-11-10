@@ -11,7 +11,8 @@ import {
 
 import "./page.css";
 import { type HostConfig, resolveHostConfig } from "./config.ts";
-import { createGatewayFeed, type GatewayFeedCounters, type HelloOutcome } from "./feed.ts";
+import { createCounterView } from "./counters.ts";
+import { createGatewayFeed, type HelloOutcome } from "./feed.ts";
 import { type ConnectionState, createSseTransport } from "./transport.ts";
 
 function byId<T extends HTMLElement>(id: string): T {
@@ -25,14 +26,7 @@ const statusLine = byId("status");
 const notice = byId("notice");
 const viewerHost = byId("viewer");
 
-const COUNTERS: Readonly<Record<keyof GatewayFeedCounters, HTMLElement>> = {
-  received: byId("count-received"),
-  deliveryUpdates: byId("count-delivery-updates"),
-  ignoredUpdates: byId("count-ignored-updates"),
-  droppedByServer: byId("count-dropped-by-server"),
-  evicted: byId("count-evicted"),
-  invalid: byId("count-invalid"),
-};
+const counterView = createCounterView(byId);
 
 const STATE_TEXT: Readonly<Record<ConnectionState, string>> = {
   connecting: "Connecting…",
@@ -100,10 +94,14 @@ function start(config: HostConfig): void {
 
   function renderCounters(): void {
     countersQueued = false;
-    const counters = feed.counters();
-    for (const key of Object.keys(COUNTERS) as (keyof GatewayFeedCounters)[]) {
-      COUNTERS[key].textContent = String(counters[key]);
-    }
+    counterView.render(feed.counters(), viewer?.getStats());
+  }
+
+  /** Renders the counters on the next frame, at most once per frame. */
+  function queueCounters(): void {
+    if (countersQueued) return;
+    countersQueued = true;
+    requestAnimationFrame(renderCounters);
   }
 
   const transport = createSseTransport({
@@ -112,18 +110,20 @@ function start(config: HostConfig): void {
     headers: config.headers,
     onEvent({ event, data }) {
       feed.receive(event, data);
-      if (!countersQueued) {
-        countersQueued = true;
-        requestAnimationFrame(renderCounters);
-      }
+      queueCounters();
     },
     onState: showState,
     onLost: (at) => feed.connectionLost(new Date(at).toISOString()),
   });
+  // Pause, Resume and Clear are toolbar buttons inside the viewer's shadow
+  // root: their clicks are composed and reach the host element.
+  viewerHost.addEventListener("click", queueCounters);
   transport.start();
   addEventListener("pagehide", () => {
     transport.stop();
     viewer?.unmount();
+    // getStats() throws once unmounted; a frame already queued skips it.
+    viewer = undefined;
   });
 }
 

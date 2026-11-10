@@ -181,7 +181,7 @@ describe("bounded state", () => {
       feed.receive("trace", JSON.stringify(heartbeatDoc(`t${i}`)));
     }
 
-    expect(feed.counters().evicted).toBe(4);
+    expect(feed.counters().deliveryStatesEvicted).toBe(4);
     expect(feed.trackedIds()).toEqual(["t4", "t5", "t6", "t7", "t8", "t9"]);
     feed.receive("delivery", deliveryUpdate("t3", "written"));
     feed.receive("delivery", deliveryUpdate("t9", "written"));
@@ -199,7 +199,7 @@ describe("bounded state", () => {
     }
 
     expect(feed.trackedIds()).toHaveLength(10);
-    expect(feed.counters().evicted).toBe(990);
+    expect(feed.counters().deliveryStatesEvicted).toBe(990);
   });
 
   it("keeps the state of listed entries while the paused store holds more than its limit", () => {
@@ -354,7 +354,7 @@ describe("counters", () => {
       deliveryUpdates: 6,
       ignoredUpdates: 3,
       droppedByServer: 3,
-      evicted: 0,
+      deliveryStatesEvicted: 0,
       invalid: 3,
     });
   });

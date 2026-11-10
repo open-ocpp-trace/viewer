@@ -51,8 +51,11 @@ export interface GatewayFeedCounters {
   readonly ignoredUpdates: number;
   /** Events the gateway dropped for this client, from its `gap` events. */
   readonly droppedByServer: number;
-  /** Per-entry delivery states evicted by the bound. */
-  readonly evicted: number;
+  /**
+   * Per-entry delivery states the adapter evicted by its own bound
+   * ({@link GatewayFeed.capacity}); not the viewer's evicted rows.
+   */
+  readonly deliveryStatesEvicted: number;
   /** Events that could not be decoded: unknown name, bad JSON or shape. */
   readonly invalid: number;
 }
@@ -101,7 +104,7 @@ export function createGatewayFeed(options: GatewayFeedOptions = {}): GatewayFeed
     deliveryUpdates: 0,
     ignoredUpdates: 0,
     droppedByServer: 0,
-    evicted: 0,
+    deliveryStatesEvicted: 0,
     invalid: 0,
   };
   let capacity = 2 * DEFAULT_MAX_BUFFERED_MESSAGES;
@@ -147,7 +150,7 @@ export function createGatewayFeed(options: GatewayFeedOptions = {}): GatewayFeed
       for (const id of deliveries.keys()) {
         if (deliveries.size <= capacity) break;
         deliveries.delete(id);
-        counters.evicted += 1;
+        counters.deliveryStatesEvicted += 1;
       }
     }
     emit([{ type: "add", entry: gatewayEntry(doc) }]);

@@ -18,7 +18,7 @@
       </header>
       <section class="page__status" aria-label="Connection">
         <p id="status" class="status" data-state="connecting" role="status">Connecting…</p>
-        <dl class="counters">
+        <dl class="counters" aria-label="Adapter">
           <div>
             <dt>Received</dt>
             <dd id="count-received">0</dd>
@@ -37,11 +37,41 @@
           </div>
           <div>
             <dt>Delivery states evicted</dt>
-            <dd id="count-evicted">0</dd>
+            <dd id="count-delivery-states-evicted">0</dd>
           </div>
           <div>
             <dt>Invalid events</dt>
             <dd id="count-invalid">0</dd>
+          </div>
+        </dl>
+        <dl class="counters" aria-label="Viewer">
+          <div>
+            <dt>Listed</dt>
+            <dd id="viewer-listed">0</dd>
+          </div>
+          <div>
+            <dt>Pending (paused)</dt>
+            <dd id="viewer-pending">0</dd>
+          </div>
+          <div>
+            <dt>Rows evicted</dt>
+            <dd id="viewer-evicted">0</dd>
+          </div>
+          <div>
+            <dt>Pending dropped</dt>
+            <dd id="viewer-dropped-pending">0</dd>
+          </div>
+          <div>
+            <dt>Unknown updates</dt>
+            <dd id="viewer-unknown-updates">0</dd>
+          </div>
+          <div>
+            <dt>Stale updates</dt>
+            <dd id="viewer-stale-updates">0</dd>
+          </div>
+          <div>
+            <dt>Invalid updates</dt>
+            <dd id="viewer-invalid">0</dd>
           </div>
         </dl>
       </section>

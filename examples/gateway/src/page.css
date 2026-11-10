@@ -64,6 +64,11 @@ body {
   margin: 0;
 }
 
+.counters::before {
+  content: attr(aria-label);
+  font-weight: 600;
+}
+
 .counters div {
   display: flex;
   gap: 0.35rem;

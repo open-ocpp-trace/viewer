@@ -21,10 +21,11 @@ not imported either. `src/wire.ts` declares the few fields the adapter reads.
 | `src/sse-parser.ts` | Incremental `text/event-stream` parser.                                                                                         |
 | `src/transport.ts`  | `fetch` reader with backoff. It stops on 401.                                                                                   |
 | `src/config.ts`     | Resolves the events URL, credentials and headers.                                                                               |
+| `src/counters.ts`   | Writes the adapter's counters and the viewer store's `getStats()` to the page.                                                  |
 | `src/main.ts`       | The page glue: status line, counters, `mount()`, export download.                                                               |
 | `fixtures/`         | Three gateway connections, as the SSE events the gateway sends.                                                                 |
 | `mock/server.ts`    | A mock of the gateway's viewer server.                                                                                          |
-| `test/`             | Unit tests, run by `vp test` (project `gateway`).                                                                               |
+| `test/`             | Tests, run by `vp test`: projects `gateway` (Node.js) and `gateway-dom` (happy-dom, `*.dom.test.ts`).                           |
 
 ## Run it
 
@@ -143,10 +144,17 @@ and 503.
 
 - A connection status: connecting, connected, reconnecting (with the delay),
   disconnected or auth-failed.
-- Counters: documents received, delivery updates applied and ignored,
-  events the gateway dropped for this client, per-entry delivery states
-  evicted, and undecodable events. Stream text reaches the page through
-  `textContent` only.
+- The adapter's counters: documents received, delivery updates applied and
+  ignored, events the gateway dropped for this client, per-entry delivery
+  states the adapter evicted (`deliveryStatesEvicted`, its own bound, not
+  the viewer's rows), and undecodable events.
+- The viewer store's counters, from `ViewerInstance.getStats()`: entries
+  listed, entries pending while paused, listed rows the bounds evicted,
+  pending entries dropped while paused (`droppedPending`), updates for an
+  unknown id or a stale revision, and invalid batch items. The page renders
+  both groups on the next animation frame after the adapter's events, and
+  after a click in the viewer (Pause, Resume, Clear); it does not poll.
+- Stream text reaches the page through `textContent` only.
 - The viewer. Each `kind: "trace"` document becomes a trace entry, and
   `record` is the document's record itself, neither copied nor changed. The
   metadata holds:
@@ -216,7 +224,7 @@ was left out. `test/viewer.test.ts` checks this on the fixture scenario.
 ## Tests
 
 ```sh
-vp test --project gateway
+vp test --project gateway --project gateway-dom
 ```
 
 The tests cover:
@@ -226,6 +234,10 @@ The tests cover:
   `createViewerStore`;
 - stale, unknown-id and out-of-range updates;
 - the bound on per-entry states under bursts and while paused;
+- bounded memory end to end, against a mounted viewer-standalone: a burst
+  past `maxBufferedMessages` shows the viewer's evictions with the adapter's
+  state at its capacity, and a burst while paused shows the pending and
+  dropped entries (`test/page.dom.test.ts`);
 - gaps for dropped events, disconnects and restarts;
 - pause and resume with a burst of updates;
 - SSE parsing for every chunk boundary;
