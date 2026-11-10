@@ -1,6 +1,7 @@
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
+import { SIMULATOR_TRACE } from "../src/fixtures.ts";
 import { SimulatorExample } from "../src/SimulatorExample.tsx";
 import { stubLayout } from "./layout.ts";
 
@@ -38,6 +39,13 @@ describe("<SimulatorExample>", () => {
     expect(texts.length).toBeGreaterThan(0);
     expect(texts.some((text) => text.includes("CP001"))).toBe(true);
     expect(texts.some((text) => text.includes("CP002"))).toBe(true);
+  });
+
+  it("lists an unreadable trace line on the page instead of as an entry", async () => {
+    await renderLoaded({ traceText: `${SIMULATOR_TRACE}not json\n` });
+    const issues = screen.getByRole("region", { name: "Unreadable trace lines" });
+    expect(within(issues).getByText(/^Line 61 \(json\)/)).toBeTruthy();
+    expect(screen.getByText("60 records read")).toBeTruthy();
   });
 
   it("shows the 100 non-wire log lines in a host panel, not in the trace", async () => {
