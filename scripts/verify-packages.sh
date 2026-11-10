@@ -5,8 +5,9 @@
 #
 # For each tarball:
 #   1. scripts/release-manifest.ts inspect: only package.json, README.md,
-#      LICENSE, THIRD_PARTY_NOTICES.md and dist/ are packed, LICENSE and
-#      README.md are present (and THIRD_PARTY_NOTICES.md in
+#      LICENSE, CHANGELOG.md, THIRD_PARTY_NOTICES.md and dist/ are packed,
+#      LICENSE, README.md and CHANGELOG.md are present (and
+#      THIRD_PARTY_NOTICES.md in
 #      viewer-standalone, which bundles third-party code),
 #      every `exports` target exists in the tarball, the development-only
 #      `@open-ocpp-trace/viewer-source` condition is gone and no

@@ -44,6 +44,7 @@ const TOP_LEVEL_FILES: readonly string[] = [
   "package.json",
   "README.md",
   "LICENSE",
+  "CHANGELOG.md",
   THIRD_PARTY_NOTICES,
 ];
 
@@ -119,7 +120,7 @@ export function inspectPackage(manifest: Manifest, files: readonly string[]): st
   const problems: string[] = [];
   const present = new Set(files);
 
-  const required = ["LICENSE", "README.md"];
+  const required = ["LICENSE", "README.md", "CHANGELOG.md"];
   if (BUNDLING_PACKAGES.includes(String(manifest.name))) required.push(THIRD_PARTY_NOTICES);
   for (const file of required) {
     if (!present.has(file)) problems.push(`${file} is missing`);
