@@ -94,6 +94,22 @@ describe("a mounted viewer", () => {
     expect(onExport.mock.calls[0]?.[1]).toBe("filtered");
   });
 
+  it("redacts the export with redactExport, a live option", () => {
+    const element = host();
+    const onExport = vi.fn();
+    const entries = [sdkEntry("a", { payload: { idTag: "SECRET" } })];
+    const viewer = track(mount(element, { entries, onExport }));
+
+    button(element, "Export filtered").click();
+    viewer.setOptions({ redactExport: true });
+    button(element, "Export filtered").click();
+
+    expect(onExport).toHaveBeenCalledTimes(2);
+    expect(onExport.mock.calls[0]?.[0].text).toContain("SECRET");
+    expect(onExport.mock.calls[1]?.[0].text).not.toContain("SECRET");
+    expect(onExport.mock.calls[1]?.[0].text).toContain('"redaction"');
+  });
+
   it("passes strings, translate and toolbar actions through", () => {
     const element = host();
     const run = vi.fn();

@@ -18,6 +18,7 @@ import {
 import { EntryInspector, type InspectorPart } from "./EntryInspector.tsx";
 import { exportJsonl, type JsonlExport } from "./export-jsonl.ts";
 import { FilterPanel } from "./FilterPanel.tsx";
+import { defaultSensitiveKeys } from "./inspect-format.ts";
 import { useFilterEngine, useStableCallback, useVersion } from "./hooks.ts";
 import { ResetBoundary } from "./reset-boundary.tsx";
 import {
@@ -89,14 +90,25 @@ export interface TraceViewerProps {
    * `EntryInspectorProps.revealSensitive` (raw frames fail closed without it).
    */
   revealSensitive?: boolean;
-  /** Property names the detail panel redacts, as `EntryInspectorProps.sensitiveKeys`. */
+  /**
+   * Property names the detail panel redacts, as `EntryInspectorProps.sensitiveKeys`;
+   * also those a redacted export redacts (see `redactExport`).
+   */
   sensitiveKeys?: readonly string[];
+  /**
+   * Redacts both exports, as `exportJsonl(entries, { redact: true, sensitiveKeys })`
+   * with the `sensitiveKeys` prop: sensitive values become `"[redacted]"`, a
+   * raw frame that may hold one is dropped, and each record is marked in
+   * `meta.redaction`. Default false: records are exported unmodified.
+   * `revealSensitive` does not affect the export.
+   */
+  redactExport?: boolean;
   /**
    * Receives an export the user asked for, built with {@link exportJsonl}:
    * the selected entry (`"selection"`) or every entry the filter lists, in
    * order (`"filtered"`). The host downloads or copies `exported.text`. The
    * export buttons render only when this is given. Records are exported
-   * unmodified: the detail panel's redaction does not apply.
+   * unmodified unless `redactExport` is set.
    */
   onExport?: (exported: JsonlExport, scope: ExportScope) => void;
   /**
@@ -292,7 +304,12 @@ export function TraceViewer(props: TraceViewerProps): ReactElement {
   const { onExport } = props;
   const selectedEntry = selectedId === null ? undefined : store.get(selectedId);
   const runExport = (entries: Iterable<ViewerEntry>, scope: ExportScope): void => {
-    const result = exportJsonl(entries);
+    const result = exportJsonl(
+      entries,
+      props.redactExport === true
+        ? { redact: true, sensitiveKeys: props.sensitiveKeys ?? defaultSensitiveKeys }
+        : {},
+    );
     const { unparsed, gap, invalid } = result.skipped;
     setExported({ count: result.recordCount, skipped: unparsed + gap + invalid });
     onExport?.(result, scope);
