@@ -1,0 +1,160 @@
+{"timestamp":"2026-11-10T16:12:39.588Z","level":"INFO","type":"Server","message":"State DB: in-memory (pass --state-db <path> to persist)"}
+{"timestamp":"2026-11-10T16:12:39.598Z","level":"INFO","type":"Server","message":"Health endpoint: GET /v1/healthz"}
+{"timestamp":"2026-11-10T16:12:39.598Z","level":"INFO","type":"Server","message":"Listening on http://127.0.0.1:9781 (socket.io)"}
+{"timestamp":"2026-11-10T16:12:39.598Z","level":"INFO","type":"Server","message":"MCP endpoint: POST http://127.0.0.1:9781/mcp"}
+{"timestamp":"2026-11-10T16:12:39.612Z","level":"INFO","type":"Server","message":"Bootstrapped CP \"CP001\""}
+{"timestamp":"2026-11-10T16:12:39.613Z","level":"INFO","type":"Server","message":"Bootstrapped CP \"CP002\""}
+{"timestamp":"2026-11-10T16:12:39.613Z","level":"INFO","type":"Server","message":"Connecting CP001 to CSMS..."}
+{"timestamp":"2026-11-10T16:12:39.618Z","level":"INFO","type":"Server","message":"Connecting CP002 to CSMS..."}
+{"timestamp":"2026-11-10T16:12:39.644Z","level":"INFO","type":"WebSocket","message":"WebSocket connected successfully","cpId":"CP001"}
+{"timestamp":"2026-11-10T16:12:39.652Z","level":"INFO","type":"WebSocket","message":"Sent: [2,\"9516547e-cc1c-4505-a3b7-a6465edc65a9\",\"BootNotification\",{\"chargePointVendor\":\"CLI-Vendor\",\"chargePointModel\":\"CLI-Model\",\"chargePointSerialNumber\":\"CLI-001\",\"chargeBoxSerialNumber\":\"CLI-001\",\"firmwareVersion\":\"1.0.0\",\"iccid\":\"\",\"imsi\":\"\",\"meterSerialNumber\":\"CLI-M001\",\"meterType\":\"\"}]","cpId":"CP001"}
+{"timestamp":"2026-11-10T16:12:39.653Z","level":"INFO","type":"Server","message":"Connected CP001."}
+{"timestamp":"2026-11-10T16:12:39.653Z","level":"INFO","type":"WebSocket","message":"Received: [3,\"9516547e-cc1c-4505-a3b7-a6465edc65a9\",{\"status\":\"Accepted\",\"currentTime\":\"2026-11-10T16:12:39.652Z\",\"interval\":10}]","cpId":"CP001"}
+{"timestamp":"2026-11-10T16:12:39.653Z","level":"INFO","type":"OCPP","message":"Handling incoming message: 3, 9516547e-cc1c-4505-a3b7-a6465edc65a9, CallResult","cpId":"CP001"}
+{"timestamp":"2026-11-10T16:12:39.654Z","level":"INFO","type":"OCPP","message":"Boot notification accepted","cpId":"CP001"}
+{"timestamp":"2026-11-10T16:12:39.656Z","level":"INFO","type":"Scenario","message":"[connector 1] [Essential CP Behavior] Scenario execution started (mode: oneshot)","cpId":"CP001"}
+{"timestamp":"2026-11-10T16:12:39.656Z","level":"INFO","type":"System","message":"[StateManager] ChargePoint status: Available → Available","cpId":"CP001"}
+{"timestamp":"2026-11-10T16:12:39.657Z","level":"INFO","type":"System","message":"Charge point status updated: Unavailable -> Available (connector 0)","cpId":"CP001"}
+{"timestamp":"2026-11-10T16:12:39.659Z","level":"INFO","type":"System","message":"[StateManager] ChargePoint status: Available → Available","cpId":"CP001"}
+{"timestamp":"2026-11-10T16:12:39.659Z","level":"INFO","type":"General","message":"Heartbeat interval set to 10s (idle-timer)","cpId":"CP001"}
+{"timestamp":"2026-11-10T16:12:39.659Z","level":"INFO","type":"Heartbeat","message":"Periodic Heartbeat enabled at 10s interval","cpId":"CP001"}
+{"timestamp":"2026-11-10T16:12:39.659Z","level":"INFO","type":"WebSocket","message":"Sent: [2,\"dbe57fa7-9213-4e8a-a15d-eb108860f3ea\",\"StatusNotification\",{\"connectorId\":0,\"errorCode\":\"NoError\",\"status\":\"Available\"}]","cpId":"CP001"}
+{"timestamp":"2026-11-10T16:12:39.660Z","level":"DEBUG","type":"Scenario","message":"[connector 1] [Essential CP Behavior] Executing single branch","cpId":"CP001"}
+{"timestamp":"2026-11-10T16:12:39.660Z","level":"DEBUG","type":"Scenario","message":"[connector 1] [Essential CP Behavior] Executing node: Wait 2s (delay)","cpId":"CP001"}
+{"timestamp":"2026-11-10T16:12:39.661Z","level":"INFO","type":"WebSocket","message":"WebSocket connected successfully","cpId":"CP002"}
+{"timestamp":"2026-11-10T16:12:39.661Z","level":"INFO","type":"WebSocket","message":"Sent: [2,\"3b477f3e-c547-4bd0-ad17-3c3680b1611d\",\"BootNotification\",{\"chargePointVendor\":\"CLI-Vendor\",\"chargePointModel\":\"CLI-Model\",\"chargePointSerialNumber\":\"CLI-001\",\"chargeBoxSerialNumber\":\"CLI-001\",\"firmwareVersion\":\"1.0.0\",\"iccid\":\"\",\"imsi\":\"\",\"meterSerialNumber\":\"CLI-M001\",\"meterType\":\"\"}]","cpId":"CP002"}
+{"timestamp":"2026-11-10T16:12:39.661Z","level":"INFO","type":"Server","message":"Connected CP002."}
+{"timestamp":"2026-11-10T16:12:39.661Z","level":"INFO","type":"WebSocket","message":"Received: [3,\"dbe57fa7-9213-4e8a-a15d-eb108860f3ea\",{}]","cpId":"CP001"}
+{"timestamp":"2026-11-10T16:12:39.661Z","level":"INFO","type":"OCPP","message":"Handling incoming message: 3, dbe57fa7-9213-4e8a-a15d-eb108860f3ea, CallResult","cpId":"CP001"}
+{"timestamp":"2026-11-10T16:12:39.661Z","level":"DEBUG","type":"Status","message":"Status notification sent successfully: {}","cpId":"CP001"}
+{"timestamp":"2026-11-10T16:12:39.661Z","level":"INFO","type":"WebSocket","message":"Sent: [2,\"44b2dd68-12e9-4a36-a7a7-cfb2e95628b1\",\"StatusNotification\",{\"connectorId\":1,\"errorCode\":\"NoError\",\"status\":\"Available\"}]","cpId":"CP001"}
+{"timestamp":"2026-11-10T16:12:39.661Z","level":"INFO","type":"WebSocket","message":"Received: [3,\"3b477f3e-c547-4bd0-ad17-3c3680b1611d\",{\"status\":\"Accepted\",\"currentTime\":\"2026-11-10T16:12:39.661Z\",\"interval\":10}]","cpId":"CP002"}
+{"timestamp":"2026-11-10T16:12:39.661Z","level":"INFO","type":"OCPP","message":"Handling incoming message: 3, 3b477f3e-c547-4bd0-ad17-3c3680b1611d, CallResult","cpId":"CP002"}
+{"timestamp":"2026-11-10T16:12:39.661Z","level":"INFO","type":"OCPP","message":"Boot notification accepted","cpId":"CP002"}
+{"timestamp":"2026-11-10T16:12:39.662Z","level":"INFO","type":"Scenario","message":"[connector 1] [Essential CP Behavior] Scenario execution started (mode: oneshot)","cpId":"CP002"}
+{"timestamp":"2026-11-10T16:12:39.662Z","level":"INFO","type":"System","message":"[StateManager] ChargePoint status: Available → Available","cpId":"CP002"}
+{"timestamp":"2026-11-10T16:12:39.662Z","level":"INFO","type":"System","message":"Charge point status updated: Unavailable -> Available (connector 0)","cpId":"CP002"}
+{"timestamp":"2026-11-10T16:12:39.662Z","level":"INFO","type":"System","message":"[StateManager] ChargePoint status: Available → Available","cpId":"CP002"}
+{"timestamp":"2026-11-10T16:12:39.662Z","level":"INFO","type":"General","message":"Heartbeat interval set to 10s (idle-timer)","cpId":"CP002"}
+{"timestamp":"2026-11-10T16:12:39.662Z","level":"INFO","type":"Heartbeat","message":"Periodic Heartbeat enabled at 10s interval","cpId":"CP002"}
+{"timestamp":"2026-11-10T16:12:39.662Z","level":"INFO","type":"WebSocket","message":"Sent: [2,\"6f0846c3-2c2f-4428-aa32-937be218769b\",\"StatusNotification\",{\"connectorId\":0,\"errorCode\":\"NoError\",\"status\":\"Available\"}]","cpId":"CP002"}
+{"timestamp":"2026-11-10T16:12:39.662Z","level":"DEBUG","type":"Scenario","message":"[connector 1] [Essential CP Behavior] Executing single branch","cpId":"CP002"}
+{"timestamp":"2026-11-10T16:12:39.662Z","level":"DEBUG","type":"Scenario","message":"[connector 1] [Essential CP Behavior] Executing node: Wait 2s (delay)","cpId":"CP002"}
+{"timestamp":"2026-11-10T16:12:39.662Z","level":"INFO","type":"WebSocket","message":"Received: [3,\"44b2dd68-12e9-4a36-a7a7-cfb2e95628b1\",{}]","cpId":"CP001"}
+{"timestamp":"2026-11-10T16:12:39.663Z","level":"INFO","type":"OCPP","message":"Handling incoming message: 3, 44b2dd68-12e9-4a36-a7a7-cfb2e95628b1, CallResult","cpId":"CP001"}
+{"timestamp":"2026-11-10T16:12:39.663Z","level":"DEBUG","type":"Status","message":"Status notification sent successfully: {}","cpId":"CP001"}
+{"timestamp":"2026-11-10T16:12:39.663Z","level":"INFO","type":"WebSocket","message":"Received: [3,\"6f0846c3-2c2f-4428-aa32-937be218769b\",{}]","cpId":"CP002"}
+{"timestamp":"2026-11-10T16:12:39.663Z","level":"INFO","type":"OCPP","message":"Handling incoming message: 3, 6f0846c3-2c2f-4428-aa32-937be218769b, CallResult","cpId":"CP002"}
+{"timestamp":"2026-11-10T16:12:39.663Z","level":"DEBUG","type":"Status","message":"Status notification sent successfully: {}","cpId":"CP002"}
+{"timestamp":"2026-11-10T16:12:39.663Z","level":"INFO","type":"WebSocket","message":"Sent: [2,\"64a6a92f-43b9-43c2-bf5b-d20d4c1276cc\",\"StatusNotification\",{\"connectorId\":1,\"errorCode\":\"NoError\",\"status\":\"Available\"}]","cpId":"CP002"}
+{"timestamp":"2026-11-10T16:12:39.663Z","level":"INFO","type":"WebSocket","message":"Received: [3,\"64a6a92f-43b9-43c2-bf5b-d20d4c1276cc\",{}]","cpId":"CP002"}
+{"timestamp":"2026-11-10T16:12:39.663Z","level":"INFO","type":"OCPP","message":"Handling incoming message: 3, 64a6a92f-43b9-43c2-bf5b-d20d4c1276cc, CallResult","cpId":"CP002"}
+{"timestamp":"2026-11-10T16:12:39.663Z","level":"DEBUG","type":"Status","message":"Status notification sent successfully: {}","cpId":"CP002"}
+{"timestamp":"2026-11-10T16:12:41.163Z","level":"INFO","type":"WebSocket","message":"Received: [2,\"csms-0001\",\"GetConfiguration\",{\"key\":[\"HeartbeatInterval\"]}]","cpId":"CP001"}
+{"timestamp":"2026-11-10T16:12:41.164Z","level":"INFO","type":"OCPP","message":"Handling incoming message: 2, csms-0001, GetConfiguration","cpId":"CP001"}
+{"timestamp":"2026-11-10T16:12:41.176Z","level":"INFO","type":"Configuration","message":"GetConfiguration request: [\"HeartbeatInterval\"]","cpId":"CP001"}
+{"timestamp":"2026-11-10T16:12:41.177Z","level":"INFO","type":"WebSocket","message":"Sent: [3,\"csms-0001\",{\"configurationKey\":[{\"key\":\"HeartbeatInterval\",\"readonly\":false,\"value\":\"300\"}]}]","cpId":"CP001"}
+{"timestamp":"2026-11-10T16:12:41.178Z","level":"INFO","type":"WebSocket","message":"Received: [2,\"csms-0001\",\"TriggerMessage\",{\"requestedMessage\":\"StatusNotification\",\"connectorId\":1}]","cpId":"CP002"}
+{"timestamp":"2026-11-10T16:12:41.179Z","level":"INFO","type":"OCPP","message":"Handling incoming message: 2, csms-0001, TriggerMessage","cpId":"CP002"}
+{"timestamp":"2026-11-10T16:12:41.180Z","level":"INFO","type":"OCPP","message":"Trigger message request received: StatusNotification (connectorId=1)","cpId":"CP002"}
+{"timestamp":"2026-11-10T16:12:41.180Z","level":"INFO","type":"WebSocket","message":"Sent: [3,\"csms-0001\",{\"status\":\"Accepted\"}]","cpId":"CP002"}
+{"timestamp":"2026-11-10T16:12:41.180Z","level":"INFO","type":"WebSocket","message":"Sent: [2,\"ce9a2f18-0d7e-4048-ba83-fa382cb2ccd0\",\"StatusNotification\",{\"connectorId\":1,\"errorCode\":\"NoError\",\"status\":\"Available\"}]","cpId":"CP002"}
+{"timestamp":"2026-11-10T16:12:41.180Z","level":"INFO","type":"WebSocket","message":"Received: [3,\"ce9a2f18-0d7e-4048-ba83-fa382cb2ccd0\",{}]","cpId":"CP002"}
+{"timestamp":"2026-11-10T16:12:41.180Z","level":"INFO","type":"OCPP","message":"Handling incoming message: 3, ce9a2f18-0d7e-4048-ba83-fa382cb2ccd0, CallResult","cpId":"CP002"}
+{"timestamp":"2026-11-10T16:12:41.180Z","level":"DEBUG","type":"Status","message":"Status notification sent successfully: {}","cpId":"CP002"}
+{"timestamp":"2026-11-10T16:12:41.662Z","level":"DEBUG","type":"Scenario","message":"[connector 1] [Essential CP Behavior] Executing node: Plug In (connectorPlug)","cpId":"CP001"}
+{"timestamp":"2026-11-10T16:12:41.664Z","level":"INFO","type":"WebSocket","message":"Sent: [2,\"b7fc09c5-d18f-416c-bbd7-effda437b01c\",\"StatusNotification\",{\"connectorId\":1,\"errorCode\":\"NoError\",\"status\":\"Preparing\"}]","cpId":"CP001"}
+{"timestamp":"2026-11-10T16:12:41.665Z","level":"DEBUG","type":"Scenario","message":"[connector 1] [Essential CP Behavior] Executing node: Wait 1s (delay)","cpId":"CP001"}
+{"timestamp":"2026-11-10T16:12:41.665Z","level":"INFO","type":"WebSocket","message":"Received: [3,\"b7fc09c5-d18f-416c-bbd7-effda437b01c\",{}]","cpId":"CP001"}
+{"timestamp":"2026-11-10T16:12:41.666Z","level":"INFO","type":"OCPP","message":"Handling incoming message: 3, b7fc09c5-d18f-416c-bbd7-effda437b01c, CallResult","cpId":"CP001"}
+{"timestamp":"2026-11-10T16:12:41.667Z","level":"DEBUG","type":"Status","message":"Status notification sent successfully: {}","cpId":"CP001"}
+{"timestamp":"2026-11-10T16:12:41.667Z","level":"DEBUG","type":"Scenario","message":"[connector 1] [Essential CP Behavior] Executing node: Plug In (connectorPlug)","cpId":"CP002"}
+{"timestamp":"2026-11-10T16:12:41.668Z","level":"INFO","type":"WebSocket","message":"Sent: [2,\"a2fee38d-c0a5-46a7-8f2f-24ecad39d6be\",\"StatusNotification\",{\"connectorId\":1,\"errorCode\":\"NoError\",\"status\":\"Preparing\"}]","cpId":"CP002"}
+{"timestamp":"2026-11-10T16:12:41.669Z","level":"DEBUG","type":"Scenario","message":"[connector 1] [Essential CP Behavior] Executing node: Wait 1s (delay)","cpId":"CP002"}
+{"timestamp":"2026-11-10T16:12:41.669Z","level":"INFO","type":"WebSocket","message":"Received: [3,\"a2fee38d-c0a5-46a7-8f2f-24ecad39d6be\",{}]","cpId":"CP002"}
+{"timestamp":"2026-11-10T16:12:41.669Z","level":"INFO","type":"OCPP","message":"Handling incoming message: 3, a2fee38d-c0a5-46a7-8f2f-24ecad39d6be, CallResult","cpId":"CP002"}
+{"timestamp":"2026-11-10T16:12:41.669Z","level":"DEBUG","type":"Status","message":"Status notification sent successfully: {}","cpId":"CP002"}
+{"timestamp":"2026-11-10T16:12:42.662Z","level":"INFO","type":"WebSocket","message":"Received: [2,\"csms-0002\",\"FooBar\",{}]","cpId":"CP002"}
+{"timestamp":"2026-11-10T16:12:42.662Z","level":"INFO","type":"OCPP","message":"Handling incoming message: 2, csms-0002, FooBar","cpId":"CP002"}
+{"timestamp":"2026-11-10T16:12:42.663Z","level":"ERROR","type":"OCPP","message":"Unsupported action: FooBar","cpId":"CP002"}
+{"timestamp":"2026-11-10T16:12:42.663Z","level":"INFO","type":"WebSocket","message":"Sent: [4,\"csms-0002\",\"NotImplemented\",\"This action is not supported\",{}]","cpId":"CP002"}
+{"timestamp":"2026-11-10T16:12:42.664Z","level":"INFO","type":"WebSocket","message":"Received: [2,\"csms-0002\",\"GetConfiguration\",{\"key\":\"HeartbeatInterval\"}]","cpId":"CP001"}
+{"timestamp":"2026-11-10T16:12:42.664Z","level":"INFO","type":"OCPP","message":"Handling incoming message: 2, csms-0002, GetConfiguration","cpId":"CP001"}
+{"timestamp":"2026-11-10T16:12:42.665Z","level":"WARN","type":"WebSocket","message":"Inbound validation: {\"messageId\":\"csms-0002\",\"action\":\"GetConfiguration\",\"mode\":\"warn\",\"errorCode\":\"TypeConstraintViolation\",\"description\":\"Invalid GetConfiguration payload: /key must be array\"}","cpId":"CP001"}
+{"timestamp":"2026-11-10T16:12:42.665Z","level":"WARN","type":"OCPP","message":"Inbound GetConfiguration TypeConstraintViolation: Invalid GetConfiguration payload: /key must be array (handler still runs)","cpId":"CP001"}
+{"timestamp":"2026-11-10T16:12:42.665Z","level":"INFO","type":"Configuration","message":"GetConfiguration request: \"HeartbeatInterval\"","cpId":"CP001"}
+{"timestamp":"2026-11-10T16:12:42.666Z","level":"INFO","type":"WebSocket","message":"Sent: [3,\"csms-0002\",{\"configurationKey\":[],\"unknownKey\":[\"H\",\"e\",\"a\",\"r\",\"t\",\"b\",\"e\",\"a\",\"t\",\"I\",\"n\",\"t\",\"e\",\"r\",\"v\",\"a\",\"l\"]}]","cpId":"CP001"}
+{"timestamp":"2026-11-10T16:12:42.667Z","level":"DEBUG","type":"Scenario","message":"[connector 1] [Essential CP Behavior] Executing node: Wait for RemoteStartTransaction (remoteStartTrigger)","cpId":"CP001"}
+{"timestamp":"2026-11-10T16:12:42.669Z","level":"DEBUG","type":"Scenario","message":"[connector 1] [Essential CP Behavior] Executing node: Wait for RemoteStartTransaction (remoteStartTrigger)","cpId":"CP002"}
+{"timestamp":"2026-11-10T16:12:44.502Z","level":"INFO","type":"WebSocket","message":"Sent: [2,\"0f8ca324-1a9b-4732-bef8-92f6ccbb5242\",\"Heartbeat\",{}]","cpId":"CP001"}
+{"timestamp":"2026-11-10T16:12:44.503Z","level":"INFO","type":"WebSocket","message":"Received: [3,\"0f8ca324-1a9b-4732-bef8-92f6ccbb5242\",{\"currentTime\":\"2026-11-10T16:12:44.502Z\"}]","cpId":"CP001"}
+{"timestamp":"2026-11-10T16:12:44.503Z","level":"INFO","type":"OCPP","message":"Handling incoming message: 3, 0f8ca324-1a9b-4732-bef8-92f6ccbb5242, CallResult","cpId":"CP001"}
+{"timestamp":"2026-11-10T16:12:44.503Z","level":"DEBUG","type":"Heartbeat","message":"Received heartbeat response: 2026-11-10T16:12:44.502Z","cpId":"CP001"}
+{"timestamp":"2026-11-10T16:12:44.763Z","level":"INFO","type":"WebSocket","message":"Sent: [2,\"e9af6a71-e010-4f22-af4e-b0d1cbcabdc7\",\"Heartbeat\",{}]","cpId":"CP002"}
+{"timestamp":"2026-11-10T16:12:44.763Z","level":"INFO","type":"WebSocket","message":"Received: [3,\"e9af6a71-e010-4f22-af4e-b0d1cbcabdc7\",{\"currentTime\":\"2026-11-10T16:12:44.763Z\"}]","cpId":"CP002"}
+{"timestamp":"2026-11-10T16:12:44.763Z","level":"INFO","type":"OCPP","message":"Handling incoming message: 3, e9af6a71-e010-4f22-af4e-b0d1cbcabdc7, CallResult","cpId":"CP002"}
+{"timestamp":"2026-11-10T16:12:44.763Z","level":"DEBUG","type":"Heartbeat","message":"Received heartbeat response: 2026-11-10T16:12:44.763Z","cpId":"CP002"}
+{"timestamp":"2026-11-10T16:12:45.021Z","level":"INFO","type":"WebSocket","message":"Sent: [2,\"13fdf4fb-0a08-4afc-89aa-674e6e2eb600\",\"Authorize\",{\"idTag\":\"TAG-CP001\"}]","cpId":"CP001"}
+{"timestamp":"2026-11-10T16:12:45.021Z","level":"INFO","type":"WebSocket","message":"Received: [3,\"13fdf4fb-0a08-4afc-89aa-674e6e2eb600\",{\"idTagInfo\":{\"status\":\"Accepted\"}}]","cpId":"CP001"}
+{"timestamp":"2026-11-10T16:12:45.021Z","level":"INFO","type":"OCPP","message":"Handling incoming message: 3, 13fdf4fb-0a08-4afc-89aa-674e6e2eb600, CallResult","cpId":"CP001"}
+{"timestamp":"2026-11-10T16:12:45.021Z","level":"INFO","type":"Transaction","message":"Authorization successful","cpId":"CP001"}
+{"timestamp":"2026-11-10T16:12:45.023Z","level":"INFO","type":"WebSocket","message":"Sent: [2,\"65e5590f-8b68-4be1-83f2-2cdf4b781e9a\",\"StartTransaction\",{\"connectorId\":1,\"idTag\":\"TAG-CP001\",\"meterStart\":0,\"timestamp\":\"2026-11-10T16:12:45.022Z\"}]","cpId":"CP001"}
+{"timestamp":"2026-11-10T16:12:45.024Z","level":"INFO","type":"WebSocket","message":"Received: [3,\"65e5590f-8b68-4be1-83f2-2cdf4b781e9a\",{\"transactionId\":1001,\"idTagInfo\":{\"status\":\"Accepted\"}}]","cpId":"CP001"}
+{"timestamp":"2026-11-10T16:12:45.024Z","level":"INFO","type":"OCPP","message":"Handling incoming message: 3, 65e5590f-8b68-4be1-83f2-2cdf4b781e9a, CallResult","cpId":"CP001"}
+{"timestamp":"2026-11-10T16:12:45.024Z","level":"INFO","type":"Transaction","message":"StartTransaction accepted for connector 1, transitioning to Charging","cpId":"CP001"}
+{"timestamp":"2026-11-10T16:12:45.024Z","level":"INFO","type":"WebSocket","message":"Sent: [2,\"543c47d8-6b81-4599-8b56-a57f7fce1242\",\"StatusNotification\",{\"connectorId\":1,\"errorCode\":\"NoError\",\"status\":\"Charging\"}]","cpId":"CP001"}
+{"timestamp":"2026-11-10T16:12:45.024Z","level":"INFO","type":"WebSocket","message":"Received: [3,\"543c47d8-6b81-4599-8b56-a57f7fce1242\",{}]","cpId":"CP001"}
+{"timestamp":"2026-11-10T16:12:45.024Z","level":"INFO","type":"OCPP","message":"Handling incoming message: 3, 543c47d8-6b81-4599-8b56-a57f7fce1242, CallResult","cpId":"CP001"}
+{"timestamp":"2026-11-10T16:12:45.024Z","level":"DEBUG","type":"Status","message":"Status notification sent successfully: {}","cpId":"CP001"}
+{"timestamp":"2026-11-10T16:12:45.298Z","level":"INFO","type":"WebSocket","message":"Sent: [2,\"99e20b5b-f747-497e-8b41-acc09f451737\",\"Authorize\",{\"idTag\":\"TAG-CP002\"}]","cpId":"CP002"}
+{"timestamp":"2026-11-10T16:12:45.298Z","level":"INFO","type":"WebSocket","message":"Received: [3,\"99e20b5b-f747-497e-8b41-acc09f451737\",{\"idTagInfo\":{\"status\":\"Accepted\"}}]","cpId":"CP002"}
+{"timestamp":"2026-11-10T16:12:45.298Z","level":"INFO","type":"OCPP","message":"Handling incoming message: 3, 99e20b5b-f747-497e-8b41-acc09f451737, CallResult","cpId":"CP002"}
+{"timestamp":"2026-11-10T16:12:45.298Z","level":"INFO","type":"Transaction","message":"Authorization successful","cpId":"CP002"}
+{"timestamp":"2026-11-10T16:12:45.298Z","level":"INFO","type":"WebSocket","message":"Sent: [2,\"7dc405d7-ea98-44f9-bc9e-0dc1894324dd\",\"StartTransaction\",{\"connectorId\":1,\"idTag\":\"TAG-CP002\",\"meterStart\":0,\"timestamp\":\"2026-11-10T16:12:45.298Z\"}]","cpId":"CP002"}
+{"timestamp":"2026-11-10T16:12:45.299Z","level":"INFO","type":"WebSocket","message":"Received: [3,\"7dc405d7-ea98-44f9-bc9e-0dc1894324dd\",{\"transactionId\":1002,\"idTagInfo\":{\"status\":\"Accepted\"}}]","cpId":"CP002"}
+{"timestamp":"2026-11-10T16:12:45.299Z","level":"INFO","type":"OCPP","message":"Handling incoming message: 3, 7dc405d7-ea98-44f9-bc9e-0dc1894324dd, CallResult","cpId":"CP002"}
+{"timestamp":"2026-11-10T16:12:45.299Z","level":"INFO","type":"Transaction","message":"StartTransaction accepted for connector 1, transitioning to Charging","cpId":"CP002"}
+{"timestamp":"2026-11-10T16:12:45.299Z","level":"INFO","type":"WebSocket","message":"Sent: [2,\"9bd6ae5c-301e-457d-9720-e61c739fb01f\",\"StatusNotification\",{\"connectorId\":1,\"errorCode\":\"NoError\",\"status\":\"Charging\"}]","cpId":"CP002"}
+{"timestamp":"2026-11-10T16:12:45.300Z","level":"INFO","type":"WebSocket","message":"Received: [3,\"9bd6ae5c-301e-457d-9720-e61c739fb01f\",{}]","cpId":"CP002"}
+{"timestamp":"2026-11-10T16:12:45.300Z","level":"INFO","type":"OCPP","message":"Handling incoming message: 3, 9bd6ae5c-301e-457d-9720-e61c739fb01f, CallResult","cpId":"CP002"}
+{"timestamp":"2026-11-10T16:12:45.300Z","level":"DEBUG","type":"Status","message":"Status notification sent successfully: {}","cpId":"CP002"}
+{"timestamp":"2026-11-10T16:12:48.642Z","level":"INFO","type":"WebSocket","message":"Sent: [2,\"34bba277-7a24-43ec-8f13-3721d200169c\",\"MeterValues\",{\"transactionId\":1001,\"connectorId\":1,\"meterValue\":[{\"timestamp\":\"2026-11-10T16:12:48.639Z\",\"sampledValue\":[{\"value\":\"0\",\"context\":\"Sample.Periodic\",\"measurand\":\"Energy.Active.Import.Register\",\"unit\":\"Wh\"},{\"value\":\"150000\",\"context\":\"Sample.Periodic\",\"measurand\":\"Power.Active.Import\",\"unit\":\"W\"}]}]}]","cpId":"CP001"}
+{"timestamp":"2026-11-10T16:12:48.643Z","level":"INFO","type":"WebSocket","message":"Received: [3,\"34bba277-7a24-43ec-8f13-3721d200169c\",{}]","cpId":"CP001"}
+{"timestamp":"2026-11-10T16:12:48.643Z","level":"INFO","type":"OCPP","message":"Handling incoming message: 3, 34bba277-7a24-43ec-8f13-3721d200169c, CallResult","cpId":"CP001"}
+{"timestamp":"2026-11-10T16:12:48.643Z","level":"DEBUG","type":"MeterValue","message":"Meter values sent successfully: {}","cpId":"CP001"}
+{"timestamp":"2026-11-10T16:12:48.935Z","level":"INFO","type":"WebSocket","message":"Sent: [2,\"cfcd00ad-e922-43a8-b7cf-386e2538e40b\",\"MeterValues\",{\"transactionId\":1002,\"connectorId\":1,\"meterValue\":[{\"timestamp\":\"2026-11-10T16:12:48.935Z\",\"sampledValue\":[{\"value\":\"0\",\"context\":\"Sample.Periodic\",\"measurand\":\"Energy.Active.Import.Register\",\"unit\":\"Wh\"},{\"value\":\"150000\",\"context\":\"Sample.Periodic\",\"measurand\":\"Power.Active.Import\",\"unit\":\"W\"}]}]}]","cpId":"CP002"}
+{"timestamp":"2026-11-10T16:12:48.935Z","level":"INFO","type":"WebSocket","message":"Received: [3,\"cfcd00ad-e922-43a8-b7cf-386e2538e40b\",{}]","cpId":"CP002"}
+{"timestamp":"2026-11-10T16:12:48.936Z","level":"INFO","type":"OCPP","message":"Handling incoming message: 3, cfcd00ad-e922-43a8-b7cf-386e2538e40b, CallResult","cpId":"CP002"}
+{"timestamp":"2026-11-10T16:12:48.936Z","level":"DEBUG","type":"MeterValue","message":"Meter values sent successfully: {}","cpId":"CP002"}
+{"timestamp":"2026-11-10T16:12:49.203Z","level":"INFO","type":"WebSocket","message":"Sent: [2,\"14594ff2-3728-49d8-b469-b842abe7cabb\",\"DataTransfer\",{\"vendorId\":\"com.example\",\"messageId\":\"Ping\",\"data\":\"hello\"}]","cpId":"CP001"}
+{"timestamp":"2026-11-10T16:12:49.204Z","level":"INFO","type":"WebSocket","message":"Received: [4,\"14594ff2-3728-49d8-b469-b842abe7cabb\",\"NotImplemented\",\"DataTransfer is not implemented by this CSMS\",{}]","cpId":"CP001"}
+{"timestamp":"2026-11-10T16:12:49.204Z","level":"INFO","type":"OCPP","message":"Handling incoming message: 4, 14594ff2-3728-49d8-b469-b842abe7cabb, CallResult","cpId":"CP001"}
+{"timestamp":"2026-11-10T16:12:49.204Z","level":"ERROR","type":"OCPP","message":"Received CALLERROR for message 14594ff2-3728-49d8-b469-b842abe7cabb (action=DataTransfer): {\"errorCode\":\"NotImplemented\",\"errorDescription\":\"DataTransfer is not implemented by this CSMS\",\"errorDetails\":{}}","cpId":"CP001"}
+{"timestamp":"2026-11-10T16:12:57.523Z","level":"INFO","type":"WebSocket","message":"Sent: [2,\"7758b62f-63d9-464f-9974-912dae23db8b\",\"StopTransaction\",{\"transactionId\":1001,\"idTag\":\"TAG-CP001\",\"meterStop\":0,\"timestamp\":\"2026-11-10T16:12:57.521Z\"}]","cpId":"CP001"}
+{"timestamp":"2026-11-10T16:12:57.524Z","level":"INFO","type":"WebSocket","message":"Received: [3,\"7758b62f-63d9-464f-9974-912dae23db8b\",{\"idTagInfo\":{\"status\":\"Accepted\"}}]","cpId":"CP001"}
+{"timestamp":"2026-11-10T16:12:57.525Z","level":"INFO","type":"OCPP","message":"Handling incoming message: 3, 7758b62f-63d9-464f-9974-912dae23db8b, CallResult","cpId":"CP001"}
+{"timestamp":"2026-11-10T16:12:57.525Z","level":"INFO","type":"Transaction","message":"Transaction stopped successfully: {\"idTagInfo\":{\"status\":\"Accepted\"}}","cpId":"CP001"}
+{"timestamp":"2026-11-10T16:12:57.525Z","level":"INFO","type":"WebSocket","message":"Sent: [2,\"bc269b1e-dd64-4fcd-bdea-ddeb37dec3ed\",\"StatusNotification\",{\"connectorId\":1,\"errorCode\":\"NoError\",\"status\":\"Finishing\"}]","cpId":"CP001"}
+{"timestamp":"2026-11-10T16:12:57.525Z","level":"INFO","type":"WebSocket","message":"Received: [3,\"bc269b1e-dd64-4fcd-bdea-ddeb37dec3ed\",{}]","cpId":"CP001"}
+{"timestamp":"2026-11-10T16:12:57.525Z","level":"INFO","type":"OCPP","message":"Handling incoming message: 3, bc269b1e-dd64-4fcd-bdea-ddeb37dec3ed, CallResult","cpId":"CP001"}
+{"timestamp":"2026-11-10T16:12:57.525Z","level":"DEBUG","type":"Status","message":"Status notification sent successfully: {}","cpId":"CP001"}
+{"timestamp":"2026-11-10T16:12:57.525Z","level":"INFO","type":"WebSocket","message":"Sent: [2,\"2549c6ce-5062-4e54-bee2-5ecc6a4b3479\",\"StatusNotification\",{\"connectorId\":1,\"errorCode\":\"NoError\",\"status\":\"Available\"}]","cpId":"CP001"}
+{"timestamp":"2026-11-10T16:12:57.525Z","level":"INFO","type":"WebSocket","message":"Received: [3,\"2549c6ce-5062-4e54-bee2-5ecc6a4b3479\",{}]","cpId":"CP001"}
+{"timestamp":"2026-11-10T16:12:57.525Z","level":"INFO","type":"OCPP","message":"Handling incoming message: 3, 2549c6ce-5062-4e54-bee2-5ecc6a4b3479, CallResult","cpId":"CP001"}
+{"timestamp":"2026-11-10T16:12:57.525Z","level":"DEBUG","type":"Status","message":"Status notification sent successfully: {}","cpId":"CP001"}
+{"timestamp":"2026-11-10T16:12:57.797Z","level":"INFO","type":"WebSocket","message":"Sent: [2,\"515c184a-c931-45cc-91bf-a223f2aaf4ab\",\"StopTransaction\",{\"transactionId\":1002,\"idTag\":\"TAG-CP002\",\"meterStop\":0,\"timestamp\":\"2026-11-10T16:12:57.797Z\"}]","cpId":"CP002"}
+{"timestamp":"2026-11-10T16:12:57.797Z","level":"INFO","type":"WebSocket","message":"Received: [3,\"515c184a-c931-45cc-91bf-a223f2aaf4ab\",{\"idTagInfo\":{\"status\":\"Accepted\"}}]","cpId":"CP002"}
+{"timestamp":"2026-11-10T16:12:57.798Z","level":"INFO","type":"OCPP","message":"Handling incoming message: 3, 515c184a-c931-45cc-91bf-a223f2aaf4ab, CallResult","cpId":"CP002"}
+{"timestamp":"2026-11-10T16:12:57.798Z","level":"INFO","type":"Transaction","message":"Transaction stopped successfully: {\"idTagInfo\":{\"status\":\"Accepted\"}}","cpId":"CP002"}
+{"timestamp":"2026-11-10T16:12:57.798Z","level":"INFO","type":"WebSocket","message":"Sent: [2,\"63eccb03-fb30-46db-8a4e-185b399e3ad4\",\"StatusNotification\",{\"connectorId\":1,\"errorCode\":\"NoError\",\"status\":\"Finishing\"}]","cpId":"CP002"}
+{"timestamp":"2026-11-10T16:12:57.798Z","level":"INFO","type":"WebSocket","message":"Received: [3,\"63eccb03-fb30-46db-8a4e-185b399e3ad4\",{}]","cpId":"CP002"}
+{"timestamp":"2026-11-10T16:12:57.798Z","level":"INFO","type":"OCPP","message":"Handling incoming message: 3, 63eccb03-fb30-46db-8a4e-185b399e3ad4, CallResult","cpId":"CP002"}
+{"timestamp":"2026-11-10T16:12:57.798Z","level":"DEBUG","type":"Status","message":"Status notification sent successfully: {}","cpId":"CP002"}
+{"timestamp":"2026-11-10T16:12:57.798Z","level":"INFO","type":"WebSocket","message":"Sent: [2,\"578c3703-3ee9-4235-857a-c02e7f16897c\",\"StatusNotification\",{\"connectorId\":1,\"errorCode\":\"NoError\",\"status\":\"Available\"}]","cpId":"CP002"}
+{"timestamp":"2026-11-10T16:12:57.798Z","level":"INFO","type":"WebSocket","message":"Received: [3,\"578c3703-3ee9-4235-857a-c02e7f16897c\",{}]","cpId":"CP002"}
+{"timestamp":"2026-11-10T16:12:57.798Z","level":"INFO","type":"OCPP","message":"Handling incoming message: 3, 578c3703-3ee9-4235-857a-c02e7f16897c, CallResult","cpId":"CP002"}
+{"timestamp":"2026-11-10T16:12:57.798Z","level":"DEBUG","type":"Status","message":"Status notification sent successfully: {}","cpId":"CP002"}
+{"timestamp":"2026-11-10T16:13:01.214Z","level":"INFO","type":"WebSocket","message":"Disconnecting from WebSocket","cpId":"CP001"}
+{"timestamp":"2026-11-10T16:13:01.215Z","level":"INFO","type":"System","message":"[StateManager] ChargePoint status: Unavailable → Unavailable","cpId":"CP001"}
+{"timestamp":"2026-11-10T16:13:01.215Z","level":"INFO","type":"WebSocket","message":"Disconnecting from WebSocket","cpId":"CP002"}
+{"timestamp":"2026-11-10T16:13:01.215Z","level":"INFO","type":"System","message":"[StateManager] ChargePoint status: Unavailable → Unavailable","cpId":"CP002"}

@@ -99,6 +99,16 @@ export default defineConfig({
       // configured by its own vite.config.ts.
       "examples/debugkit",
       {
+        // The simulator example: its adapter against the captured fixture,
+        // and a render of its page.
+        test: {
+          name: "example-simulator",
+          include: ["examples/simulator/test/**/*.test.{ts,tsx}"],
+          environment: "happy-dom",
+          setupFiles: ["examples/simulator/test/setup.ts"],
+        },
+      },
+      {
         // The same React tests against React 18. The workspace package in
         // REACT_18 installs React 18 with its own copies of the packages that
         // import React, so Node resolves every `react` they load to 18 too;

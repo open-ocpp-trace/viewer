@@ -6,7 +6,8 @@
     "packages/react/test/react-18",
     "apps/*",
     "examples/standalone",
-    "examples/debugkit"
+    "examples/debugkit",
+    "examples/simulator"
   ],
   "type": "module",
   "scripts": {

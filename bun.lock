@@ -45,6 +45,25 @@
         "@types/react-dom": "19.3.0",
       },
     },
+    "examples/simulator": {
+      "name": "@open-ocpp-trace/viewer-example-simulator",
+      "version": "0.0.0",
+      "dependencies": {
+        "@open-ocpp-trace/core": "0.1.0",
+        "@open-ocpp-trace/jsonl": "0.1.0",
+        "@open-ocpp-trace/viewer-core": "workspace:*",
+        "@open-ocpp-trace/viewer-react": "workspace:*",
+        "react": "19.3.1",
+        "react-dom": "19.3.1",
+      },
+      "devDependencies": {
+        "@testing-library/dom": "10.4.2",
+        "@testing-library/react": "16.3.3",
+        "@testing-library/user-event": "14.6.8",
+        "@types/react": "19.3.0",
+        "@types/react-dom": "19.3.0",
+      },
+    },
     "examples/standalone": {
       "name": "@open-ocpp-trace/viewer-example-standalone",
       "version": "0.0.0",
@@ -144,6 +163,8 @@
     "@open-ocpp-trace/viewer-core": ["@open-ocpp-trace/viewer-core@workspace:packages/core"],
 
     "@open-ocpp-trace/viewer-example-debugkit": ["@open-ocpp-trace/viewer-example-debugkit@workspace:examples/debugkit"],
+
+    "@open-ocpp-trace/viewer-example-simulator": ["@open-ocpp-trace/viewer-example-simulator@workspace:examples/simulator"],
 
     "@open-ocpp-trace/viewer-example-standalone": ["@open-ocpp-trace/viewer-example-standalone@workspace:examples/standalone"],
 

@@ -1,0 +1,14 @@
+{
+  // `vp check` type-checks this page before CI packs the packages, so the
+  // inherited `@open-ocpp-trace/viewer-source` condition stays: the types
+  // come from the package sources, which declare the same API as their
+  // `dist/index.d.ts`. The build resolves the built packages instead (see
+  // vite.config.ts).
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "jsx": "react-jsx",
+    "types": ["vite-plus/client"]
+  },
+  "include": ["src", "test"]
+}

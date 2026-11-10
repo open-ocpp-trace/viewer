@@ -1,0 +1,28 @@
+{
+  "name": "@open-ocpp-trace/viewer-example-simulator",
+  "version": "0.0.0",
+  "private": true,
+  "description": "React page showing real OCPP CP Simulator traffic in viewer-react.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vp dev",
+    "build": "vp build",
+    "preview": "vp preview"
+  },
+  "dependencies": {
+    "@open-ocpp-trace/core": "0.1.0",
+    "@open-ocpp-trace/jsonl": "0.1.0",
+    "@open-ocpp-trace/viewer-core": "workspace:*",
+    "@open-ocpp-trace/viewer-react": "workspace:*",
+    "react": "19.3.1",
+    "react-dom": "19.3.1"
+  },
+  "devDependencies": {
+    "@testing-library/dom": "10.4.2",
+    "@testing-library/react": "16.3.3",
+    "@testing-library/user-event": "14.6.8",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0"
+  }
+}
