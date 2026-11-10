@@ -6,9 +6,18 @@ React components of the Open OCPP Trace viewer: a virtualized trace list, a filt
 
 ## Install
 
+The package is published to GitHub Packages from 0.1.0. Map the `@open-ocpp-trace` scope and set a token with
+`read:packages` first, as the [root README](../../README.md#registry-setup) shows, then:
+
 ```sh
+npm install @open-ocpp-trace/viewer-react @open-ocpp-trace/viewer-core
+pnpm add @open-ocpp-trace/viewer-react @open-ocpp-trace/viewer-core
 bun add @open-ocpp-trace/viewer-react @open-ocpp-trace/viewer-core
 ```
+
+`@open-ocpp-trace/viewer-core` is a dependency of this package, pinned to the same version; install it too, at that
+version, because the host imports `createViewerStore` from it. The SDK package `@open-ocpp-trace/jsonl` comes as a
+dependency from the same registry.
 
 React and React DOM 18 or 19 are peer dependencies. Import the stylesheet once, anywhere in the host:
 
@@ -38,6 +47,24 @@ export function Traces(): ReactElement {
 
 `<TraceViewer>` fills the height of its container: give the container a height. Later entries arrive through
 `store.apply([{ type: "add", entry }])`.
+
+## API
+
+| Export                                       | Purpose                                                                             |
+| -------------------------------------------- | ----------------------------------------------------------------------------------- |
+| `<TraceViewer>`                              | The list, the filter panel and the inspector over a `ViewerStore` ([Props](#props)) |
+| `<TraceList>`                                | The virtualized list of the entries a `FilterEngine` matches                        |
+| `<FilterPanel>`                              | The filter UI over a `FilterEngine`, with the observed values and their counts      |
+| `<EntryInspector>`                           | The safe view of one entry of a `ViewerStore`                                       |
+| `useFilterEngine(store, options?)`           | A viewer-core `FilterEngine` connected to `store` while the component is mounted    |
+| `exportJsonl(entries, options?)`             | Open OCPP Trace JSONL of entries (`JsonlExport`), faithful or redacted              |
+| `defaultSensitiveKeys`                       | The property names the inspector and the redacted export treat as sensitive         |
+| `defaultStrings`                             | The English texts and labels ([Localization](#localization))                        |
+| `themeTokens`                                | The names of the design tokens ([Theming](#theming))                                |
+| `VIEWER_REACT_VERSION`, `hostReactVersion()` | The version of this package, and the version of the React copy the host provides    |
+
+The component props are exported as `TraceViewerProps`, `TraceListProps`, `FilterPanelProps` and
+`EntryInspectorProps`.
 
 ## Props
 

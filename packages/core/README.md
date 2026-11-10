@@ -6,11 +6,16 @@ and responses, and the filter engine. It has no DOM or React dependency. `@open-
 
 ## Install
 
+The package is published to GitHub Packages from 0.1.0. Map the `@open-ocpp-trace` scope and set a token with
+`read:packages` first, as the [root README](../../README.md#registry-setup) shows, then:
+
 ```sh
+npm install @open-ocpp-trace/viewer-core
+pnpm add @open-ocpp-trace/viewer-core
 bun add @open-ocpp-trace/viewer-core
 ```
 
-Records are typed by `@open-ocpp-trace/core`, which comes as a dependency.
+Records are typed by `@open-ocpp-trace/core` 0.1.0, which comes as a dependency from the same registry.
 
 ## Usage
 
