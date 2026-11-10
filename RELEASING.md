@@ -65,11 +65,6 @@ The release notes are those sections, extracted by
 changelog has no `## [<version>]` section with entries; a dry run only
 warns.
 
-The changelogs are added by a separate pull request of
-[#13](https://github.com/open-ocpp-trace/viewer/issues/13). Until it is
-merged, `scripts/release-notes.sh` finds no `CHANGELOG.md`: a dry run
-warns and a real run stops.
-
 ## Third-party notices
 
 `viewer-standalone` bundles its dependencies into `dist/index.js`, so it
