@@ -34,6 +34,7 @@ and before pushing a branch:
 vp run -r pack                  # build every package into its dist/
 vp run smoke                    # pack, install and import from a clean consumer
 shellcheck scripts/*.sh         # check the shell scripts
+actionlint                      # check the workflows (actionlint 1.7.12)
 ```
 
 A change to `packages/react/src/styles.css` or to the markup of a control is
@@ -50,6 +51,7 @@ configuration, the lockfile or the workflow itself, and on every push to
 | Job                                                                        | Runs                                                                      |
 | -------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
 | `Shellcheck shell scripts`                                                 | `shellcheck scripts/*.sh`                                                 |
+| `Lint the workflows`                                                       | `actionlint` 1.7.12 over every workflow, shellcheck on the `run:` steps   |
 | `Check, test and build (Node.js 22)`, `Check, test and build (Node.js 24)` | install, `vp check`, `vp test`, `vp run -r pack`, the playground build    |
 | `Clean-consumer smoke test (React 18 and 19)`                              | `scripts/smoke-consumer.sh` (`vp run smoke`) on Node.js 22                |
 | `ci-result`                                                                | succeeds when every job above succeeded or was skipped by the path filter |
