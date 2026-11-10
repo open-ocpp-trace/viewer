@@ -137,7 +137,7 @@ function Block({ title, printed, onMore, onCopy, total, children }: BlockProps) 
       <div className="oot-inspector__title">
         {title}
         {onCopy !== undefined && (
-          <button type="button" onClick={onCopy}>
+          <button type="button" className="oot-inspector__button" onClick={onCopy}>
             {strings.copy(title)}
           </button>
         )}
@@ -145,7 +145,7 @@ function Block({ title, printed, onMore, onCopy, total, children }: BlockProps) 
       {children ?? <Code title={title}>{printed.text}</Code>}
       {printed.truncated && (
         <div className="oot-inspector__more">
-          <button type="button" onClick={onMore}>
+          <button type="button" className="oot-inspector__button" onClick={onMore}>
             {strings.showMore}
           </button>
           {total !== undefined && <span>{strings.totalSize(total)}</span>}

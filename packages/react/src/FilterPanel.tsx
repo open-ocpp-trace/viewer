@@ -214,6 +214,7 @@ export function FilterPanel(props: FilterPanelProps): ReactElement {
             {strings.text}
             <input
               type="search"
+              className="oot-filter-input"
               value={text}
               onChange={(event) => set({ text: event.currentTarget.value || undefined })}
             />
@@ -222,6 +223,7 @@ export function FilterPanel(props: FilterPanelProps): ReactElement {
             <label className="oot-filter-option">
               <input
                 type="checkbox"
+                className="oot-filter-checkbox"
                 checked={view["searchPayloads"] === true}
                 onChange={(event) =>
                   set({ searchPayloads: event.currentTarget.checked || undefined })
