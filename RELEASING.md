@@ -56,7 +56,9 @@ release pull request moves those entries under a new
 `## [x.y.z] - YYYY-MM-DD` heading. Every release has a section in all
 three changelogs, even for a package that did not change: such a section
 says only that the package is released at the new version with the
-others.
+others. Each package lists its `CHANGELOG.md` in `files`, so the
+published tarball carries it, and `scripts/verify-packages.sh` refuses a
+tarball without it.
 
 The release notes are those sections, extracted by
 `scripts/release-notes.sh <version>`. A real release fails when a
@@ -119,7 +121,9 @@ The `verify` job, on the commit the workflow is started on:
    type-checks them;
 4. packs the three packages with `scripts/pack-release.sh` and checks the
    tarballs with `scripts/verify-packages.sh`: only `package.json`,
-   `README.md`, `LICENSE` and `dist/` are packed, every `exports` target
+   `README.md`, `LICENSE`, `CHANGELOG.md`, `dist/` and, in
+   `viewer-standalone`, `THIRD_PARTY_NOTICES.md` are packed, the first
+   four are present, every `exports` target
    exists, the development-only `@open-ocpp-trace/viewer-source`
    condition, the `prepublishOnly` guard and `workspace:` dependencies are
    gone, `publint --strict` and `attw --profile esm-only` pass;

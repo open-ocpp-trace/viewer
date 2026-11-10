@@ -55,6 +55,7 @@ const publishedFiles = [
   "package.json",
   "README.md",
   "LICENSE",
+  "CHANGELOG.md",
   "dist/index.d.ts",
   "dist/index.js",
   "dist/styles.css",
@@ -122,6 +123,7 @@ describe("inspectPackage", () => {
     "package.json",
     "README.md",
     "LICENSE",
+    "CHANGELOG.md",
     THIRD_PARTY_NOTICES,
     "dist/index.d.ts",
     "dist/index.js",
@@ -174,6 +176,11 @@ describe("inspectPackage", () => {
       "LICENSE is missing",
       "README.md is missing",
     ]);
+  });
+
+  it("reports a missing CHANGELOG.md", () => {
+    const files = publishedFiles.filter((file) => file !== "CHANGELOG.md");
+    expect(inspectPackage(publishedManifest, files)).toEqual(["CHANGELOG.md is missing"]);
   });
 
   it("reports files outside dist/", () => {
