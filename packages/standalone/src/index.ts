@@ -27,6 +27,7 @@ export type {
   ViewerErrorContext,
   ViewerErrorHandler,
   ViewerSelection,
+  ViewerStoreStats,
 } from "@open-ocpp-trace/viewer-core";
 export type {
   ExportScope,
