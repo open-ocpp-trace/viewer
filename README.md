@@ -50,9 +50,7 @@ a classic personal access token with the `read:packages` scope, or the token
 of a GitHub CLI logged in with that scope
 (`gh auth refresh --scopes read:packages`, then
 `export GITHUB_TOKEN=$(gh auth token)`). In GitHub Actions, the workflow
-token with `packages: read` works. A pipeline that sets `NODE_AUTH_TOKEN`,
-such as `actions/setup-node`, writes `${NODE_AUTH_TOKEN}` in the
-`_authToken` line instead.
+token with `packages: read` works.
 
 ### Install
 
