@@ -19,6 +19,7 @@ import {
   type ViewerErrorHandler,
   type ViewerSelection,
   type ViewerStore,
+  type ViewerStoreStats,
 } from "@open-ocpp-trace/viewer-core";
 import {
   type ExportScope,
@@ -124,6 +125,13 @@ export interface ViewerInstance {
    * {@link MountOnlyOptions} key throws a `TypeError`.
    */
   setOptions(options: LiveOptions): void;
+  /**
+   * The counters of the viewer's store, as `ViewerStore.getStats`: entries
+   * listed and held while paused, those the bounds removed, and the updates
+   * it ignored. A host feeding the viewer through an adapter reads them to
+   * show what was evicted or dropped; the result is a snapshot.
+   */
+  getStats(): ViewerStoreStats;
   /** Removes the viewer and stops the adapter; calling it again has no effect. */
   unmount(): void;
 }
@@ -267,6 +275,10 @@ export function mount(element: Element, options: MountOptions = {}): ViewerInsta
       rejectUnknown(changes, "setOptions()");
       live = { ...live, ...changes };
       flushSync(() => root.render(viewer(store, correlator, live)));
+    },
+    getStats() {
+      ensureMounted();
+      return store.getStats();
     },
     unmount() {
       if (!mounted) return;

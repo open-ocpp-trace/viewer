@@ -49,6 +49,7 @@ React types.
 | `ingest(entries)`  | Adds a snapshot or new entries, as `ViewerStore.load`.                                  |
 | `update(batch)`    | Applies untrusted updates (`add`, metadata `update`), as `ViewerStore.apply`.           |
 | `setOptions(live)` | Merges live options shallowly; `undefined` restores a default; a mount-only key throws. |
+| `getStats()`       | A snapshot of the store counters (`evicted`, `droppedPending`, ignored updates…).       |
 | `unmount()`        | Removes the viewer and stops the adapter. Idempotent.                                   |
 
 Mount-only options (a `TypeError` from `setOptions`):
