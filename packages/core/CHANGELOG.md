@@ -8,6 +8,8 @@ and this package adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-11-10
+
 First release of the framework-neutral model of the Open OCPP Trace viewer.
 It has no DOM or React dependency.
 
@@ -54,4 +56,5 @@ It has no DOM or React dependency.
   `reportViewerError` applies the same rules for a host's own components.
 - `VIEWER_CORE_VERSION`, the version of this package.
 
-[unreleased]: https://github.com/open-ocpp-trace/viewer/commits/main/packages/core
+[unreleased]: https://github.com/open-ocpp-trace/viewer/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/open-ocpp-trace/viewer/releases/tag/v0.1.0

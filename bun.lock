@@ -36,7 +36,7 @@
     },
     "packages/core": {
       "name": "@open-ocpp-trace/viewer-core",
-      "version": "0.0.0",
+      "version": "0.1.0",
       "dependencies": {
         "@open-ocpp-trace/core": "0.1.0",
       },
@@ -46,7 +46,7 @@
     },
     "packages/react": {
       "name": "@open-ocpp-trace/viewer-react",
-      "version": "0.0.0",
+      "version": "0.1.0",
       "dependencies": {
         "@open-ocpp-trace/jsonl": "0.1.0",
         "@open-ocpp-trace/viewer-core": "workspace:*",
@@ -79,7 +79,7 @@
     },
     "packages/standalone": {
       "name": "@open-ocpp-trace/viewer-standalone",
-      "version": "0.0.0",
+      "version": "0.1.0",
       "devDependencies": {
         "@open-ocpp-trace/viewer-core": "workspace:*",
         "@open-ocpp-trace/viewer-react": "workspace:*",

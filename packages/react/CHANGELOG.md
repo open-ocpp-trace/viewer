@@ -8,6 +8,8 @@ and this package adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-11-10
+
 First release of the React components of the Open OCPP Trace viewer. React
 and React DOM 18 or 19 are peer dependencies; the data model comes from
 `@open-ocpp-trace/viewer-core`.
@@ -56,4 +58,5 @@ and React DOM 18 or 19 are peer dependencies; the data model comes from
 - `VIEWER_REACT_VERSION`, the version of this package, and
   `hostReactVersion()`, the version of the React copy the host provides.
 
-[unreleased]: https://github.com/open-ocpp-trace/viewer/commits/main/packages/react
+[unreleased]: https://github.com/open-ocpp-trace/viewer/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/open-ocpp-trace/viewer/releases/tag/v0.1.0
